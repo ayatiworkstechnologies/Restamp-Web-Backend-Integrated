@@ -1,290 +1,130 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  ShieldCheck,
-  ShieldAlert,
-  UserCheck,
-  Plus,
-  Search,
-  MoreVertical,
-  Mail,
-  Phone,
-  Trash2,
-  Edit2,
-  Lock,
-} from "lucide-react";
-import { AdminUser, AdminRoleType, AdminUserStatus } from "@/types/settings";
+import { Trash2, Loader2, ShieldCheck } from "lucide-react";
 import { useSettingsStore } from "@/context/settings-context";
+import { useAdminAuth } from "@/context/admin-auth-context";
+import type { AssignableRole } from "@/lib/api/admin";
 
 interface AdminUsersTableProps {
   onOpenInvite: () => void;
-  onEditUser: (user: AdminUser) => void;
 }
 
-const roleColors: Record<AdminRoleType, { bg: string; text: string }> = {
-  "Super Admin": { bg: "bg-[#ede9fe]", text: "text-[#6d28d9]" },
-  "Operations Manager": { bg: "bg-[#e0f2fe]", text: "text-[#0369a1]" },
-  "Listing Reviewer": { bg: "bg-[#fef3c7]", text: "text-[#b45309]" },
-  "Support Specialist": { bg: "bg-[#ccfbf1]", text: "text-[#0f766e]" },
-};
+export const ASSIGNABLE_ROLES: { code: AssignableRole; label: string }[] = [
+  { code: "SUPER_ADMIN", label: "Super Admin" },
+  { code: "OPERATIONS_MANAGER", label: "Operations Manager" },
+  { code: "LISTING_REVIEWER", label: "Listing Reviewer" },
+  { code: "SUPPORT_SPECIALIST", label: "Support Specialist" },
+];
 
-const statusColors: Record<AdminUserStatus, { bg: string; text: string; dot: string }> = {
-  Active: { bg: "bg-[#e7f8ee]", text: "text-[#199864]", dot: "bg-[#21b879]" },
-  Invited: { bg: "bg-[#fff5e3]", text: "text-[#bf811a]", dot: "bg-[#eca42d]" },
-  Suspended: { bg: "bg-[#ffeaeb]", text: "text-[#d45561]", dot: "bg-[#e66a74]" },
-};
+/**
+ * Admin staff from GET /admin/staff. Role changes and revocation go to the
+ * backend, which refuses self-changes and removing the last active Super
+ * Admin; its message is shown when it does.
+ */
+export function AdminUsersTable({ onOpenInvite }: AdminUsersTableProps) {
+  const { staff, changeStaffRole, revokeStaff, loading } = useSettingsStore();
+  const { admin, can } = useAdminAuth();
+  const [busyId, setBusyId] = useState<number | null>(null);
 
-export function AdminUsersTable({
-  onOpenInvite,
-  onEditUser,
-}: AdminUsersTableProps) {
-  const { adminUsers, updateAdminUser, deleteAdminUser } = useSettingsStore();
+  if (!can("settings.manage_team")) {
+    return (
+      <div className="rounded-2xl border border-[#e8ecf4] bg-white p-8 text-center text-sm text-[#94a3b8]">
+        Your admin role does not include managing admin staff.
+      </div>
+    );
+  }
 
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | AdminRoleType>("all");
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
-
-  const filteredUsers = adminUsers.filter((user) => {
-    if (roleFilter !== "all" && user.role !== roleFilter) return false;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      const matchName = user.name.toLowerCase().includes(q);
-      const matchEmail = user.email.toLowerCase().includes(q);
-      const matchDept = user.department.toLowerCase().includes(q);
-      if (!matchName && !matchEmail && !matchDept) return false;
-    }
-    return true;
-  });
+  const run = async (userId: number, action: () => Promise<boolean>) => {
+    setBusyId(userId);
+    await action();
+    setBusyId(null);
+  };
 
   return (
-    <div className="space-y-4">
-      {/* Top Search & Filter Bar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2.5 flex-1 max-w-md">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#94a3b8]" />
-            <input
-              type="text"
-              placeholder="Search staff by name, email, department..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-[#e8ecf4] bg-white py-2 pl-9 pr-3 text-xs text-[#101828] placeholder-[#94a3b8] focus:border-[#162d66] focus:outline-none"
-            />
-          </div>
-
-          <select
-            value={roleFilter}
-            onChange={(e) =>
-              setRoleFilter(e.target.value as "all" | AdminRoleType)
-            }
-            className="rounded-xl border border-[#e8ecf4] bg-white px-3 py-2 text-xs font-medium text-[#475467] shadow-sm focus:border-[#162d66] focus:outline-none"
-          >
-            <option value="all">All Admin Roles</option>
-            <option value="Super Admin">Super Admin</option>
-            <option value="Operations Manager">Operations Manager</option>
-            <option value="Listing Reviewer">Listing Reviewer</option>
-            <option value="Support Specialist">Support Specialist</option>
-          </select>
-        </div>
-
-        <button
-          type="button"
-          onClick={onOpenInvite}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-[#162d66] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#0f1f47] transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Invite Team Member</span>
+    <div className="rounded-2xl border border-[#e8ecf4] bg-white shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between border-b border-[#f1f4f9] px-5 py-4">
+        <h3 className="text-sm font-bold text-[#101828]">Admin Staff & Team</h3>
+        <button type="button" onClick={onOpenInvite} className="text-xs font-semibold text-[#162d66] hover:underline">
+          + Grant admin access
         </button>
       </div>
-
-      {/* Table Container */}
-      <div className="overflow-hidden rounded-2xl border border-[#e8ecf4] bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-[#f1f4f9] bg-[#f8fafc] text-[11px] font-bold uppercase tracking-wider text-[#64748b]">
-                <th className="py-3.5 pl-4 pr-3">Staff Member</th>
-                <th className="py-3.5 px-3">Role & Permissions</th>
-                <th className="py-3.5 px-3">Department</th>
-                <th className="py-3.5 px-3">Security & 2FA</th>
-                <th className="py-3.5 px-3">Status</th>
-                <th className="py-3.5 px-3">Last Active</th>
-                <th className="py-3.5 pr-4 pl-3 text-right">Actions</th>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-xs">
+          <thead className="bg-[#f8fafc] text-[11px] font-bold uppercase tracking-wider text-[#64748b]">
+            <tr>
+              <th className="px-5 py-3">Team member</th>
+              <th className="px-3 py-3">Role</th>
+              <th className="px-3 py-3">Account</th>
+              <th className="px-5 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#f1f4f9]">
+            {loading ? (
+              <tr>
+                <td colSpan={4} className="py-10 text-center text-[#94a3b8]">Loading…</td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-[#f1f4f9] text-xs">
-              {filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-10 text-center text-[#94a3b8]">
-                    No staff members found matching criteria.
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map((user) => {
-                  const roleStyle = roleColors[user.role];
-                  const statusStyle = statusColors[user.status];
-
-                  return (
-                    <tr
-                      key={user.id}
-                      className="transition-colors hover:bg-[#fcfdfe]"
-                    >
-                      {/* Member Name & Email */}
-                      <td className="py-3.5 pl-4 pr-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#162d66] text-xs font-bold text-white">
-                            {user.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .slice(0, 2)
-                              .toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-[#101828]">
-                              {user.name}
-                            </div>
-                            <div className="text-[11px] text-[#64748b]">
-                              {user.email}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Role */}
-                      <td className="py-3.5 px-3">
-                        <span
-                          className={`inline-flex rounded-lg px-2.5 py-1 text-[11px] font-semibold ${roleStyle.bg} ${roleStyle.text}`}
-                        >
-                          {user.role}
+            ) : staff.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="py-10 text-center text-[#94a3b8]">No admin staff found.</td>
+              </tr>
+            ) : (
+              staff.map((s) => {
+                const isSelf = String(s.user_id) === admin?.id;
+                const busy = busyId === s.user_id;
+                const assignable = ASSIGNABLE_ROLES.some((r) => r.code === s.admin_role);
+                return (
+                  <tr key={s.user_id} className="hover:bg-[#fcfdfe]">
+                    <td className="px-5 py-3">
+                      <div className="font-semibold text-[#101828]">
+                        {s.display_name || "Restamp user"} {isSelf && <span className="text-[10px] font-normal text-[#94a3b8]">(you)</span>}
+                      </div>
+                      <div className="text-[11px] text-[#94a3b8]">User #{s.user_id}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <select
+                        value={assignable ? s.admin_role : ""}
+                        disabled={isSelf || busy}
+                        title={isSelf ? "You cannot change your own admin access" : undefined}
+                        onChange={(e) => void run(s.user_id, () => changeStaffRole(s.user_id, e.target.value as AssignableRole))}
+                        className="rounded-lg border border-[#e8ecf4] bg-white px-2 py-1.5 text-xs font-semibold text-[#344054] disabled:opacity-60"
+                      >
+                        {!assignable && <option value="">{s.role_label} (legacy)</option>}
+                        {ASSIGNABLE_ROLES.map((r) => (
+                          <option key={r.code} value={r.code}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-3 capitalize text-[#475467]">{s.status}</td>
+                    <td className="px-5 py-3 text-right">
+                      {busy ? (
+                        <Loader2 className="ml-auto h-4 w-4 animate-spin text-[#94a3b8]" />
+                      ) : isSelf ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-[#94a3b8]">
+                          <ShieldCheck className="h-3.5 w-3.5" /> You
                         </span>
-                      </td>
-
-                      {/* Department */}
-                      <td className="py-3.5 px-3 text-[#475467]">
-                        {user.department}
-                      </td>
-
-                      {/* 2FA */}
-                      <td className="py-3.5 px-3">
-                        {user.twoFactorEnabled ? (
-                          <span className="inline-flex items-center gap-1 text-[#10b981] font-medium text-[11px]">
-                            <ShieldCheck className="h-3.5 w-3.5" />
-                            <span>2FA Enforced</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[#94a3b8] text-[11px]">
-                            <ShieldAlert className="h-3.5 w-3.5" />
-                            <span>Disabled</span>
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3.5 px-3">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${statusStyle.bg} ${statusStyle.text}`}
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Revoke admin access for ${s.display_name || `user #${s.user_id}`}?`)) {
+                              void run(s.user_id, () => revokeStaff(s.user_id));
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-[#dc2626] hover:bg-[#fef2f2]"
                         >
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`}
-                          />
-                          {user.status}
-                        </span>
-                      </td>
-
-                      {/* Last Active */}
-                      <td className="py-3.5 px-3 text-[#64748b] text-[11px]">
-                        {user.lastActive}
-                      </td>
-
-                      {/* Actions Menu */}
-                      <td className="py-3.5 pr-4 pl-3 text-right">
-                        <div className="relative inline-flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => onEditUser(user)}
-                            className="rounded-lg border border-[#e8ecf4] bg-white px-2.5 py-1 text-xs font-semibold text-[#162d66] hover:bg-[#f0f4ff]"
-                          >
-                            Edit
-                          </button>
-
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setActiveMenuId(
-                                  activeMenuId === user.id ? null : user.id
-                                )
-                              }
-                              className="rounded-lg p-1.5 text-[#94a3b8] hover:bg-[#f1f5f9] hover:text-[#334155]"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
-
-                            {activeMenuId === user.id && (
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                className="absolute right-0 top-8 z-30 w-44 rounded-xl border border-[#e8ecf4] bg-white p-1.5 shadow-xl text-left text-xs"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveMenuId(null);
-                                    onEditUser(user);
-                                  }}
-                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[#334155] hover:bg-[#f1f5f9]"
-                                >
-                                  <Edit2 className="h-3.5 w-3.5" />
-                                  <span>Edit Profile & Role</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveMenuId(null);
-                                    updateAdminUser(user.id, {
-                                      status:
-                                        user.status === "Suspended"
-                                          ? "Active"
-                                          : "Suspended",
-                                    });
-                                  }}
-                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[#334155] hover:bg-[#f1f5f9]"
-                                >
-                                  <Lock className="h-3.5 w-3.5" />
-                                  <span>
-                                    {user.status === "Suspended"
-                                      ? "Activate Account"
-                                      : "Suspend Access"}
-                                  </span>
-                                </button>
-
-                                <div className="my-1 border-t border-[#f1f4f9]" />
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveMenuId(null);
-                                    deleteAdminUser(user.id);
-                                  }}
-                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[#ef4444] hover:bg-[#fef2f2]"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  <span>Remove Member</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                          <Trash2 className="h-3.5 w-3.5" /> Revoke
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

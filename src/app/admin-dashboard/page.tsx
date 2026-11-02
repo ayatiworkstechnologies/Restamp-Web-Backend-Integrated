@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -26,16 +26,42 @@ import {
 } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { StatCard } from "@/components/dashboard/stat-card";
-import { activities, monthlyListings } from "@/lib/dashboard-data";
 import { usePropertyStore } from "@/context/property-context";
-import { useUserStore } from "@/context/user-context";
-import { useEnquiryStore } from "@/context/enquiry-context";
+import { useAdminAuth } from "@/context/admin-auth-context";
+import {
+  getAdminAnalytics,
+  getAdminDashboard,
+  listAdminAuditLogs,
+  type AdminAnalytics,
+  type AdminAuditLog,
+  type AdminDashboard,
+} from "@/lib/api/admin";
+import { errorMessage } from "@/lib/api/client";
 import { PropertyStatus } from "@/types/property";
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const monthLabel = (key: string) => MONTH_NAMES[Number(key.slice(5, 7)) - 1] || key;
+const shortDate = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—";
+const timeAgo = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+
+// Audit actions -> readable titles (admin actions and owner lead closures).
+const AUDIT_TITLES: Record<string, string> = {
+  ADMIN_LISTING_VERIFIED: "Listing verified",
+  ADMIN_LISTING_REJECTED: "Listing rejected",
+  ADMIN_USER_SUSPENDED: "User suspended",
+  ADMIN_USER_REACTIVATED: "User reactivated",
+  ADMIN_STAFF_GRANTED: "Admin access granted",
+  ADMIN_STAFF_ROLE_CHANGED: "Admin role changed",
+  ADMIN_STAFF_REVOKED: "Admin access revoked",
+  LEAD_CLOSED: "Owner closed an enquiry",
+};
 
 type StatusFilter = "All" | PropertyStatus;
 const statuses: StatusFilter[] = ["All", "Active", "Pending", "Rejected"];
 
-function StatusPill({ status }: { status: PropertyStatus }) {
+function StatusPill({ status, label }: { status: PropertyStatus; label?: string }) {
   const color = {
     Active: "bg-[#e7f8ee] text-[#199864] before:bg-[#21b879]",
     Pending: "bg-[#fff5e3] text-[#bf811a] before:bg-[#eca42d]",
@@ -46,7 +72,7 @@ function StatusPill({ status }: { status: PropertyStatus }) {
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-bold before:h-1.5 before:w-1.5 before:rounded-full ${color}`}
     >
-      {status}
+      {label || status}
     </span>
   );
 }
@@ -73,20 +99,20 @@ function SectionHeading({
   );
 }
 
-function ListingsChart() {
-  const max = Math.max(...monthlyListings.map((point) => point.count));
+function ListingsChart({ points }: { points: { month: string; count: number }[] }) {
+  const max = Math.max(1, ...points.map((point) => point.count));
   return (
     <div className="flex h-[213px] items-end gap-3 border-b border-[#e7ebf2] pt-6 sm:gap-6">
-      {monthlyListings.map((point, i) => (
+      {points.map((point, i) => (
         <div
           className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-3"
           key={point.month}
         >
           <div className="group relative flex h-full w-full max-w-[53px] items-end justify-center">
             <div
-              aria-label={`${point.count} new listings in ${point.month}`}
+              aria-label={`${point.count} review decisions in ${point.month}`}
               className={`w-full rounded-t-[9px] transition-all duration-300 ${
-                i === 5 ? "bg-[#3566e9]" : "bg-[#dfe8ff] group-hover:bg-[#a9c2ff]"
+                i === points.length - 1 ? "bg-[#3566e9]" : "bg-[#dfe8ff] group-hover:bg-[#a9c2ff]"
               }`}
               style={{ height: `${(point.count / max) * 91}%` }}
             >
@@ -108,16 +134,46 @@ export default function DashboardPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("All");
 
-  const { properties, stats } = usePropertyStore();
-  const { stats: userStats } = useUserStore();
-  const { stats: enquiryStats } = useEnquiryStore();
+  const { properties } = usePropertyStore();
+  const { admin, can } = useAdminAuth();
+  const [dash, setDash] = useState<AdminDashboard | null>(null);
+  const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
+  const [logs, setLogs] = useState<AdminAuditLog[]>([]);
+  const [dashError, setDashError] = useState("");
+  const canReports = can("reports.view");
+  const canAudit = can("settings.view_audit_logs");
+
+  // Real counts from the backend; each panel loads independently and
+  // only when the admin's role is allowed to see it.
+  useEffect(() => {
+    getAdminDashboard()
+      .then(setDash)
+      .catch((e) => setDashError(errorMessage(e, "Could not load dashboard counts.")));
+  }, []);
+  useEffect(() => {
+    if (canReports) getAdminAnalytics(6).then(setAnalytics).catch(() => undefined);
+  }, [canReports]);
+  useEffect(() => {
+    if (canAudit) listAdminAuditLogs({}, 1, 6).then((res) => setLogs(res.items)).catch(() => undefined);
+  }, [canAudit]);
+
+  const n = (v: number | undefined) => (v === undefined ? "…" : v.toLocaleString("en-IN"));
+  const chartPoints = (analytics?.months || []).map((m) => ({ month: monthLabel(m.month), count: m.verified + m.rejected }));
+  const decisions = chartPoints.reduce((sum, p) => sum + p.count, 0);
+  const live = dash?.listings_live ?? 0;
+  const pending = dash?.listings_pending ?? 0;
+  const rejected = dash?.listings_rejected ?? 0;
+  const pieTotal = live + pending + rejected;
+  const pct = (v: number) => (pieTotal ? (v / pieTotal) * 100 : 0);
+  const pie = pieTotal
+    ? `conic-gradient(#3566e9 0 ${pct(live)}%, #f4b64c ${pct(live)}% ${pct(live) + pct(pending)}%, #e66a74 ${pct(live) + pct(pending)}% 100%)`
+    : "conic-gradient(#e8edf5 0 100%)";
 
   const dynamicStats = [
     {
       label: "Total Properties",
-      value: properties.length.toString(),
-      change: "12.8%",
-      detail: "vs. previous month",
+      value: n(dash?.listings_total),
+      detail: "excluding removed listings",
       icon: Building2,
       iconBg: "#EAF1FF",
       iconColor: "#3869E6",
@@ -125,9 +181,8 @@ export default function DashboardPage() {
     },
     {
       label: "Active Listings",
-      value: stats.active.toString(),
-      change: "8.2%",
-      detail: "vs. previous month",
+      value: n(dash?.listings_live),
+      detail: "verified and available",
       icon: CheckCircle2,
       iconBg: "#E7F8EF",
       iconColor: "#25A873",
@@ -135,8 +190,7 @@ export default function DashboardPage() {
     },
     {
       label: "Pending Approvals",
-      value: stats.pending.toString(),
-      change: "Action needed",
+      value: n(dash?.listings_pending),
       detail: "ready for review",
       icon: Clock3,
       iconBg: "#FFF4E3",
@@ -145,9 +199,8 @@ export default function DashboardPage() {
     },
     {
       label: "Total Enquiries",
-      value: (3580 + enquiryStats.total).toLocaleString(),
-      change: "16.5%",
-      detail: "vs. previous month",
+      value: n(dash?.enquiries_total),
+      detail: `${n(dash?.enquiries_open)} open`,
       icon: MessageSquareText,
       iconBg: "#F0EAFF",
       iconColor: "#885CE8",
@@ -161,7 +214,7 @@ export default function DashboardPage() {
       const matchesStatus = filter === "All" || property.status === filter;
       const matchesQuery =
         !q ||
-        [property.title, property.locality, property.owner.name, property.id].some((value) =>
+        [property.title, property.locality, property.ownerName, property.id].some((value) =>
           value.toLowerCase().includes(q)
         );
       return matchesStatus && matchesQuery;
@@ -216,7 +269,7 @@ export default function DashboardPage() {
                 className="relative rounded-xl p-2 text-[#6c7b91] hover:bg-[#f3f6fd]"
               >
                 <Bell size={20} />
-                {stats.pending > 0 && (
+                {pending > 0 && (
                   <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-white bg-[#f59e0b]" />
                 )}
               </button>
@@ -233,13 +286,13 @@ export default function DashboardPage() {
                     </button>
                   </div>
                   <p className="mt-1 text-[11px] text-[#9ba8ba]">
-                    {stats.pending} properties waiting for approval
+                    {pending} properties waiting for approval
                   </p>
                   <div className="mt-3 space-y-2 border-t border-[#eef1f6] pt-3">
                     {pendingQueue.slice(0, 3).map((item) => (
                       <Link
                         key={item.id}
-                        href={`/dashboard/properties?id=${item.id}`}
+                        href={`/admin-dashboard/properties?id=${item.id}`}
                         className="block rounded-lg p-1.5 text-xs text-[#54637b] hover:bg-[#f5f8ff]"
                       >
                         <span className="font-semibold text-[#2854cb]">{item.id}:</span>{" "}
@@ -256,7 +309,7 @@ export default function DashboardPage() {
                 RA
               </span>
               <div className="hidden sm:block">
-                <div className="text-xs font-extrabold text-[#293750]">RESTAMP Admin</div>
+                <div className="text-xs font-extrabold text-[#293750]">{admin?.name || "Admin"}</div>
                 <div className="mt-0.5 text-[10px] text-[#a3aebf]">Administrator</div>
               </div>
             </div>
@@ -307,6 +360,11 @@ export default function DashboardPage() {
               <StatCard key={item.label} {...item} />
             ))}
           </section>
+          {dashError && (
+            <p className="rounded-xl border border-[#fee2e2] bg-[#fef2f2] px-4 py-2 text-xs text-[#991b1b]" role="alert">
+              {dashError}
+            </p>
+          )}
 
           <section
             aria-label="Platform charts"
@@ -315,26 +373,28 @@ export default function DashboardPage() {
             <div className="rounded-[18px] border border-[#e9edf4] bg-white p-5 shadow-[0_3px_18px_#15223d06] sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <SectionHeading
-                  title="Property Listing Trends"
-                  subtitle="New property listings over the last six months"
+                  title="Listing Review Trends"
+                  subtitle="Listings verified or rejected per month (last six months). New listings per month are not tracked yet."
                 />
                 <div className="flex items-center gap-2 rounded-lg bg-[#f7f9fd] px-3 py-2 text-[11px] font-semibold text-[#8795ab]">
-                  <span className="h-2 w-2 rounded-sm bg-[#3566e9]" /> New listings{" "}
-                  <ChevronDown size={12} />
+                  <span className="h-2 w-2 rounded-sm bg-[#3566e9]" /> Review decisions
                 </div>
               </div>
-              <div className="mt-2 flex items-end justify-between">
-                <div>
-                  <span className="text-[29px] font-extrabold tracking-[-0.04em] text-[#1d2c45]">
-                    268
-                  </span>
-                  <span className="ml-2 text-xs text-[#98a5b8]">listings added</span>
-                </div>
-                <span className="flex items-center gap-1 rounded-lg bg-[#eaf9f0] px-2.5 py-1.5 text-xs font-bold text-[#20a470]">
-                  <TrendingUp size={14} /> +18.6%
-                </span>
-              </div>
-              <ListingsChart />
+              {canReports ? (
+                <>
+                  <div className="mt-2 flex items-end justify-between">
+                    <div>
+                      <span className="text-[29px] font-extrabold tracking-[-0.04em] text-[#1d2c45]">
+                        {analytics ? decisions : "…"}
+                      </span>
+                      <span className="ml-2 text-xs text-[#98a5b8]">decisions</span>
+                    </div>
+                  </div>
+                  <ListingsChart points={chartPoints} />
+                </>
+              ) : (
+                <p className="mt-6 text-xs text-[#98a5b8]">Your admin role does not include reports.</p>
+              )}
             </div>
 
             <div className="rounded-[18px] border border-[#e9edf4] bg-white p-5 shadow-[0_3px_18px_#15223d06] sm:p-6">
@@ -348,22 +408,21 @@ export default function DashboardPage() {
                   aria-label="Distribution chart"
                   className="relative h-[168px] w-[168px] shrink-0 rounded-full"
                   style={{
-                    background:
-                      "conic-gradient(#3566e9 0 65%, #f4b64c 65% 85%, #e66a74 85% 100%)",
+                    background: pie,
                   }}
                 >
                   <div className="absolute inset-[24px] flex flex-col items-center justify-center rounded-full bg-white">
                     <div className="text-[25px] font-extrabold text-[#1e2d47]">
-                      {properties.length}
+                      {pieTotal}
                     </div>
                     <div className="text-[10px] font-semibold text-[#a1adbe]">Properties</div>
                   </div>
                 </div>
                 <div className="min-w-[120px] space-y-4">
                   {[
-                    { label: "Active", value: stats.active, color: "#3566e9" },
-                    { label: "Pending", value: stats.pending, color: "#f4b64c" },
-                    { label: "Rejected", value: stats.rejected, color: "#e66a74" },
+                    { label: "Active", value: live, color: "#3566e9" },
+                    { label: "Pending", value: pending, color: "#f4b64c" },
+                    { label: "Rejected", value: rejected, color: "#e66a74" },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between gap-5">
                       <span className="flex items-center gap-2 text-[11px] font-semibold text-[#8592a7]">
@@ -463,38 +522,38 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-3">
                               <span
                                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] text-[10px] font-extrabold text-[#5b708f]"
-                                style={{ background: property.tint || "#EBF3FE" }}
+                                style={{ background: "#EBF3FE" }}
                               >
-                                {property.initials}
+                                {property.title.slice(0, 2).toUpperCase()}
                               </span>
                               <span className="min-w-0">
                                 <Link
-                                  href={`/dashboard/properties?id=${property.id}`}
+                                  href={`/admin-dashboard/properties?id=${property.id}`}
                                   className="block max-w-[210px] truncate text-[12px] font-extrabold text-[#2c3b55] hover:text-[#2854cb]"
                                 >
                                   {property.title}
                                 </Link>
                                 <span className="mt-1 block text-[10px] text-[#a1adbe]">
-                                  {property.locality}, {property.city} · {property.type}
+                                  {property.locality}, {property.city} · {property.typeLabel}
                                 </span>
                               </span>
                             </div>
                           </td>
                           <td className="whitespace-nowrap px-3 py-3.5 text-xs font-semibold text-[#6b7b94]">
-                            {property.owner.name}
+                            {property.ownerName}
                           </td>
                           <td className="whitespace-nowrap px-3 py-3.5 text-xs font-bold text-[#30415c]">
-                            ₹{(property.price / 100000).toFixed(0)}L
+                            {property.priceDisplay}
                           </td>
                           <td className="px-3 py-3.5">
-                            <StatusPill status={property.status} />
+                            <StatusPill status={property.status} label={property.statusLabel} />
                           </td>
                           <td className="whitespace-nowrap px-3 py-3.5 text-[11px] text-[#8f9db2]">
-                            {property.submittedAt}
+                            {shortDate(property.submittedAt)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3.5 text-right">
                             <Link
-                              href={`/dashboard/properties?id=${property.id}`}
+                              href={`/admin-dashboard/properties?id=${property.id}`}
                               className="inline-flex items-center gap-1 rounded-lg border border-[#e2e8f2] px-2.5 py-1 text-[11px] font-bold text-[#2854cb] hover:bg-[#eff4ff]"
                             >
                               Review
@@ -546,25 +605,25 @@ export default function DashboardPage() {
                       className="flex items-start gap-3 border-b border-[#f0f2f6] pb-4 last:border-0 last:pb-0"
                     >
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f0f4ff] text-[11px] font-extrabold text-[#5978ce]">
-                        {item.initials}
+                        {item.title.slice(0, 2).toUpperCase()}
                       </span>
                       <div className="min-w-0 flex-1">
                         <Link
-                          href={`/dashboard/properties?id=${item.id}`}
+                          href={`/admin-dashboard/properties?id=${item.id}`}
                           className="truncate text-[12px] font-extrabold text-[#36445d] hover:text-[#2854cb]"
                         >
                           {item.title}
                         </Link>
                         <div className="mt-0.5 text-[11px] text-[#97a4b7]">
-                          {item.type} · ₹{(item.price / 100000).toFixed(0)}L · {item.owner.name}
+                          {item.typeLabel} · {item.priceDisplay} · {item.ownerName}
                         </div>
                         <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[#b0bac9]">
                           <Clock3 size={12} />
-                          {item.submittedAt}
+                          {shortDate(item.submittedAt)}
                         </div>
                       </div>
                       <Link
-                        href={`/dashboard/properties?id=${item.id}`}
+                        href={`/admin-dashboard/properties?id=${item.id}`}
                         className="rounded-lg bg-[#f0f4ff] px-2 py-1 text-[11px] font-bold text-[#2854cb] hover:bg-[#2854cb] hover:text-white transition-colors"
                       >
                         Review
@@ -603,7 +662,7 @@ export default function DashboardPage() {
                 {[
                   {
                     label: "Registered buyers",
-                    value: userStats.buyers.toString(),
+                    value: n(dash?.buyers),
                     href: "/admin-dashboard/users?role=buyer",
                     icon: UsersRound,
                     color: "#eaf0ff",
@@ -611,7 +670,7 @@ export default function DashboardPage() {
                   },
                   {
                     label: "Registered owners",
-                    value: userStats.owners.toString(),
+                    value: n(dash?.owners),
                     href: "/admin-dashboard/users?role=owner",
                     icon: Building2,
                     color: "#e9f8f2",
@@ -619,16 +678,16 @@ export default function DashboardPage() {
                   },
                   {
                     label: "Open enquiries",
-                    value: (170 + enquiryStats.active).toString(),
+                    value: n(dash?.enquiries_open),
                     href: "/admin-dashboard/enquiries?status=Active",
                     icon: MessageSquareText,
                     color: "#fff4e6",
                     text: "#d8a24e",
                   },
                   {
-                    label: "Pending KYC",
-                    value: userStats.pendingKyc.toString(),
-                    href: "/admin-dashboard/users?tab=kyc",
+                    label: "Pending KYC (not available yet)",
+                    value: "—",
+                    href: "",
                     icon: ClipboardCheck,
                     color: "#f3edff",
                     text: "#9469dc",
@@ -667,44 +726,40 @@ export default function DashboardPage() {
                 icon={<Activity size={17} className="text-[#5475d7]" />}
               />
               <div className="mt-5 space-y-4">
-                {activities.map((event, i) => (
-                  <div className="flex gap-3" key={event.id}>
-                    <div className="flex flex-col items-center">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ecf2ff] text-[#4570dc]">
-                        {event.kind === "enquiry" ? (
-                          <MessageSquareText size={14} />
-                        ) : event.kind === "approval" ? (
-                          <CheckCircle2 size={14} />
-                        ) : event.kind === "user" ? (
-                          <UsersRound size={14} />
-                        ) : (
-                          <Building2 size={14} />
-                        )}
-                      </span>
-                      {i < activities.length - 1 && (
-                        <div className="mt-1 h-8 w-px bg-[#eaf0f8]" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1 pb-1">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        {event.kind === "enquiry" ? (
-                          <Link
-                            href="/admin-dashboard/enquiries?id=ENQ-1003"
-                            className="text-xs font-bold text-[#3b4960] hover:text-[#2854cb] hover:underline"
-                          >
-                            {event.title}
-                          </Link>
-                        ) : (
-                          <span className="text-xs font-bold text-[#3b4960]">{event.title}</span>
-                        )}
-                        <span className="text-[10px] text-[#afbac9]">{event.time}</span>
+                {!canAudit ? (
+                  <p className="text-xs text-[#9ca9bb]">Your admin role does not include the audit log.</p>
+                ) : logs.length === 0 ? (
+                  <p className="text-xs text-[#9ca9bb]">No recorded admin activity yet.</p>
+                ) : (
+                  logs.map((event, i) => (
+                    <div className="flex gap-3" key={event.id}>
+                      <div className="flex flex-col items-center">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ecf2ff] text-[#4570dc]">
+                          {event.entity === "enquiry" ? (
+                            <MessageSquareText size={14} />
+                          ) : event.entity === "property_listing" ? (
+                            <CheckCircle2 size={14} />
+                          ) : event.entity === "user" || event.entity === "admin_account" ? (
+                            <UsersRound size={14} />
+                          ) : (
+                            <Building2 size={14} />
+                          )}
+                        </span>
+                        {i < logs.length - 1 && <div className="mt-1 h-8 w-px bg-[#eaf0f8]" />}
                       </div>
-                      <p className="mt-1 truncate text-[11px] text-[#9ca9bb]">
-                        {event.description}
-                      </p>
+                      <div className="min-w-0 flex-1 pb-1">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="text-xs font-bold text-[#3b4960]">{AUDIT_TITLES[event.action] || event.action}</span>
+                          <span className="text-[10px] text-[#afbac9]">{timeAgo(event.created_at)}</span>
+                        </div>
+                        <p className="mt-1 truncate text-[11px] text-[#9ca9bb]">
+                          By {event.actor_name || `user #${event.actor_user_id}`}
+                          {event.after && typeof event.after.reason === "string" ? ` · ${event.after.reason}` : ""}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </section>

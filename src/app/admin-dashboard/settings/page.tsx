@@ -22,7 +22,7 @@ import { PlatformConfigView } from "@/components/settings/platform-config-view";
 import { SecurityAuditView } from "@/components/settings/security-audit-view";
 import { AdminUserModal } from "@/components/settings/admin-user-modal";
 import { useSettingsStore } from "@/context/settings-context";
-import { AdminUser } from "@/types/settings";
+import { useAdminAuth } from "@/context/admin-auth-context";
 
 type SettingsTab = "staff" | "roles" | "config" | "audit";
 
@@ -33,34 +33,16 @@ function SettingsManagementContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
-  // Modals state
   const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
 
-  const { adminUsers, roles, auditLogs, addAdminUser, updateAdminUser } =
-    useSettingsStore();
+  const { staff, roles, auditTotal, loadError, reload } = useSettingsStore();
+  const { admin, can } = useAdminAuth();
 
   useEffect(() => {
     if (searchParams.get("tab")) {
       setActiveTab(searchParams.get("tab") as SettingsTab);
     }
   }, [searchParams]);
-
-  const handleEditUser = (user: AdminUser) => {
-    setEditingUser(user);
-    setIsInviteOpen(true);
-  };
-
-  const handleSaveUser = (
-    userData: Omit<AdminUser, "id" | "createdAt" | "lastActive">
-  ) => {
-    if (editingUser) {
-      updateAdminUser(editingUser.id, userData);
-    } else {
-      addAdminUser(userData);
-    }
-    setEditingUser(null);
-  };
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc]">
@@ -97,13 +79,11 @@ function SettingsManagementContent() {
             {/* Admin Profile */}
             <div className="flex items-center gap-2 border-l border-[#e8ecf4] pl-3">
               <div className="h-8 w-8 rounded-full bg-[#162d66] text-white flex items-center justify-center font-bold text-xs">
-                RS
+                {(admin?.name || "Admin").slice(0, 2).toUpperCase()}
               </div>
               <div className="hidden sm:block text-left">
-                <p className="text-xs font-semibold text-[#101828]">
-                  Ramesh Sundaram
-                </p>
-                <p className="text-[10px] text-[#64748b]">Super Admin</p>
+                <p className="text-xs font-semibold text-[#101828]">{admin?.name || "Admin"}</p>
+                <p className="text-[10px] text-[#64748b]">{admin?.role}</p>
               </div>
             </div>
           </div>
@@ -118,21 +98,18 @@ function SettingsManagementContent() {
                 Settings & Access Control
               </h1>
               <p className="mt-1 text-sm text-[#475467]">
-                Configure administrative roles, granular RBAC permissions, marketplace compliance, and platform security.
+                Manage admin staff, review role permissions and read the audit trail.
               </p>
             </div>
 
-            {activeTab === "staff" && (
+            {activeTab === "staff" && can("settings.manage_team") && (
               <button
                 type="button"
-                onClick={() => {
-                  setEditingUser(null);
-                  setIsInviteOpen(true);
-                }}
+                onClick={() => setIsInviteOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-[#162d66] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#0f1f47] transition-colors"
               >
                 <Plus className="h-4 w-4" />
-                <span>Invite Team Member</span>
+                <span>Grant Admin Access</span>
               </button>
             )}
           </div>
@@ -149,10 +126,10 @@ function SettingsManagementContent() {
                 </div>
               </div>
               <div className="mt-2 text-2xl font-bold text-[#101828]">
-                {adminUsers.length}
+                {can("settings.manage_team") ? staff.length : "—"}
               </div>
               <p className="mt-0.5 text-[11px] text-[#059669]">
-                {adminUsers.filter((u) => u.status === "Active").length} active
+                {can("settings.manage_team") ? `${staff.filter((u) => u.status === "active").length} active` : "Needs team permission"}
               </p>
             </div>
 
@@ -169,7 +146,7 @@ function SettingsManagementContent() {
                 {roles.length}
               </div>
               <p className="mt-0.5 text-[11px] text-[#64748b]">
-                Customizable RBAC
+                Fixed by the backend
               </p>
             </div>
 
@@ -182,11 +159,11 @@ function SettingsManagementContent() {
                   <Lock className="h-4 w-4" />
                 </div>
               </div>
-              <div className="mt-2 text-2xl font-bold text-[#059669]">
-                100%
+              <div className="mt-2 text-2xl font-bold text-[#94a3b8]">
+                —
               </div>
               <p className="mt-0.5 text-[11px] text-[#64748b]">
-                Mandatory for staff
+                Not available yet
               </p>
             </div>
 
@@ -200,7 +177,7 @@ function SettingsManagementContent() {
                 </div>
               </div>
               <div className="mt-2 text-2xl font-bold text-[#101828]">
-                {auditLogs.length}
+                {can("settings.view_audit_logs") ? auditTotal : "—"}
               </div>
               <p className="mt-0.5 text-[11px] text-[#64748b]">
                 Audit events logged
@@ -222,7 +199,7 @@ function SettingsManagementContent() {
               <Users className="h-3.5 w-3.5" />
               <span>Admin Staff & Team</span>
               <span className="rounded-full bg-white/20 px-1.5 py-0.2 text-[10px]">
-                {adminUsers.length}
+                {staff.length}
               </span>
             </button>
 
@@ -266,16 +243,17 @@ function SettingsManagementContent() {
             </button>
           </div>
 
-          {/* Tab Content Panels */}
-          {activeTab === "staff" && (
-            <AdminUsersTable
-              onOpenInvite={() => {
-                setEditingUser(null);
-                setIsInviteOpen(true);
-              }}
-              onEditUser={handleEditUser}
-            />
+          {loadError && (
+            <div className="rounded-2xl border border-[#fee2e2] bg-[#fef2f2] p-4 text-sm text-[#991b1b]" role="alert">
+              {loadError}{" "}
+              <button type="button" onClick={reload} className="font-bold underline">
+                Try again
+              </button>
+            </div>
           )}
+
+          {/* Tab Content Panels */}
+          {activeTab === "staff" && <AdminUsersTable onOpenInvite={() => setIsInviteOpen(true)} />}
 
           {activeTab === "roles" && <RolesPermissionsView />}
 
@@ -285,16 +263,8 @@ function SettingsManagementContent() {
         </main>
       </div>
 
-      {/* Invite / Edit User Modal */}
-      <AdminUserModal
-        isOpen={isInviteOpen}
-        onClose={() => {
-          setIsInviteOpen(false);
-          setEditingUser(null);
-        }}
-        onSave={handleSaveUser}
-        initialUser={editingUser}
-      />
+      {/* Grant admin access to an existing account */}
+      <AdminUserModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
     </div>
   );
 }

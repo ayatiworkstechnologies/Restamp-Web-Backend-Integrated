@@ -13,81 +13,49 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { usePropertyStore } from "@/context/property-context";
-import { Property } from "@/types/property";
 
 interface PropertyHeaderProps {
-  onAddNew: () => void;
   onFilterPending: () => void;
   filteredCount: number;
   totalCount: number;
   currentFilterStatus: string;
 }
 
-export function PropertyHeader({
-  onAddNew,
-  onFilterPending,
-  filteredCount,
-  totalCount,
-  currentFilterStatus,
-}: PropertyHeaderProps) {
-  const { stats, properties, resetToDefault, showToast } = usePropertyStore();
+export function PropertyHeader({ onFilterPending, totalCount, currentFilterStatus }: PropertyHeaderProps) {
+  const { stats, properties, showToast, reload, loading } = usePropertyStore();
 
+  // CSV of the listings already loaded in the console (no extra data, no phone numbers).
   const handleExportCSV = () => {
     if (properties.length === 0) {
       showToast("No properties to export", "info");
       return;
     }
-
-    const headers = [
-      "ID",
-      "Title",
-      "Type",
-      "BHK",
-      "Price (INR)",
-      "Status",
-      "Locality",
-      "City",
-      "Owner Name",
-      "Owner Phone",
-      "RERA ID",
-      "Submitted At",
-    ];
-
+    const q = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const headers = ["ID", "Title", "Type", "Deal", "Price", "Status", "Locality", "City", "Pincode", "Owner", "Owner ID", "Submitted At"];
     const rows = properties.map((p) => [
       p.id,
-      `"${p.title.replace(/"/g, '""')}"`,
-      p.type,
-      p.bhk,
-      p.price,
-      p.status,
-      `"${p.locality.replace(/"/g, '""')}"`,
-      p.city,
-      `"${p.owner.name.replace(/"/g, '""')}"`,
-      p.owner.phone,
-      p.reraId || "N/A",
-      `"${p.submittedAt}"`,
+      q(p.title),
+      q(p.typeLabel),
+      q(p.dealLabel),
+      q(p.priceDisplay),
+      q(p.statusLabel),
+      q(p.locality),
+      q(p.city),
+      p.pincode,
+      q(p.ownerName),
+      p.ownerId,
+      q(p.submittedAt || ""),
     ]);
-
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `RESTAMP_Properties_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.href = url;
+    link.download = `RESTAMP_Properties_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-
-    showToast("Exported listings to CSV successfully!", "success");
-  };
-
-  const formatPriceCrores = (amount: number) => {
-    if (amount >= 10000000) {
-      return `₹${(amount / 10000000).toFixed(2)} Cr`;
-    }
-    return `₹${(amount / 100000).toFixed(0)} Lakhs`;
+    URL.revokeObjectURL(url);
+    showToast("Exported listings to CSV.", "success");
   };
 
   return (
@@ -104,18 +72,19 @@ export function PropertyHeader({
             </span>
           </div>
           <p className="mt-1 text-[13px] text-[#8696ab]">
-            Review, approve, reject, verify legal deeds, and manage real estate listings on RESTAMP.
+            Review pending listings and verify or reject them. Listing edits and documents are not available yet.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={resetToDefault}
-            title="Reset demo listings to default"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-[#e2e8f2] bg-white px-3 py-2 text-xs font-semibold text-[#6a7a92] shadow-sm hover:bg-[#f8fafc] hover:text-[#1e2d42] transition-colors"
+            onClick={reload}
+            disabled={loading}
+            title="Reload listings from the server"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#e2e8f2] bg-white px-3 py-2 text-xs font-semibold text-[#6a7a92] shadow-sm hover:bg-[#f8fafc] hover:text-[#1e2d42] disabled:opacity-60 transition-colors"
           >
-            <RotateCcw size={14} />
-            <span className="hidden sm:inline">Reset Demo</span>
+            <RotateCcw size={14} className={loading ? "animate-spin" : ""} />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
 
           <button
@@ -128,8 +97,9 @@ export function PropertyHeader({
           </button>
 
           <button
-            onClick={onAddNew}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#2854cb] px-4 py-2 text-xs font-bold text-white shadow-[0_4px_14px_#2854cb38] hover:bg-[#1f45ae] transition-all"
+            disabled
+            title="Not available yet: listings are created by owners"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#2854cb] px-4 py-2 text-xs font-bold text-white shadow-[0_4px_14px_#2854cb38] opacity-50 cursor-not-allowed"
           >
             <Plus size={16} strokeWidth={2.5} />
             <span>Add Property</span>
@@ -150,10 +120,7 @@ export function PropertyHeader({
             </span>
           </div>
           <div className="mt-2 text-[22px] font-extrabold text-[#1a2942]">{stats.total}</div>
-          <div className="mt-1 flex items-center gap-1 text-[11px] text-[#8c9bb0]">
-            <span>Portfolio Value:</span>
-            <span className="font-bold text-[#324564]">{formatPriceCrores(stats.totalValue)}</span>
-          </div>
+          <div className="mt-1 text-[11px] text-[#8c9bb0]">Including removed listings</div>
         </div>
 
         {/* Pending Approvals */}
@@ -195,9 +162,7 @@ export function PropertyHeader({
             </span>
           </div>
           <div className="mt-2 text-[22px] font-extrabold text-[#1a2942]">{stats.active}</div>
-          <div className="mt-1 text-[11px] text-[#16a34a] font-semibold">
-            {stats.total > 0 ? `${Math.round((stats.active / stats.total) * 100)}% approved rate` : "0%"}
-          </div>
+          <div className="mt-1 text-[11px] text-[#16a34a] font-semibold">Verified and available to buyers</div>
         </div>
 
         {/* Rejected Listings */}
@@ -211,23 +176,21 @@ export function PropertyHeader({
             </span>
           </div>
           <div className="mt-2 text-[22px] font-extrabold text-[#1a2942]">{stats.rejected}</div>
-          <div className="mt-1 text-[11px] text-[#98a5b8]">Failed compliance checks</div>
+          <div className="mt-1 text-[11px] text-[#98a5b8]">Owners can resubmit</div>
         </div>
 
         {/* Avg Property Value */}
         <div className="col-span-2 sm:col-span-1 rounded-[16px] border border-[#e8ecf4] bg-white p-4 shadow-sm transition-all hover:border-[#d4dded]">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#9aa7bb]">
-              Avg Listing Price
+              Not Live
             </span>
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#f5f3ff] text-[#7c3aed]">
               <TrendingUp size={16} />
             </span>
           </div>
-          <div className="mt-2 text-[22px] font-extrabold text-[#1a2942]">
-            {stats.total > 0 ? formatPriceCrores(stats.totalValue / stats.total) : "₹0"}
-          </div>
-          <div className="mt-1 text-[11px] text-[#98a5b8]">Tamil Nadu Market Base</div>
+          <div className="mt-2 text-[22px] font-extrabold text-[#1a2942]">{stats.inactive}</div>
+          <div className="mt-1 text-[11px] text-[#98a5b8]">Hidden, closed or removed</div>
         </div>
       </div>
     </div>

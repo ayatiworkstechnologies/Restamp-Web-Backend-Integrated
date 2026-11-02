@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { getProfile, loginWithMobile, saveProfile } from '@/lib/profile';
+import { safeInternalPath } from '@/lib/safeRedirect';
 import {
   hasActiveAgentSubscription,
   seedExistingPartnerSubscription,
@@ -32,7 +33,8 @@ const OTP_LENGTH = 6;
 function AgentLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextUrl = searchParams.get('next');
+  // Same-site paths only (rejects //host, "\" and tab tricks, full URLs).
+  const nextUrl = safeInternalPath(searchParams.get('next'));
 
   // Tab: 'login' | 'register'
   const [mode, setMode] = useState<'login' | 'register'>('login');

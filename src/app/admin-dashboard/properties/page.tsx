@@ -20,10 +20,9 @@ import { PropertyGrid } from "@/components/properties/property-grid";
 import { PropertyDetailModal } from "@/components/properties/property-detail-modal";
 import { PropertyApprovalModal } from "@/components/properties/property-approval-modal";
 import { PropertyRejectModal } from "@/components/properties/property-reject-modal";
-import { PropertyEditModal } from "@/components/properties/property-edit-modal";
-import { PropertyAddModal } from "@/components/properties/property-add-modal";
-import { usePropertyStore } from "@/context/property-context";
-import { Property, PropertyFilters, PropertyStatus } from "@/types/property";
+import { AdminProperty, usePropertyStore } from "@/context/property-context";
+import { useAdminAuth } from "@/context/admin-auth-context";
+import { PropertyFilters } from "@/types/property";
 
 function PropertyManagementContent() {
   const searchParams = useSearchParams();
@@ -35,21 +34,16 @@ function PropertyManagementContent() {
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
 
   // Modals state
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isApprovalOpen, setIsApprovalOpen] = useState(false);
   const [isRejectOpen, setIsRejectOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isAddOpen, setIsAddOpen] = useState(false);
 
-  const {
-    properties,
-    stats,
-    approveProperty,
-    rejectProperty,
-    updateProperty,
-    addProperty,
-  } = usePropertyStore();
+  const { properties, stats, loading, loadError, truncated, reload, approveProperty, rejectProperty } = usePropertyStore();
+  const { admin } = useAdminAuth();
+  // Always the latest row, so modals reflect a decision immediately.
+  const selectedProperty = properties.find((p) => p.listingId === selectedId) || null;
+  const pendingQueue = properties.filter((p) => p.status === "Pending");
 
   // Filters state
   const [filters, setFilters] = useState<PropertyFilters>({
@@ -70,7 +64,7 @@ function PropertyManagementContent() {
     if (initialId) {
       const match = properties.find((p) => p.id === initialId);
       if (match) {
-        setSelectedProperty(match);
+        setSelectedId(match.listingId);
         setIsDetailOpen(true);
       }
     }
@@ -90,26 +84,17 @@ function PropertyManagementContent() {
         // Type filter
         if (filters.type !== "All" && p.type !== filters.type) return false;
 
-        // BHK filter
-        if (filters.bhk !== "All") {
-          if (filters.bhk === "4+") {
-            if (p.bhk < 4) return false;
-          } else {
-            if (p.bhk !== parseInt(filters.bhk)) return false;
-          }
-        }
-
         // Search query
         if (filters.search.trim()) {
           const q = filters.search.toLowerCase().trim();
           const matches =
             p.title.toLowerCase().includes(q) ||
-            p.id.toLowerCase().includes(q) ||
+            p.id.includes(q) ||
             p.locality.toLowerCase().includes(q) ||
             p.city.toLowerCase().includes(q) ||
-            p.owner.name.toLowerCase().includes(q) ||
-            p.owner.phone.toLowerCase().includes(q) ||
-            p.type.toLowerCase().includes(q);
+            p.pincode.includes(q) ||
+            p.ownerName.toLowerCase().includes(q) ||
+            p.typeLabel.toLowerCase().includes(q);
           if (!matches) return false;
         }
 
@@ -119,8 +104,8 @@ function PropertyManagementContent() {
         if (filters.sortBy === "price_asc") return a.price - b.price;
         if (filters.sortBy === "price_desc") return b.price - a.price;
         if (filters.sortBy === "title_asc") return a.title.localeCompare(b.title);
-        // default: newest
-        return b.id.localeCompare(a.id);
+        // default: newest (higher id = created later)
+        return b.listingId - a.listingId;
       });
   }, [properties, filters]);
 
@@ -135,24 +120,19 @@ function PropertyManagementContent() {
   }, [properties]);
 
   // Modal open handlers
-  const handleInspect = (prop: Property) => {
-    setSelectedProperty(prop);
+  const handleInspect = (prop: AdminProperty) => {
+    setSelectedId(prop.listingId);
     setIsDetailOpen(true);
   };
 
-  const handleOpenApprove = (prop: Property) => {
-    setSelectedProperty(prop);
+  const handleOpenApprove = (prop: AdminProperty) => {
+    setSelectedId(prop.listingId);
     setIsApprovalOpen(true);
   };
 
-  const handleOpenReject = (prop: Property) => {
-    setSelectedProperty(prop);
+  const handleOpenReject = (prop: AdminProperty) => {
+    setSelectedId(prop.listingId);
     setIsRejectOpen(true);
-  };
-
-  const handleOpenEdit = (prop: Property) => {
-    setSelectedProperty(prop);
-    setIsEditOpen(true);
   };
 
   return (
@@ -224,7 +204,8 @@ function PropertyManagementContent() {
                     </button>
                   </div>
                   <div className="mt-3 space-y-2.5 border-t border-[#eef1f6] pt-3">
-                    {stats.pendingApprovalProperties.slice(0, 3).map((item) => (
+                    {pendingQueue.length === 0 && <div className="text-xs text-[#7f8fa5]">Nothing waiting for review.</div>}
+                    {pendingQueue.slice(0, 3).map((item) => (
                       <div
                         key={item.id}
                         onClick={() => {
@@ -235,7 +216,7 @@ function PropertyManagementContent() {
                       >
                         <div className="text-xs font-bold text-[#1f2e48]">{item.title}</div>
                         <div className="text-[11px] text-[#7f8fa5]">
-                          {item.locality} · {item.type} · Submitted by {item.owner.name}
+                          {item.locality} · {item.typeLabel} · Submitted by {item.ownerName}
                         </div>
                       </div>
                     ))}
@@ -249,11 +230,11 @@ function PropertyManagementContent() {
             {/* Admin Avatar */}
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-[11px] bg-[#dce7ff] text-xs font-extrabold text-[#3c65cc]">
-                RA
+                {(admin?.name || "Admin").slice(0, 2).toUpperCase()}
               </span>
               <div className="hidden sm:block">
-                <div className="text-xs font-extrabold text-[#293750]">RESTAMP Admin</div>
-                <div className="mt-0.5 text-[10px] text-[#a3aebf]">Property Manager</div>
+                <div className="text-xs font-extrabold text-[#293750]">{admin?.name || "Admin"}</div>
+                <div className="mt-0.5 text-[10px] text-[#a3aebf]">{admin?.role}</div>
               </div>
             </div>
           </div>
@@ -263,7 +244,6 @@ function PropertyManagementContent() {
         <main className="mx-auto max-w-[1650px] space-y-6 px-4 py-7 sm:px-7 xl:px-9 xl:py-9">
           {/* Header & KPI Summary */}
           <PropertyHeader
-            onAddNew={() => setIsAddOpen(true)}
             onFilterPending={() => handleFilterChange({ status: "Pending" })}
             filteredCount={filteredProperties.length}
             totalCount={properties.length}
@@ -278,6 +258,20 @@ function PropertyManagementContent() {
             viewMode={viewMode}
             onViewModeChange={setViewMode}
           />
+
+          {loadError && (
+            <div className="rounded-2xl border border-[#fee2e2] bg-[#fef2f2] p-4 text-sm text-[#991b1b]" role="alert">
+              {loadError}{" "}
+              <button type="button" onClick={reload} className="font-bold underline">
+                Try again
+              </button>
+            </div>
+          )}
+          {truncated && (
+            <div className="rounded-2xl border border-[#fde68a] bg-[#fffbeb] p-3 text-xs text-[#92400e]">
+              Showing the newest {properties.length} listings only. Narrow the search to find older ones.
+            </div>
+          )}
 
           {/* Results Summary & Table / Grid View */}
           <div className="space-y-4">
@@ -295,20 +289,22 @@ function PropertyManagementContent() {
             </div>
 
             {viewMode === "table" ? (
-              <PropertyTable
-                properties={filteredProperties}
-                onInspect={handleInspect}
-                onApprove={handleOpenApprove}
-                onReject={handleOpenReject}
-                onEdit={handleOpenEdit}
-              />
+              loading ? (
+                <div className="rounded-2xl border border-[#e8ecf4] bg-white py-16 text-center text-sm text-[#93a2b7]">Loading listings…</div>
+              ) : (
+                <PropertyTable
+                  properties={filteredProperties}
+                  onInspect={handleInspect}
+                  onApprove={handleOpenApprove}
+                  onReject={handleOpenReject}
+                />
+              )
             ) : (
               <PropertyGrid
                 properties={filteredProperties}
                 onInspect={handleInspect}
                 onApprove={handleOpenApprove}
                 onReject={handleOpenReject}
-                onEdit={handleOpenEdit}
               />
             )}
           </div>
@@ -328,45 +324,20 @@ function PropertyManagementContent() {
           setIsDetailOpen(false);
           handleOpenReject(prop);
         }}
-        onEdit={(prop) => {
-          setIsDetailOpen(false);
-          handleOpenEdit(prop);
-        }}
       />
 
       <PropertyApprovalModal
         property={selectedProperty}
         isOpen={isApprovalOpen}
         onClose={() => setIsApprovalOpen(false)}
-        onConfirm={(id, notes, makeFeatured, makeVerified) => {
-          approveProperty(id, notes, makeFeatured, makeVerified);
-        }}
+        onConfirm={(id, notes) => approveProperty(id, notes)}
       />
 
       <PropertyRejectModal
         property={selectedProperty}
         isOpen={isRejectOpen}
         onClose={() => setIsRejectOpen(false)}
-        onConfirm={(id, reason, category) => {
-          rejectProperty(id, reason, category);
-        }}
-      />
-
-      <PropertyEditModal
-        property={selectedProperty}
-        isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
-        onSave={(id, updates) => {
-          updateProperty(id, updates);
-        }}
-      />
-
-      <PropertyAddModal
-        isOpen={isAddOpen}
-        onClose={() => setIsAddOpen(false)}
-        onAdd={(newProp) => {
-          addProperty(newProp);
-        }}
+        onConfirm={(id, reason, category) => rejectProperty(id, reason, category)}
       />
     </div>
   );

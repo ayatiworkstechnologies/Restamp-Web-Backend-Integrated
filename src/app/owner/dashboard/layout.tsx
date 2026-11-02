@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { clearProfile, getProfile, type Profile } from '@/lib/profile';
-import { getSubscription, type OwnerSubscription } from '@/lib/ownerPlan';
+import { ensureRole, signOut } from '@/lib/api/auth';
+import { errorMessage } from '@/lib/api/client';
+import { isPlaceholderName, loginHref, useSession } from '@/lib/api/session';
 import { Building2, CreditCard, Crown, LayoutDashboard, LogOut, Menu, PlusCircle, UserRound, X, type LucideIcon } from 'lucide-react';
 
 const nav: { label: string; href: string; icon: LucideIcon }[] = [
@@ -19,32 +20,48 @@ const nav: { label: string; href: string; icon: LucideIcon }[] = [
 export default function OwnerDashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [me, setMe] = useState<Profile | null>(null);
-  const [sub, setSub] = useState<OwnerSubscription | null>(null);
+  const { session, ready } = useSession();
+  const [ownerReady, setOwnerReady] = useState(false);
+  const [roleError, setRoleError] = useState('');
   const [open, setOpen] = useState(false);
+  const userId = session?.userId;
 
-  // Only logged-in owners with an active plan get in
+  // Signed-in users enter owner mode: the backend's current role becomes
+  // OWNER (it authorizes every /owner request itself). Access is by role,
+  // not by a plan purchase — payments are not connected yet.
   useEffect(() => {
-    const profile = getProfile();
-    if (!profile) return router.replace('/login?role=owner');
-    const subscription = getSubscription();
-    if (!subscription) return router.replace('/owner/plans');
-    setMe(profile);
-    setSub(subscription);
-    const refresh = () => setMe(getProfile());
-    window.addEventListener('profile-change', refresh);
-    return () => window.removeEventListener('profile-change', refresh);
-  }, [router]);
+    if (!ready) return;
+    if (!userId) {
+      router.replace(loginHref(pathname || '/owner/dashboard', 'owner'));
+      return;
+    }
+    ensureRole('OWNER')
+      .then(() => setOwnerReady(true))
+      .catch((e) => setRoleError(errorMessage(e, 'Could not open the owner dashboard.')));
+  }, [ready, userId, router, pathname]);
 
   useEffect(() => setOpen(false), [pathname]);
 
-  if (!me || !sub) {
+  if (roleError) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-50 text-sm text-slate-600" role="alert">
+        <p>{roleError}</p>
+        <button type="button" onClick={() => window.location.reload()} className="font-semibold text-[#087ed9] underline cursor-pointer">
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (!session || !ownerReady) {
     return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-400">Loading your dashboard...</div>;
   }
 
+  const me = { name: isPlaceholderName(session.displayName) ? '' : session.displayName };
+
   const logout = () => {
-    clearProfile();
-    router.push('/login?role=owner');
+    signOut();
+    router.push(loginHref(undefined, 'owner'));
   };
 
   const sidebar = (
@@ -75,15 +92,11 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
       </nav>
       <div className="m-3 rounded-xl bg-[#070e17] p-4 text-white">
         <div className="flex items-center gap-2 text-xs font-semibold text-sky-400">
-          <Crown size={14} /> {sub.planName}
+          <Crown size={14} /> Owner plans
         </div>
-        <p className="mt-1 text-[11px] text-slate-400">
-          {sub.expiresAt
-            ? `Valid till ${new Date(sub.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
-            : 'Valid until deal closed'}
-        </p>
+        <p className="mt-1 text-[11px] text-slate-400">Plan purchases and payments are not available online yet.</p>
         <Link href="/owner/plans" className="mt-3 block rounded-lg bg-[#087ed9] py-1.5 text-center text-xs font-semibold hover:bg-sky-600 transition">
-          Upgrade plan
+          View plans
         </Link>
       </div>
       <button
@@ -111,7 +124,7 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
             {open ? <X size={20} /> : <Menu size={20} />}
           </button>
           <p className="text-sm text-slate-500">
-            Welcome back, <span className="font-semibold text-slate-900">{me.name || `+91 ${me.mobile}`}</span>
+            Welcome back, <span className="font-semibold text-slate-900">{me.name || 'Owner'}</span>
           </p>
           <Link href="/owner/dashboard/profile" className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sm font-bold text-[#087ed9]">
             {(me.name || 'O').charAt(0).toUpperCase()}

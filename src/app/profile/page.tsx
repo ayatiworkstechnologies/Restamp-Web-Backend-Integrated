@@ -5,14 +5,19 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { clearProfile, getProfile, saveProfile, type Profile } from '@/lib/profile';
-import { getPayments, getSubscription, type OwnerSubscription, type Payment } from '@/lib/ownerPlan';
-import { Smartphone, Mail, MapPin, User, LogOut, Heart, Home, Building2, Check, Activity, Crown, Receipt } from 'lucide-react';
+import { type OwnerSubscription, type Payment } from '@/lib/ownerPlan';
+import { ensureRole, refreshMe, signOut, updateDisplayName } from '@/lib/api/auth';
+import { errorMessage } from '@/lib/api/client';
+import { isPlaceholderName, loginHref, useSession, type BackendRole } from '@/lib/api/session';
+import { Smartphone, Mail, MapPin, User, LogOut, Heart, Home, Building2, Check, Activity, Crown, Receipt, Loader2 } from 'lucide-react';
 
-const roleOptions: { value: Profile['role']; label: string }[] = [
-  { value: 'buyer', label: 'Buyer' },
-  { value: 'owner', label: 'Owner' },
-  { value: 'agent', label: 'Agent' },
+type RoleValue = 'buyer' | 'owner' | 'agent';
+
+const roleOptions: { value: RoleValue; label: string; backend: BackendRole | null }[] = [
+  { value: 'buyer', label: 'Buyer', backend: 'BUYER' },
+  { value: 'owner', label: 'Owner', backend: 'OWNER' },
+  // Agent accounts are not available on the website yet (agent area not connected).
+  { value: 'agent', label: 'Agent', backend: null },
 ];
 
 const quickLinks = [
@@ -22,42 +27,68 @@ const quickLinks = [
   { label: 'New projects', href: '/projects', icon: Building2 },
 ];
 
+const roleFromBackend = (role: BackendRole | null): RoleValue => (role === 'OWNER' ? 'owner' : role === 'BROKER' ? 'agent' : 'buyer');
+
 export default function ProfilePage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const { session, ready } = useSession();
+  const [name, setName] = useState('');
+  const [role, setRole] = useState<RoleValue>('buyer');
   const [saved, setSaved] = useState(false);
-  const [subscription, setSubscription] = useState<OwnerSubscription | null>(null);
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  // Plans and payments are not connected to the backend: nothing is shown as purchased.
+  const subscription: OwnerSubscription | null = null;
+  const payments: Payment[] = [];
+  const userId = session?.userId;
 
   useEffect(() => {
-    const stored = getProfile();
-    if (!stored) router.replace('/login');
-    else setProfile(stored);
-    setSubscription(getSubscription());
-    setPayments(getPayments());
-  }, [router]);
+    if (!ready) return;
+    if (!userId) {
+      router.replace(loginHref('/profile'));
+      return;
+    }
+    // Fresh name and role from the backend.
+    refreshMe()
+      .then((me) => {
+        setName(isPlaceholderName(me.displayName) ? '' : me.displayName);
+        setRole(roleFromBackend(me.role));
+      })
+      .catch((e) => setError(errorMessage(e, 'Could not load your profile.')));
+  }, [ready, userId, router]);
 
-  if (!profile) return null;
+  if (!session) return null;
 
-  const update = (field: keyof Profile, value: string) => {
-    setProfile({ ...profile, [field]: value });
-    setSaved(false);
-  };
-
-  const save = (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    saveProfile(profile);
-    setSaved(true);
+    const trimmed = name.trim().replace(/\s+/g, ' ');
+    if (trimmed.length < 2) {
+      setError('Please enter your name');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setSaved(false);
+    try {
+      if (trimmed !== session.displayName) await updateDisplayName(trimmed);
+      const backendRole = roleOptions.find((r) => r.value === role)?.backend;
+      if (backendRole) await ensureRole(backendRole);
+      setSaved(true);
+    } catch (err) {
+      setError(errorMessage(err, 'Could not save your changes. Please try again.'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const logout = () => {
-    clearProfile();
+    signOut();
     router.push('/');
   };
 
-  const initial = (profile.name || 'U').charAt(0).toUpperCase();
-  const joined = new Date(profile.joinedAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-  const roleLabel = roleOptions.find((r) => r.value === profile.role)?.label;
+  const displayName = isPlaceholderName(session.displayName) ? '' : session.displayName;
+  const initial = (displayName || 'U').charAt(0).toUpperCase();
+  const roleLabel = roleOptions.find((r) => r.value === roleFromBackend(session.role))?.label;
 
   return (
     <>
@@ -74,12 +105,11 @@ export default function ProfilePage() {
                 <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-sky-50 text-3xl font-bold text-[#087ed9]">
                   {initial}
                 </div>
-                <h2 className="mt-4 text-lg font-bold text-slate-900">{profile.name || 'Add your name'}</h2>
-                <p className="mt-1 text-sm text-slate-500">+91 {profile.mobile}</p>
+                <h2 className="mt-4 text-lg font-bold text-slate-900">{displayName || 'Add your name'}</h2>
+                <p className="mt-1 text-sm text-slate-500">Signed in with your mobile number</p>
                 <span className="mt-3 inline-block rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-[#087ed9]">
                   {roleLabel}
                 </span>
-                <p className="mt-4 text-xs text-slate-400">Member since {joined}</p>
               </div>
 
               <div className="rounded-2xl border border-slate-100 bg-white p-2 shadow-[0_12px_45px_-10px_rgba(0,0,0,0.1)]">
@@ -111,35 +141,37 @@ export default function ProfilePage() {
               className="rounded-2xl border border-slate-100 bg-white p-6 md:p-8 shadow-[0_12px_45px_-10px_rgba(0,0,0,0.1)]"
             >
               <h2 className="text-lg font-bold text-slate-900">Personal details</h2>
-              <p className="mt-1 text-sm text-slate-500">Keep your details up to date so owners and agents can reach you.</p>
+              <p className="mt-1 text-sm text-slate-500">Owners see your name when you contact them.</p>
 
               <div className="mt-6 grid gap-5 sm:grid-cols-2">
                 <Field label="Full name" icon={User}>
                   <input
-                    value={profile.name}
-                    onChange={(e) => update('name', e.target.value)}
+                    value={name}
+                    maxLength={100}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setSaved(false);
+                    }}
                     placeholder="Your name"
                     className="w-full bg-transparent outline-none placeholder:text-slate-400"
                   />
                 </Field>
                 <Field label="Mobile number" icon={Smartphone}>
-                  <input value={`+91 ${profile.mobile}`} disabled className="w-full bg-transparent text-slate-500 outline-none" />
+                  <input value="Verified at sign-in" disabled className="w-full bg-transparent text-slate-500 outline-none" />
                 </Field>
                 <Field label="Email" icon={Mail}>
                   <input
                     type="email"
-                    value={profile.email}
-                    onChange={(e) => update('email', e.target.value)}
-                    placeholder="you@example.com"
-                    className="w-full bg-transparent outline-none placeholder:text-slate-400"
+                    disabled
+                    placeholder="Not available yet"
+                    className="w-full bg-transparent outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
                   />
                 </Field>
                 <Field label="City" icon={MapPin}>
                   <input
-                    value={profile.city}
-                    onChange={(e) => update('city', e.target.value)}
-                    placeholder="City"
-                    className="w-full bg-transparent outline-none placeholder:text-slate-400"
+                    value="Chennai"
+                    disabled
+                    className="w-full bg-transparent text-slate-500 outline-none disabled:cursor-not-allowed"
                   />
                 </Field>
               </div>
@@ -150,9 +182,14 @@ export default function ProfilePage() {
                   <button
                     key={r.value}
                     type="button"
-                    onClick={() => update('role', r.value)}
-                    className={`rounded-lg border px-5 py-2 text-sm font-medium transition cursor-pointer ${
-                      profile.role === r.value
+                    disabled={!r.backend}
+                    title={r.backend ? undefined : 'Agent accounts are not available on the website yet'}
+                    onClick={() => {
+                      setRole(r.value);
+                      setSaved(false);
+                    }}
+                    className={`rounded-lg border px-5 py-2 text-sm font-medium transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      role === r.value
                         ? 'border-[#087ed9] bg-sky-50 text-[#087ed9]'
                         : 'border-slate-200 text-slate-700 hover:border-slate-300'
                     }`}
@@ -165,10 +202,13 @@ export default function ProfilePage() {
               <div className="mt-8 flex items-center gap-4">
                 <button
                   type="submit"
-                  className="rounded-lg bg-[#087ed9] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#0670c2] transition cursor-pointer"
+                  disabled={saving}
+                  className="rounded-lg bg-[#087ed9] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#0670c2] disabled:opacity-60 transition cursor-pointer flex items-center gap-2"
                 >
+                  {saving && <Loader2 size={16} className="animate-spin" />}
                   Save changes
                 </button>
+                {error && <span className="text-sm text-red-600" role="alert">{error}</span>}
                 {saved && (
                   <span className="flex items-center gap-1 text-sm text-green-600">
                     <Check size={16} /> Saved
@@ -177,7 +217,7 @@ export default function ProfilePage() {
               </div>
             </form>
 
-            {profile.role === 'owner' && (
+            {session.role === 'OWNER' && (
               <OwnerPlanCard subscription={subscription} payments={payments} />
             )}
             </div>

@@ -1,420 +1,205 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useMemo } from "react";
-import { User, KycStatus, UserStatus } from "@/types/user";
-import { initialUsers } from "@/lib/users-data";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { UserRole, UserStatus } from "@/types/user";
+import {
+  AdminUserDetail,
+  AdminUserRow,
+  getAdminUser,
+  listAdminUsers,
+  reactivateAdminUser,
+  suspendAdminUser,
+} from "@/lib/api/admin";
+import { errorMessage, isApiError } from "@/lib/api/client";
 import { usePropertyStore } from "@/context/property-context";
+import { useAdminAuth } from "@/context/admin-auth-context";
+
+/**
+ * One account from GET /admin/users, shaped for the console. Lists carry
+ * only the last four phone digits; the full number is on the user detail.
+ * KYC, email, city and buyer preferences do not exist on the backend.
+ */
+export interface AdminUser {
+  id: string;
+  userId: number;
+  name: string;
+  /** Current role; null when the account never chose one. */
+  role: UserRole | "agent" | null;
+  roleLabel: string;
+  status: UserStatus;
+  statusLabel: string;
+  adminRole: string | null;
+  phoneLast4: string | null;
+  joinedAt: string | null;
+}
+
+const ROLE: Record<string, { role: AdminUser["role"]; label: string }> = {
+  BUYER: { role: "buyer", label: "Buyer" },
+  OWNER: { role: "owner", label: "Owner" },
+  BROKER: { role: "agent", label: "Agent" },
+};
+
+const STATUS: Record<string, { status: UserStatus; label: string }> = {
+  active: { status: "Active", label: "Active" },
+  suspended: { status: "Suspended", label: "Suspended" },
+  closed: { status: "Inactive", label: "Closed" },
+};
+
+export function toAdminUser(r: AdminUserRow): AdminUser {
+  const role = ROLE[r.current_role || ""];
+  const status = STATUS[r.status] || { status: "Inactive" as UserStatus, label: r.status };
+  return {
+    id: String(r.user_id),
+    userId: r.user_id,
+    name: r.display_name || "Restamp user",
+    role: role?.role ?? null,
+    roleLabel: role?.label ?? "—",
+    status: status.status,
+    statusLabel: status.label,
+    adminRole: r.admin_role || null,
+    phoneLast4: r.phone_last4 || null,
+    joinedAt: r.joined_at || null,
+  };
+}
 
 interface UserContextType {
-  users: User[];
-  stats: {
-    total: number;
-    buyers: number;
-    owners: number;
-    pendingKyc: number;
-    suspended: number;
-    active: number;
-    pendingKycUsers: User[];
-  };
-  verifyKyc: (userId: string, notes?: string) => void;
-  rejectKyc: (userId: string, reason: string) => void;
-  suspendUser: (userId: string, reason: string) => void;
-  activateUser: (userId: string) => void;
-  updateUser: (userId: string, updates: Partial<User>) => void;
-  addUser: (
-    newUser: Omit<User, "id" | "joinedDate" | "lastActive" | "auditLog" | "adminNotes" | "initials" | "tint">
-  ) => string;
-  deleteUser: (userId: string) => void;
-  addAdminNote: (userId: string, content: string, adminName?: string) => void;
-  batchVerifyKyc: (userIds: string[]) => void;
-  batchSuspend: (userIds: string[], reason: string) => void;
-  resetToDefaultUsers: () => void;
+  users: AdminUser[];
+  loading: boolean;
+  loadError: string | null;
+  truncated: boolean;
+  stats: { total: number; buyers: number; owners: number; agents: number; suspended: number; active: number };
+  reload: () => void;
+  getDetail: (userId: number) => Promise<AdminUserDetail>;
+  /** Resolves true when the backend accepted the change; failures are toasted. */
+  suspendUser: (userId: number, reason: string) => Promise<boolean>;
+  activateUser: (userId: number, reason?: string) => Promise<boolean>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-const USER_STORAGE_KEY = "restamp_admin_users_v1";
-
-const tints = ["#E6EBFF", "#E7F3EC", "#FDF0DB", "#EDE9FE", "#FCE7F3", "#DCFCE7", "#FEF3C7"];
+const MAX_PAGES = 5;
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [users, setUsers] = useState<User[]>(initialUsers);
-  const [isHydrated, setIsHydrated] = useState(false);
   const { showToast } = usePropertyStore();
+  const { admin, can } = useAdminAuth();
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [truncated, setTruncated] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const canView = !!admin && can("users.view");
 
-  // Load from localStorage
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(USER_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setUsers(parsed);
-        }
-      }
-    } catch {
-      // fallback
-    } finally {
-      setIsHydrated(true);
+    if (!canView) {
+      setUsers([]);
+      setLoading(false);
+      return;
     }
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    (async () => {
+      try {
+        const rows: AdminUserRow[] = [];
+        let total = 0;
+        for (let page = 1; page <= MAX_PAGES; page++) {
+          const res = await listAdminUsers({}, page, 100);
+          rows.push(...res.items);
+          total = res.total;
+          if (rows.length >= total || res.items.length === 0) break;
+        }
+        if (cancelled) return;
+        setUsers(rows.map(toAdminUser));
+        setTruncated(rows.length < total);
+      } catch (e) {
+        if (!cancelled) setLoadError(errorMessage(e, "Could not load users."));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canView, reloadKey]);
+
+  const applyDetail = useCallback((d: AdminUserDetail) => {
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.userId === d.user_id
+          ? toAdminUser({
+              user_id: d.user_id,
+              display_name: d.display_name,
+              status: d.status,
+              current_role: d.current_role,
+              admin_role: d.admin_role,
+              phone_last4: u.phoneLast4,
+              joined_at: d.joined_at,
+            })
+          : u
+      )
+    );
   }, []);
 
-  // Save to localStorage
-  useEffect(() => {
-    if (!isHydrated) return;
-    try {
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(users));
-    } catch (e) {
-      console.error("Failed to save users to localStorage", e);
-    }
-  }, [users, isHydrated]);
+  const failure = useCallback(
+    (e: unknown, fallback: string) => {
+      const text = isApiError(e) && (e.kind === "validation" || e.kind === "denied") && e.detail ? e.detail : errorMessage(e, fallback);
+      showToast(text, "error");
+    },
+    [showToast]
+  );
 
-  const stats = useMemo(() => {
-    const total = users.length;
-    const buyers = users.filter((u) => u.role === "buyer").length;
-    const owners = users.filter((u) => u.role === "owner").length;
-    const pendingKyc = users.filter((u) => u.kycStatus === "Pending").length;
-    const suspended = users.filter((u) => u.status === "Suspended").length;
-    const active = users.filter((u) => u.status === "Active").length;
-    const pendingKycUsers = users.filter((u) => u.kycStatus === "Pending");
-    return { total, buyers, owners, pendingKyc, suspended, active, pendingKycUsers };
-  }, [users]);
+  const suspendUser = useCallback(
+    async (userId: number, reason: string) => {
+      try {
+        applyDetail(await suspendAdminUser(userId, reason));
+        showToast("Account suspended. The user is signed out of every session.", "success");
+        return true;
+      } catch (e) {
+        failure(e, "Could not suspend this account.");
+        return false;
+      }
+    },
+    [applyDetail, failure, showToast]
+  );
 
-  const verifyKyc = (userId: string, notes?: string) => {
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, ${now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
+  const activateUser = useCallback(
+    async (userId: number, reason?: string) => {
+      try {
+        applyDetail(await reactivateAdminUser(userId, reason));
+        showToast("Account reactivated.", "success");
+        return true;
+      } catch (e) {
+        failure(e, "Could not reactivate this account.");
+        return false;
+      }
+    },
+    [applyDetail, failure, showToast]
+  );
 
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id !== userId) return user;
-
-        const updatedKycDocs = (user.kycDocuments || []).map((doc) => ({
-          ...doc,
-          status: "Verified" as KycStatus,
-          verifiedAt: timestamp,
-          verifiedBy: "RESTAMP Admin",
-        }));
-
-        const updatedAuditLog = [
-          {
-            id: `AUD-${Date.now().toString().slice(-4)}`,
-            action: "KYC Verified",
-            actor: "RESTAMP Admin",
-            timestamp,
-            details: notes || "All identity and compliance documents verified.",
-          },
-          ...(user.auditLog || []),
-        ];
-
-        return {
-          ...user,
-          kycStatus: "Verified" as KycStatus,
-          status: user.status === "Pending KYC" ? ("Active" as UserStatus) : user.status,
-          kycDocuments: updatedKycDocs,
-          auditLog: updatedAuditLog,
-        };
-      })
-    );
-
-    showToast(`KYC verified successfully for user ${userId}.`);
-  };
-
-  const rejectKyc = (userId: string, reason: string) => {
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, ${now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id !== userId) return user;
-
-        const updatedKycDocs = (user.kycDocuments || []).map((doc) => ({
-          ...doc,
-          status: "Rejected" as KycStatus,
-          rejectionReason: reason,
-        }));
-
-        const updatedAuditLog = [
-          {
-            id: `AUD-${Date.now().toString().slice(-4)}`,
-            action: "KYC Rejected",
-            actor: "RESTAMP Admin",
-            timestamp,
-            details: `Rejected: ${reason}`,
-          },
-          ...(user.auditLog || []),
-        ];
-
-        return {
-          ...user,
-          kycStatus: "Rejected" as KycStatus,
-          kycDocuments: updatedKycDocs,
-          auditLog: updatedAuditLog,
-        };
-      })
-    );
-
-    showToast(`KYC rejected for user ${userId}. Resubmission requested.`, "error");
-  };
-
-  const suspendUser = (userId: string, reason: string) => {
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, ${now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id !== userId) return user;
-
-        return {
-          ...user,
-          status: "Suspended" as UserStatus,
-          suspensionReason: reason,
-          auditLog: [
-            {
-              id: `AUD-${Date.now().toString().slice(-4)}`,
-              action: "Account Suspended",
-              actor: "RESTAMP Admin",
-              timestamp,
-              details: `Account suspended: ${reason}`,
-            },
-            ...(user.auditLog || []),
-          ],
-        };
-      })
-    );
-
-    showToast(`User ${userId} has been suspended.`, "error");
-  };
-
-  const activateUser = (userId: string) => {
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, ${now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id !== userId) return user;
-
-        return {
-          ...user,
-          status: "Active" as UserStatus,
-          suspensionReason: undefined,
-          auditLog: [
-            {
-              id: `AUD-${Date.now().toString().slice(-4)}`,
-              action: "Account Re-activated",
-              actor: "RESTAMP Admin",
-              timestamp,
-              details: "Account restored to Active standing.",
-            },
-            ...(user.auditLog || []),
-          ],
-        };
-      })
-    );
-
-    showToast(`User ${userId} is now Active.`);
-  };
-
-  const updateUser = (userId: string, updates: Partial<User>) => {
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, ${now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id !== userId) return user;
-
-        return {
-          ...user,
-          ...updates,
-          auditLog: [
-            {
-              id: `AUD-${Date.now().toString().slice(-4)}`,
-              action: "Profile Updated",
-              actor: "RESTAMP Admin",
-              timestamp,
-              details: "User profile details modified by admin.",
-            },
-            ...(user.auditLog || []),
-          ],
-        };
-      })
-    );
-
-    showToast(`User ${userId} updated.`);
-  };
-
-  const addUser = (
-    newUser: Omit<User, "id" | "joinedDate" | "lastActive" | "auditLog" | "adminNotes" | "initials" | "tint">
-  ) => {
-    const randomNum = Math.floor(2100 + Math.random() * 800);
-    const newId = `USR-${randomNum}`;
-    const initials = newUser.name
-      .split(" ")
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
-    const tint = tints[Math.floor(Math.random() * tints.length)];
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, Today`;
-
-    const created: User = {
-      ...newUser,
-      id: newId,
-      initials,
-      tint,
-      joinedDate: timestamp,
-      lastActive: "Just now",
-      adminNotes: [],
-      auditLog: [
-        {
-          id: `AUD-${Date.now().toString().slice(-4)}`,
-          action: "User Created",
-          actor: "Admin",
-          timestamp,
-          details: `User registered directly via admin console as ${newUser.role}.`,
-        },
-      ],
-    };
-
-    setUsers((prev) => [created, ...prev]);
-    showToast(`User ${newId} created successfully!`);
-    return newId;
-  };
-
-  const deleteUser = (userId: string) => {
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
-    showToast(`User ${userId} was deleted.`, "info");
-  };
-
-  const addAdminNote = (userId: string, content: string, adminName: string = "RESTAMP Admin") => {
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, ${now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id !== userId) return user;
-
-        const newNote = {
-          id: `NOTE-${Date.now().toString().slice(-4)}`,
-          adminName,
-          content,
-          timestamp,
-        };
-
-        return {
-          ...user,
-          adminNotes: [newNote, ...(user.adminNotes || [])],
-        };
-      })
-    );
-
-    showToast("Internal admin note added.");
-  };
-
-  const batchVerifyKyc = (userIds: string[]) => {
-    if (userIds.length === 0) return;
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, Batch`;
-
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (!userIds.includes(user.id)) return user;
-
-        return {
-          ...user,
-          kycStatus: "Verified" as KycStatus,
-          status: user.status === "Pending KYC" ? ("Active" as UserStatus) : user.status,
-          auditLog: [
-            {
-              id: `AUD-${Date.now().toString().slice(-4)}`,
-              action: "Batch KYC Verified",
-              actor: "Admin",
-              timestamp,
-              details: "Approved via bulk action toolbar.",
-            },
-            ...(user.auditLog || []),
-          ],
-        };
-      })
-    );
-
-    showToast(`Batch verified KYC for ${userIds.length} users!`);
-  };
-
-  const batchSuspend = (userIds: string[], reason: string) => {
-    if (userIds.length === 0) return;
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, Batch`;
-
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (!userIds.includes(user.id)) return user;
-
-        return {
-          ...user,
-          status: "Suspended" as UserStatus,
-          suspensionReason: reason,
-          auditLog: [
-            {
-              id: `AUD-${Date.now().toString().slice(-4)}`,
-              action: "Batch Suspended",
-              actor: "Admin",
-              timestamp,
-              details: `Batch suspension: ${reason}`,
-            },
-            ...(user.auditLog || []),
-          ],
-        };
-      })
-    );
-
-    showToast(`Suspended ${userIds.length} users.`, "error");
-  };
-
-  const resetToDefaultUsers = () => {
-    try {
-      localStorage.removeItem(USER_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-    setUsers(initialUsers);
-    showToast("Reset users data to initial seed.", "info");
-  };
+  const stats = useMemo(
+    () => ({
+      total: users.length,
+      buyers: users.filter((u) => u.role === "buyer").length,
+      owners: users.filter((u) => u.role === "owner").length,
+      agents: users.filter((u) => u.role === "agent").length,
+      suspended: users.filter((u) => u.status === "Suspended").length,
+      active: users.filter((u) => u.status === "Active").length,
+    }),
+    [users]
+  );
 
   return (
     <UserContext.Provider
       value={{
         users,
+        loading,
+        loadError,
+        truncated,
         stats,
-        verifyKyc,
-        rejectKyc,
+        reload: () => setReloadKey((k) => k + 1),
+        getDetail: getAdminUser,
         suspendUser,
         activateUser,
-        updateUser,
-        addUser,
-        deleteUser,
-        addAdminNote,
-        batchVerifyKyc,
-        batchSuspend,
-        resetToDefaultUsers,
       }}
     >
       {children}
@@ -424,7 +209,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
 export function useUserStore() {
   const context = useContext(UserContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error("useUserStore must be used within a UserProvider");
   }
   return context;

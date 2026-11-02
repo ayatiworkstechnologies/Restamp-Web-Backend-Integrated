@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -9,8 +9,9 @@ import {
   SlidersHorizontal,
   ChevronDown,
   X,
-  CheckCircle2,
   Home,
+  ImageOff,
+  Loader2,
   Building2,
   MapPin,
   Briefcase,
@@ -22,10 +23,18 @@ import FullFiltersModal, {
   FilterValues,
   initialFilterValues,
   countActiveFilters,
-  filterPropertiesWithValues,
   chennaiLocalities,
 } from '@/components/property/FullFiltersModal';
-import { properties, Property } from '@/data/properties';
+import EnquiryModal from '@/components/property/EnquiryModal';
+import { Property } from '@/data/properties';
+import { countListings, ListingCard, searchListings } from '@/lib/api/buyer';
+import { errorMessage } from '@/lib/api/client';
+import { cardToProperty } from '@/lib/api/mappers';
+import { bedroomFilter, exactCountQueries, matchesBedrooms, statusesFor, toListingSearch } from '@/lib/api/searchFilters';
+
+const PAGE_SIZE = 24;
+
+type RecentSearch = { id: number; title: string; subtitle: string; category?: string; query: string; icon: string };
 
 const purposeTabs = ['Buy', 'Resale', 'Rent', 'Lease'] as const;
 type PurposeType = (typeof purposeTabs)[number];
@@ -111,58 +120,16 @@ export default function BuyerSearchPage() {
   const selectedBhk = filterValues.bhk.length === 1 ? filterValues.bhk[0] : (filterValues.bhk.length > 1 ? 'multi' : 'any');
   const selectedBudget = filterValues.budget;
 
-  // Contact Modal State
+  // Contact Modal State (real enquiry, see EnquiryModal)
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [contactSubmitted, setContactSubmitted] = useState(false);
-  const [formData, setFormData] = useState({ name: '', phone: '', email: '', message: '' });
 
   // Search Experience Suggestion Dropdown State
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const [recentSearches, setRecentSearches] = useState([
-    {
-      id: 1,
-      title: 'Alwarpet Royal Signature',
-      subtitle: 'Luxury Home · Chennai',
-      category: 'Home',
-      query: 'Alwarpet',
-      icon: 'home',
-    },
-    {
-      id: 2,
-      title: 'Velachery Urban Heights',
-      subtitle: 'Apartments · Chennai',
-      category: 'Apartments',
-      query: 'Velachery',
-      icon: 'building',
-    },
-    {
-      id: 3,
-      title: 'ECR Golden Coast Beach',
-      subtitle: 'Villas · Chennai',
-      category: 'Villas',
-      query: 'ECR',
-      icon: 'map-pin',
-    },
-    {
-      id: 4,
-      title: 'Guduvanchery Villa Plots',
-      subtitle: 'Plots · Chennai',
-      category: 'Plots',
-      query: 'Guduvanchery',
-      icon: 'map-pin',
-    },
-    {
-      id: 5,
-      title: 'Guindy Tech Pacific Hub',
-      subtitle: 'Commercial · Chennai',
-      category: 'Commercial',
-      query: 'Guindy',
-      icon: 'briefcase',
-    },
-  ]);
+  // Recent searches made in this visit (none are invented).
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
 
   // Click outside and Escape key listener
   useEffect(() => {
@@ -215,7 +182,14 @@ export default function BuyerSearchPage() {
     e.preventDefault();
     const params = new URLSearchParams(searchParams.toString());
     if (searchQuery.trim()) {
-      params.set('q', searchQuery.trim());
+      const term = searchQuery.trim();
+      setRecentSearches((prev) =>
+        [
+          { id: Date.now(), title: term, subtitle: `${filterValues.purpose} · Chennai`, query: term, icon: 'map-pin' },
+          ...prev.filter((r) => r.query.toLowerCase() !== term.toLowerCase()),
+        ].slice(0, 5)
+      );
+      params.set('q', term);
     } else {
       params.delete('q');
     }
@@ -300,58 +274,97 @@ export default function BuyerSearchPage() {
       ? rentBudgetOptions
       : buyBudgetOptions;
 
-  // Filter properties with full filter values + search query + sort
-  const filteredProperties = useMemo(() => {
-    const list = filterPropertiesWithValues(properties, filterValues);
+  // Results come from GET /buyer/listings (only verified, available
+  // listings). Typing is debounced so each keystroke doesn't hit the server.
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
-    return list
-      .filter((prop) => {
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase().trim();
-          const matchName = prop.name.toLowerCase().includes(q);
-          const matchLocality = prop.locality?.toLowerCase().includes(q);
-          const matchCity = prop.city?.toLowerCase().includes(q);
-          const matchArea = prop.area?.toLowerCase().includes(q);
-          const matchType = prop.propertyType?.toLowerCase().includes(q);
-          const matchBuilder = prop.builderName?.toLowerCase().includes(q);
-          if (!matchName && !matchLocality && !matchCity && !matchArea && !matchType && !matchBuilder) {
-            return false;
-          }
-        }
-        return true;
+  const apiFilters = useMemo(
+    () => toListingSearch(filterValues, debouncedQuery, selectedSort),
+    [filterValues, debouncedQuery, selectedSort]
+  );
+  const filtersKey = JSON.stringify(apiFilters);
+  // Multi-select BHK / status: the backend takes one value, so the exact
+  // match for the rest is applied to the returned cards.
+  const clientBedrooms = useMemo(() => bedroomFilter(filterValues.bhk).clientBedrooms, [filterValues.bhk]);
+  const clientStatuses = useMemo(() => {
+    const st = statusesFor(filterValues.badges);
+    return st.length > 1 ? st : undefined;
+  }, [filterValues.badges]);
+  const clientFiltered = !!clientBedrooms || !!clientStatuses;
+
+  const [results, setResults] = useState<ListingCard[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setLoadError('');
+    searchListings(JSON.parse(filtersKey), 1, PAGE_SIZE, controller.signal)
+      .then((res) => {
+        setResults(res.items);
+        setTotal(res.total);
+        setPage(1);
       })
-      .sort((a, b) => {
-        if (selectedSort === 'price-asc') {
-          return (a.priceMin || 0) - (b.priceMin || 0);
-        }
-        if (selectedSort === 'price-desc') {
-          return (b.priceMax || 0) - (a.priceMax || 0);
-        }
-        if (selectedSort === 'newest') {
-          return b.id - a.id;
-        }
-        return a.id - b.id;
+      .catch((e) => {
+        if (controller.signal.aborted) return;
+        setResults([]);
+        setTotal(0);
+        setLoadError(errorMessage(e, 'Could not load properties. Please try again.'));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
       });
-  }, [filterValues, searchQuery, selectedSort]);
+    return () => controller.abort();
+  }, [filtersKey, reloadKey]);
+
+  const loadMore = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await searchListings(JSON.parse(filtersKey), page + 1, PAGE_SIZE);
+      setResults((prev) => [...prev, ...res.items.filter((c) => !prev.some((p) => p.listing_id === c.listing_id))]);
+      setTotal(res.total);
+      setPage(page + 1);
+    } catch (e) {
+      setLoadError(errorMessage(e, 'Could not load more properties.'));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const filteredProperties = useMemo(
+    () =>
+      results
+        .filter((c) => matchesBedrooms(c.bedrooms, clientBedrooms))
+        .filter((c) => !clientStatuses || (!!c.construction_status && clientStatuses.includes(c.construction_status)))
+        .map(cardToProperty),
+    [results, clientBedrooms, clientStatuses]
+  );
+  const hasMore = results.length < total;
+  const shownCount = clientFiltered ? filteredProperties.length : total;
+
+  // Exact count for the dialog's Apply button. One request normally; with
+  // several BHKs / statuses selected, one per combination (the backend
+  // filters on one value each), summed.
+  const countMatches = useCallback(
+    async (draft: FilterValues) => {
+      const counts = await Promise.all(exactCountQueries(draft, debouncedQuery, selectedSort).map((q) => countListings(q)));
+      return counts.reduce((sum, n) => sum + n, 0);
+    },
+    [debouncedQuery, selectedSort]
+  );
 
   const handleContact = (property: Property) => {
     setSelectedProperty(property);
-    setContactSubmitted(false);
-    setFormData({
-      name: '',
-      phone: '',
-      email: '',
-      message: `Hi, I am interested in ${property.name} (${property.bhk || ''} in ${property.propertyType || ''}). Please share availability and current pricing.`,
-    });
-  };
-
-  const handleEnquirySubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setContactSubmitted(true);
-    setTimeout(() => {
-      setSelectedProperty(null);
-      setContactSubmitted(false);
-    }, 2200);
   };
 
   const heroTitles: Record<PurposeType, { eyebrow: string; title: string; subtitle: string }> = {
@@ -517,7 +530,7 @@ export default function BuyerSearchPage() {
                             Matching Properties
                           </p>
                           <span className="text-[11px] text-slate-400 font-medium">
-                            {filteredProperties.length} found
+                            {loading ? 'Searching…' : `${shownCount}${clientFiltered && hasMore ? '+' : ''} found`}
                           </span>
                         </div>
 
@@ -537,11 +550,17 @@ export default function BuyerSearchPage() {
                                 }`}
                               >
                                 <div className="flex items-center gap-3 min-w-0">
-                                  <img
-                                    src={prop.image}
-                                    alt={prop.name}
-                                    className="w-10 h-10 rounded-lg object-cover shrink-0 border border-slate-200"
-                                  />
+                                  {prop.image ? (
+                                    <img
+                                      src={prop.image}
+                                      alt={prop.name}
+                                      className="w-10 h-10 rounded-lg object-cover shrink-0 border border-slate-200"
+                                    />
+                                  ) : (
+                                    <span className="w-10 h-10 rounded-lg shrink-0 border border-slate-200 bg-slate-50 text-slate-300 flex items-center justify-center">
+                                      <ImageOff size={16} />
+                                    </span>
+                                  )}
                                   <div className="min-w-0">
                                     <p className="text-xs sm:text-sm font-bold text-slate-800 truncate">
                                       {prop.name}
@@ -562,7 +581,7 @@ export default function BuyerSearchPage() {
                           </div>
                         ) : (
                           <p className="text-xs text-slate-400 py-4 text-center">
-                            No properties matching &ldquo;{searchQuery}&rdquo;
+                            {loading ? 'Searching…' : loadError ? loadError : <>No properties matching &ldquo;{searchQuery}&rdquo;</>}
                           </p>
                         )}
                       </div>
@@ -931,22 +950,56 @@ export default function BuyerSearchPage() {
           {/* Header Count & Inventory Disclaimer */}
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-base sm:text-lg font-bold text-slate-900">
-              {filteredProperties.length} {selectedPurpose} properties in {filterValues.locality === 'All Chennai' ? 'Chennai' : filterValues.locality}
+              {loading
+                ? `Searching ${selectedPurpose} properties…`
+                : `${shownCount}${clientFiltered && hasMore ? '+' : ''} ${selectedPurpose} properties in ${filterValues.locality === 'All Chennai' ? 'Chennai' : filterValues.locality}`}
             </h2>
             <p className="text-xs text-slate-400">
-              Verified Chennai listings · Updated daily
+              Verified Chennai listings
             </p>
           </div>
 
           {/* Properties Grid */}
-          {filteredProperties.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredProperties.map((property) => (
-                <div key={property.id} className="h-full">
-                  <PropertyCard property={property} onContact={handleContact} />
-                </div>
-              ))}
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-20 text-sm text-slate-500">
+              <Loader2 size={18} className="animate-spin text-[#087ed9]" />
+              Loading properties…
             </div>
+          ) : loadError && results.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center max-w-lg mx-auto my-12 shadow-xs" role="alert">
+              <h3 className="text-lg font-bold text-slate-900">Properties could not be loaded</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">{loadError}</p>
+              <button
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="mt-5 inline-flex items-center gap-1.5 bg-[#087ed9] hover:bg-sky-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition cursor-pointer"
+              >
+                <RotateCcw size={14} />
+                <span>Try again</span>
+              </button>
+            </div>
+          ) : filteredProperties.length > 0 || hasMore ? (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredProperties.map((property) => (
+                  <div key={property.id} className="h-full">
+                    <PropertyCard property={property} onContact={handleContact} />
+                  </div>
+                ))}
+              </div>
+              {loadError && <p className="text-xs text-red-600 text-center mt-6" role="alert">{loadError}</p>}
+              {hasMore && (
+                <div className="flex justify-center mt-8">
+                  <button
+                    onClick={() => void loadMore()}
+                    disabled={loadingMore}
+                    className="inline-flex items-center gap-2 border border-[#087ed9] text-[#087ed9] hover:bg-sky-50 disabled:opacity-60 text-xs font-semibold px-5 py-2.5 rounded-lg transition cursor-pointer"
+                  >
+                    {loadingMore && <Loader2 size={14} className="animate-spin" />}
+                    {loadingMore ? 'Loading…' : 'Load more properties'}
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center max-w-lg mx-auto my-12 shadow-xs">
               <Search size={40} className="text-slate-300 mx-auto mb-3" />
@@ -967,111 +1020,7 @@ export default function BuyerSearchPage() {
       </main>
 
       {/* Contact Enquiry Modal */}
-      {selectedProperty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-7 relative shadow-2xl border border-slate-100">
-            <button
-              onClick={() => setSelectedProperty(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1 rounded-full hover:bg-slate-100 transition cursor-pointer"
-              aria-label="Close modal"
-            >
-              <X size={20} />
-            </button>
-
-            {contactSubmitted ? (
-              <div className="py-8 text-center">
-                <CheckCircle2 size={48} className="text-emerald-500 mx-auto mb-3" />
-                <h3 className="text-xl font-bold text-slate-900">Enquiry Received!</h3>
-                <p className="text-sm text-slate-500 mt-2">
-                  The developer for <strong className="text-slate-800">{selectedProperty.name}</strong> will contact you shortly.
-                </p>
-              </div>
-            ) : (
-              <div>
-                <p className="eyebrow text-[#087ed9]">CONNECT WITH DEVELOPER</p>
-                <h3 className="text-xl font-bold text-slate-900 mt-1">
-                  Enquire about {selectedProperty.name}
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  {selectedProperty.bhk} · {selectedProperty.address || selectedProperty.propertyType} · {selectedProperty.price}
-                </p>
-
-                <form onSubmit={handleEnquirySubmit} className="mt-5 space-y-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Arun Kumar"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9]"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Phone Number *
-                      </label>
-                      <input
-                        type="tel"
-                        required
-                        placeholder="+91 98765 43210"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Email Address
-                      </label>
-                      <input
-                        type="email"
-                        placeholder="arun@example.com"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9]"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Message
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9] resize-none"
-                    />
-                  </div>
-
-                  <div className="pt-2 flex items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedProperty(null)}
-                      className="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-5 py-2.5 text-xs font-semibold text-white bg-[#087ed9] hover:bg-sky-600 rounded-lg transition shadow-sm cursor-pointer"
-                    >
-                      Send Enquiry
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {selectedProperty && <EnquiryModal property={selectedProperty} onClose={() => setSelectedProperty(null)} />}
 
       {/* Full Filters Popup Modal */}
       <FullFiltersModal
@@ -1085,7 +1034,7 @@ export default function BuyerSearchPage() {
             purpose: filterValues.purpose,
           })
         }
-        allProperties={properties}
+        countMatches={countMatches}
       />
 
       <Footer />

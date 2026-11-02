@@ -22,16 +22,18 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { usePropertyStore } from "@/context/property-context";
-import { useUserStore } from "@/context/user-context";
 import { useEnquiryStore } from "@/context/enquiry-context";
 import { useAdminAuth } from "@/context/admin-auth-context";
+import type { AdminPermission } from "@/lib/api/admin";
 
 interface NavItem {
   label: string;
   href?: string;
   icon: LucideIcon;
-  badge?: "pendingApprovals" | "pendingKyc" | "openEnquiries";
+  badge?: "pendingApprovals" | "openEnquiries";
   planned?: boolean;
+  /** Admin permission the section needs (checked again by the backend). */
+  permission?: AdminPermission;
 }
 
 const navGroups: {
@@ -42,11 +44,11 @@ const navGroups: {
     group: "WORKSPACE",
     links: [
       { label: "Overview", href: "/admin-dashboard", icon: LayoutDashboard },
-      { label: "Properties", href: "/admin-dashboard/properties", icon: Building2, badge: "pendingApprovals" },
-      { label: "Users", href: "/admin-dashboard/users", icon: UsersRound, badge: "pendingKyc" },
-      { label: "Enquiries", href: "/admin-dashboard/enquiries", icon: MessageSquareText, badge: "openEnquiries" },
-      { label: "Approvals", href: "/admin-dashboard/properties?tab=approvals", icon: ClipboardCheck, badge: "pendingApprovals" },
-      { label: "Analytics", href: "/admin-dashboard/analytics", icon: BarChart3 },
+      { label: "Properties", href: "/admin-dashboard/properties", icon: Building2, badge: "pendingApprovals", permission: "properties.view" },
+      { label: "Users", href: "/admin-dashboard/users", icon: UsersRound, permission: "users.view" },
+      { label: "Enquiries", href: "/admin-dashboard/enquiries", icon: MessageSquareText, badge: "openEnquiries", permission: "enquiries.view" },
+      { label: "Approvals", href: "/admin-dashboard/properties?tab=approvals", icon: ClipboardCheck, badge: "pendingApprovals", permission: "properties.view" },
+      { label: "Analytics", href: "/admin-dashboard/analytics", icon: BarChart3, permission: "reports.view" },
     ],
   },
   {
@@ -63,8 +65,8 @@ function SidebarNavContent({ onClose }: { onClose: () => void }) {
   const searchParams = useSearchParams();
   const currentTab = searchParams ? searchParams.get("tab") : null;
   const { stats: propStats } = usePropertyStore();
-  const { stats: userStats } = useUserStore();
   const { stats: enquiryStats } = useEnquiryStore();
+  const { can } = useAdminAuth();
 
   const isLinkActive = (item: NavItem) => {
     if (!item.href) return false;
@@ -112,13 +114,11 @@ function SidebarNavContent({ onClose }: { onClose: () => void }) {
               const pendingCount =
                 item.badge === "pendingApprovals"
                   ? propStats.pending
-                  : item.badge === "pendingKyc"
-                  ? userStats.pendingKyc
                   : item.badge === "openEnquiries"
                   ? enquiryStats.active
                   : 0;
 
-              if (item.href && !item.planned) {
+              if (item.href && !item.planned && (!item.permission || can(item.permission))) {
                 return (
                   <Link
                     key={item.label}
@@ -161,12 +161,12 @@ function SidebarNavContent({ onClose }: { onClose: () => void }) {
                 <button
                   key={item.label}
                   disabled
-                  title={`${item.label}: will be built in a later phase`}
+                  title={item.planned ? `${item.label}: will be built in a later phase` : `${item.label}: your admin role does not include this`}
                   className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-[13px] font-semibold text-slate-400 opacity-60 cursor-not-allowed"
                 >
                   <Icon size={18} strokeWidth={1.8} />
                   <span className="flex-1">{item.label}</span>
-                  <span className="text-[9px] font-medium text-slate-300">Soon</span>
+                  <span className="text-[9px] font-medium text-slate-300">{item.planned ? "Soon" : "No access"}</span>
                 </button>
               );
             })}

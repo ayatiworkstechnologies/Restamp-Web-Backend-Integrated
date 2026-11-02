@@ -13,7 +13,8 @@ export function StatCard({
 }: {
   label: string;
   value: string;
-  change: string;
+  /** Real period-over-period change only; omitted when there is no source for it. */
+  change?: string;
   detail: string;
   icon: LucideIcon;
   iconBg: string;
@@ -30,9 +31,11 @@ export function StatCard({
       </div>
       <div className="mt-1 text-[30px] font-extrabold tracking-[-0.045em] text-[#16233d] sm:text-[32px]">{value}</div>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
-        <span className="inline-flex items-center gap-0.5 rounded-md bg-[#eaf9f0] px-1.5 py-1 font-bold text-[#1ca569]">
-          <ArrowUpRight size={13} />{change}
-        </span>
+        {change && (
+          <span className="inline-flex items-center gap-0.5 rounded-md bg-[#eaf9f0] px-1.5 py-1 font-bold text-[#1ca569]">
+            <ArrowUpRight size={13} />{change}
+          </span>
+        )}
         <span className="text-[#a1adbd]">{detail}</span>
       </div>
     </div>

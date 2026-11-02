@@ -1,15 +1,17 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertTriangle, ShieldCheck, X } from "lucide-react";
-import { User } from "@/types/user";
+import { AlertTriangle, ShieldCheck, X, Loader2 } from "lucide-react";
+import { AdminUser } from "@/context/user-context";
 
 interface UserSuspendModalProps {
-  user: User | null;
+  user: AdminUser | null;
   isOpen: boolean;
   onClose: () => void;
-  onSuspend: (userId: string, reason: string) => void;
-  onActivate: (userId: string) => void;
+  /** POST /admin/users/{id}/suspend; resolves true when accepted. */
+  onSuspend: (userId: number, reason: string) => Promise<boolean>;
+  /** POST /admin/users/{id}/reactivate. */
+  onActivate: (userId: number, reason?: string) => Promise<boolean>;
 }
 
 const suspensionReasons = [
@@ -30,21 +32,26 @@ export function UserSuspendModal({
 }: UserSuspendModalProps) {
   const [reasonCategory, setReasonCategory] = useState(suspensionReasons[0]);
   const [customDetails, setCustomDetails] = useState("");
+  const [saving, setSaving] = useState(false);
 
   if (!isOpen || !user) return null;
 
   const isCurrentlySuspended = user.status === "Suspended";
 
-  const handleAction = () => {
+  const handleAction = async () => {
+    setSaving(true);
+    let ok: boolean;
     if (isCurrentlySuspended) {
-      onActivate(user.id);
+      ok = await onActivate(user.userId, customDetails.trim() || undefined);
     } else {
-      const finalReason = customDetails.trim()
-        ? `${reasonCategory}: ${customDetails.trim()}`
-        : reasonCategory;
-      onSuspend(user.id, finalReason);
+      const finalReason = customDetails.trim() ? `${reasonCategory}: ${customDetails.trim()}` : reasonCategory;
+      ok = await onSuspend(user.userId, finalReason.slice(0, 500));
     }
-    onClose();
+    setSaving(false);
+    if (ok) {
+      setCustomDetails("");
+      onClose();
+    }
   };
 
   return (
@@ -66,7 +73,7 @@ export function UserSuspendModal({
                 {isCurrentlySuspended ? "Restore User Account" : "Suspend User Account"}
               </h2>
               <p className="text-xs text-[#808fa5]">
-                Account: <span className="font-semibold text-[#17253d]">{user.name}</span> ({user.id})
+                Account: <span className="font-semibold text-[#17253d]">{user.name}</span> (#{user.id})
               </p>
             </div>
           </div>
@@ -81,20 +88,23 @@ export function UserSuspendModal({
         {isCurrentlySuspended ? (
           <div className="mt-4 space-y-3 text-xs text-[#4c5c76]">
             <p>
-              This account was suspended with the reason:
+              This account is suspended. The suspension reason is recorded in the audit log.
             </p>
-            <div className="rounded-xl border border-[#fecaca] bg-[#fff5f5] p-3 font-medium text-[#991b1b]">
-              {user.suspensionReason || "Administrative suspension."}
-            </div>
-            <p>
-              Restoring will allow this user to log in, submit property inquiries, and list properties.
-            </p>
+            <p>Reactivating lets this user sign in and use Restamp again.</p>
+            <textarea
+              rows={2}
+              maxLength={500}
+              value={customDetails}
+              onChange={(e) => setCustomDetails(e.target.value)}
+              placeholder="Reason for reactivating (optional, saved to the audit log)"
+              className="w-full rounded-xl border border-[#dce3ee] bg-[#fafbfd] p-2.5 text-xs text-[#20314b] outline-none"
+            />
           </div>
         ) : (
           <div className="mt-4 space-y-3">
             <div className="rounded-xl border border-[#fed7aa] bg-[#fffaf5] p-3 text-xs text-[#9a3412]">
-              <span className="font-bold">Action Notice:</span> Suspending this user will immediately
-              deactivate their access and pause all active listings and inquiries.
+              <span className="font-bold">What happens:</span> the user is signed out and cannot use Restamp until
+              reactivated. Their existing listings are not hidden automatically.
             </div>
 
             <div>
@@ -120,6 +130,7 @@ export function UserSuspendModal({
               </label>
               <textarea
                 rows={2}
+                maxLength={400}
                 value={customDetails}
                 onChange={(e) => setCustomDetails(e.target.value)}
                 placeholder="Incident details, reporter ticket number..."
@@ -140,13 +151,15 @@ export function UserSuspendModal({
           </button>
           <button
             type="button"
-            onClick={handleAction}
-            className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition-all ${
+            onClick={() => void handleAction()}
+            disabled={saving}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm disabled:opacity-60 transition-all ${
               isCurrentlySuspended
                 ? "bg-[#10b981] hover:bg-[#059669]"
                 : "bg-[#ef4444] hover:bg-[#dc2626]"
             }`}
           >
+            {saving && <Loader2 size={14} className="animate-spin" />}
             {isCurrentlySuspended ? <span>Restore Account</span> : <span>Confirm Suspension</span>}
           </button>
         </div>

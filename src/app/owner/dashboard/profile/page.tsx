@@ -2,56 +2,79 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getProfile, saveProfile, type Profile } from '@/lib/profile';
-import { getSubscription, type OwnerSubscription } from '@/lib/ownerPlan';
-import { card, shortDate } from '../ui';
+import { useRouter } from 'next/navigation';
+import { ensureRole, refreshMe, updateDisplayName } from '@/lib/api/auth';
+import { errorMessage } from '@/lib/api/client';
+import { isPlaceholderName, useSession } from '@/lib/api/session';
+import { card } from '../ui';
 import {
   User,
   Smartphone,
   Mail,
   MapPin,
   Check,
-  Crown,
   Building2,
   PlusCircle,
   CreditCard,
   ShieldCheck,
   ExternalLink,
+  Loader2,
 } from 'lucide-react';
 
-const roleOptions: { value: Profile['role']; label: string }[] = [
-  { value: 'owner', label: 'Owner' },
-  { value: 'buyer', label: 'Buyer' },
-  { value: 'agent', label: 'Agent' },
+type RoleValue = 'owner' | 'buyer' | 'agent';
+
+const roleOptions: { value: RoleValue; label: string; available: boolean }[] = [
+  { value: 'owner', label: 'Owner', available: true },
+  { value: 'buyer', label: 'Buyer', available: true },
+  // Agent accounts are not available on the website yet.
+  { value: 'agent', label: 'Agent', available: false },
 ];
 
 export default function OwnerProfilePage() {
-  const [me, setMe] = useState<Profile | null>(null);
-  const [sub, setSub] = useState<OwnerSubscription | null>(null);
+  const router = useRouter();
+  const { session } = useSession();
+  const [name, setName] = useState('');
+  const [role, setRole] = useState<RoleValue>('owner');
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    setMe(getProfile());
-    setSub(getSubscription());
+    refreshMe()
+      .then((me) => setName(isPlaceholderName(me.displayName) ? '' : me.displayName))
+      .catch((e) => setError(errorMessage(e, 'Could not load your profile.')));
   }, []);
 
-  if (!me) return null;
+  if (!session) return null;
 
-  const set = (key: keyof Profile, value: string) => {
-    setMe({ ...me, [key]: value });
-    setSaved(false);
-  };
-
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    saveProfile(me);
-    setSaved(true);
-    window.dispatchEvent(new Event('profile-change'));
+    const trimmed = name.trim().replace(/\s+/g, ' ');
+    if (trimmed.length < 2) {
+      setError('Please enter your name');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setSaved(false);
+    try {
+      if (trimmed !== session.displayName) await updateDisplayName(trimmed);
+      if (role === 'buyer') {
+        // Leaving owner mode: the backend role becomes BUYER and the buyer profile opens.
+        await ensureRole('BUYER');
+        router.push('/profile');
+        return;
+      }
+      setSaved(true);
+    } catch (err) {
+      setError(errorMessage(err, 'Could not save your changes. Please try again.'));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const initial = (me.name || 'O').charAt(0).toUpperCase();
-  const joined = me.joinedAt ? shortDate(me.joinedAt) : 'Recently';
-  const roleLabel = roleOptions.find((r) => r.value === me.role)?.label || 'Owner';
+  const displayName = isPlaceholderName(session.displayName) ? '' : session.displayName;
+  const initial = (displayName || 'O').charAt(0).toUpperCase();
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -74,16 +97,14 @@ export default function OwnerProfilePage() {
               </span>
             </div>
 
-            <h2 className="mt-4 text-base font-bold text-slate-900">{me.name || 'Owner Profile'}</h2>
-            <p className="mt-0.5 text-xs text-slate-500">+91 {me.mobile}</p>
+            <h2 className="mt-4 text-base font-bold text-slate-900">{displayName || 'Owner Profile'}</h2>
+            <p className="mt-0.5 text-xs text-slate-500">Signed in with your mobile number</p>
 
             <div className="mt-3 flex items-center justify-center gap-1.5">
               <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-[#087ed9]">
-                Verified {roleLabel} ⭐
+                Owner
               </span>
             </div>
-
-            <p className="mt-4 text-[11px] text-slate-400">Member since {joined}</p>
           </div>
 
           {/* Quick Links Card */}
@@ -141,15 +162,19 @@ export default function OwnerProfilePage() {
             <div>
               <h2 className="text-base font-bold text-slate-900">Personal details</h2>
               <p className="mt-0.5 text-xs text-slate-500">
-                Keep your details accurate so prospective buyers and tenants can connect directly.
+                Buyers see your name on your listings and in their enquiries.
               </p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Full name" icon={User}>
                 <input
-                  value={me.name}
-                  onChange={(e) => set('name', e.target.value)}
+                  value={name}
+                  maxLength={100}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setSaved(false);
+                  }}
                   placeholder="Your full name"
                   className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
                 />
@@ -157,7 +182,7 @@ export default function OwnerProfilePage() {
 
               <Field label="Mobile number (Verified)" icon={Smartphone}>
                 <input
-                  value={`+91 ${me.mobile}`}
+                  value="Verified at sign-in"
                   disabled
                   className="w-full bg-transparent text-sm text-slate-500 outline-none cursor-not-allowed"
                 />
@@ -166,19 +191,17 @@ export default function OwnerProfilePage() {
               <Field label="Email" icon={Mail}>
                 <input
                   type="email"
-                  value={me.email}
-                  onChange={(e) => set('email', e.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                  disabled
+                  placeholder="Not available yet"
+                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 cursor-not-allowed"
                 />
               </Field>
 
               <Field label="City" icon={MapPin}>
                 <input
-                  value={me.city}
-                  onChange={(e) => set('city', e.target.value)}
-                  placeholder="e.g. Chennai"
-                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                  value="Chennai"
+                  disabled
+                  className="w-full bg-transparent text-sm text-slate-500 outline-none cursor-not-allowed"
                 />
               </Field>
             </div>
@@ -190,9 +213,14 @@ export default function OwnerProfilePage() {
                   <button
                     key={r.value}
                     type="button"
-                    onClick={() => set('role', r.value)}
-                    className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer ${
-                      me.role === r.value
+                    disabled={!r.available}
+                    title={r.available ? undefined : 'Agent accounts are not available on the website yet'}
+                    onClick={() => {
+                      setRole(r.value);
+                      setSaved(false);
+                    }}
+                    className={`rounded-xl border px-4 py-2 text-xs font-semibold transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      role === r.value
                         ? 'border-[#087ed9] bg-sky-50 text-[#087ed9] shadow-2xs'
                         : 'border-slate-200 text-slate-600 hover:border-slate-300'
                     }`}
@@ -204,7 +232,7 @@ export default function OwnerProfilePage() {
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-              <span className="text-xs text-slate-400">Member since {joined}</span>
+              <span className="text-xs text-red-600" role="alert">{error}</span>
               <div className="flex items-center gap-3">
                 {saved && (
                   <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 animate-fadeIn">
@@ -213,54 +241,16 @@ export default function OwnerProfilePage() {
                 )}
                 <button
                   type="submit"
-                  className="rounded-xl bg-[#087ed9] px-6 py-2.5 text-xs font-semibold text-white hover:bg-[#0070c9] shadow-sm transition cursor-pointer"
+                  disabled={saving}
+                  className="rounded-xl bg-[#087ed9] px-6 py-2.5 text-xs font-semibold text-white hover:bg-[#0070c9] disabled:opacity-60 shadow-sm transition cursor-pointer flex items-center gap-2"
                 >
+                  {saving && <Loader2 size={14} className="animate-spin" />}
                   Save changes
                 </button>
               </div>
             </div>
           </form>
 
-          {/* Active Plan Card */}
-          {sub && (
-            <div className={`${card} p-6 sm:p-7`}>
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/60 px-3 py-1 text-xs font-bold text-amber-800">
-                    <Crown size={14} className="text-amber-600" /> Active Owner Plan
-                  </span>
-                  <h3 className="text-lg font-bold text-slate-900 mt-2">{sub.planName}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {sub.expiresAt
-                      ? `Valid until ${shortDate(sub.expiresAt)}`
-                      : 'Valid until deal closed · Full duration assurance'}
-                  </p>
-                </div>
-
-                <Link
-                  href="/owner/plans"
-                  className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition"
-                >
-                  Upgrade plan
-                </Link>
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3 border-t border-slate-100 pt-4">
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-[10px] text-slate-400 font-semibold uppercase">Listing Limit</p>
-                  <p className="text-sm font-bold text-slate-900 mt-0.5">{sub.listingLimit} Properties</p>
-                </div>
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-[10px] text-slate-400 font-semibold uppercase">Brokerage</p>
-                  <p className="text-sm font-bold text-emerald-600 mt-0.5">0% Zero Commission</p>
-                </div>
-                <div className="rounded-xl bg-slate-50 p-3 col-span-2 sm:col-span-1">
-                  <p className="text-[10px] text-slate-400 font-semibold uppercase">Verified Badge</p>
-                  <p className="text-sm font-bold text-[#087ed9] mt-0.5">Included ⭐</p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

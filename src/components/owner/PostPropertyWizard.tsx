@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   Check,
   ChevronLeft,
@@ -15,18 +16,29 @@ import {
   Pencil,
   CircleCheck,
   Save,
+  Loader2,
 } from 'lucide-react';
-import { getProfile } from '@/lib/profile';
 import {
   clearDraft,
   emptyListing,
   getDraft,
-  publishListing,
   saveDraft,
   type ListingPhoto,
   type OwnerListing,
   type PhotoCategory,
 } from '@/lib/ownerListings';
+import {
+  asksBhk as needsBhk,
+  BACKEND_PHOTO_CATEGORIES,
+  bedroomCount,
+  createOwnerListing,
+  dataUrlToBlob,
+  durationToMonths,
+  isPlotListing as isPlot,
+  uploadListingPhoto,
+} from '@/lib/api/owner';
+import { errorMessage } from '@/lib/api/client';
+import { getSession, loginHref } from '@/lib/api/session';
 
 /* ---------- Options (taken from the Restamp owner app) ---------- */
 
@@ -101,6 +113,11 @@ const amenityOptions = [
   'Waste Disposal',
 ];
 
+// Options the backend does not accept yet are shown but cannot be selected.
+const UNAVAILABLE_FEATURES = ['RERA Approved', 'Brand New Construction'];
+const UNAVAILABLE_PHOTO_CATEGORIES = photoCategories.filter((c) => !BACKEND_PHOTO_CATEGORIES.includes(c));
+const MAX_PHOTOS = 20;
+
 const steps = ['Basic', 'Location', 'Property Details', 'Pricing', 'Photos & Details', 'Review'];
 
 const PINCODE_MIN = 600001;
@@ -110,8 +127,19 @@ const COLLAPSED_COUNT = 8;
 type Errors = Partial<Record<keyof OwnerListing, string>>;
 
 const isRental = (l: OwnerListing) => l.purpose === 'Rent' || l.purpose === 'Lease';
-const isPlot = (l: OwnerListing) => /Plot|Land/.test(l.propertyType);
-const needsBhk = (l: OwnerListing) => l.category === 'Residential' && !isPlot(l) && l.propertyType !== 'PG / Co-living';
+
+/** Review label for the bedroom count that will be saved (Bedrooms first, then BHK). */
+function bedroomsLabel(l: OwnerListing): string {
+  const n = bedroomCount(l);
+  if (n === null) return '';
+  return l.bedrooms ? l.bedrooms : `${n} (from ${l.bhk})`;
+}
+
+/** Both chosen and they disagree: the Bedrooms value is what gets saved. */
+function bedroomsDifferFromBhk(l: OwnerListing): boolean {
+  if (!l.bedrooms || !needsBhk(l) || !l.bhk) return false;
+  return parseInt(l.bedrooms, 10) !== parseInt(l.bhk, 10);
+}
 
 function validate(step: number, l: OwnerListing): Errors {
   const e: Errors = {};
@@ -146,9 +174,18 @@ function validate(step: number, l: OwnerListing): Errors {
           : 'Enter a valid expected price';
     if (isRental(l) && !l.securityDeposit) e.securityDeposit = 'Security deposit amount is required';
     if (isRental(l) && !l.availableFrom) e.availableFrom = 'Available from date is required';
+    if (isRental(l) && Number.isNaN(durationToMonths(l.lockInPeriod)))
+      e.lockInPeriod = "Enter the lock-in like '6 months' or '1 year'";
+    if (isRental(l) && Number.isNaN(durationToMonths(l.agreementDuration)))
+      e.agreementDuration = "Enter the tenure like '11 months' or '2 years'";
   }
   if (step === 4) {
     if (l.photos.length === 0) e.photos = 'Please add at least one property photo';
+    else if (l.photos.length > MAX_PHOTOS) e.photos = `Please keep it to ${MAX_PHOTOS} photos or fewer`;
+    else if (l.photos.some((p) => !BACKEND_PHOTO_CATEGORIES.includes(p.category)))
+      e.photos = 'Remove photos tagged "Other Rooms" (that category is not available yet)';
+    else if (l.features.some((f) => UNAVAILABLE_FEATURES.includes(f)))
+      e.photos = 'Remove the features marked "not available yet"';
     if (l.description.trim().length < 10) e.description = 'Please add a description (at least 10 characters)';
   }
   return e;
@@ -248,11 +285,13 @@ function Chips({
   value,
   onChange,
   error,
+  disabled = [],
 }: {
   options: readonly string[];
   value: string | string[];
   onChange: (v: string) => void;
   error?: string;
+  disabled?: readonly string[];
 }) {
   const selected = (o: string) => (Array.isArray(value) ? value.includes(o) : value === o);
   return (
@@ -261,8 +300,10 @@ function Chips({
         <button
           key={o}
           type="button"
+          disabled={disabled.includes(o) && !selected(o)}
+          title={disabled.includes(o) ? 'Not available yet' : undefined}
           onClick={() => onChange(o)}
-          className={`flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-medium transition cursor-pointer ${
+          className={`disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-medium transition cursor-pointer ${
             selected(o)
               ? 'border-[#087ed9] bg-sky-50 text-[#087ed9]'
               : error
@@ -372,6 +413,12 @@ export default function PostPropertyWizard({
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [resumable, setResumable] = useState<ReturnType<typeof getDraft>>(null);
   const [published, setPublished] = useState<OwnerListing | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  // Photos that failed to upload after the listing itself was created.
+  const [createdId, setCreatedId] = useState<number | null>(null);
+  const [failedPhotos, setFailedPhotos] = useState<ListingPhoto[]>([]);
+  const [needsLogin, setNeedsLogin] = useState(false);
+  const pathname = usePathname();
   const [photoCategory, setPhotoCategory] = useState<PhotoCategory>('Exterior');
   const [showAllFeatures, setShowAllFeatures] = useState(false);
   const [showAllAmenities, setShowAllAmenities] = useState(false);
@@ -381,14 +428,12 @@ export default function PostPropertyWizard({
   useEffect(() => {
     const draft = getDraft();
     if (draft) setResumable(draft);
-    const me = getProfile();
     setListing((l) => ({
       ...l,
       ...(initialPurpose ? { purpose: initialPurpose } : {}),
       ...(initialCategory ? { category: initialCategory } : {}),
       ...(initialPropertyType ? { propertyType: initialPropertyType } : {}),
-      phone: initialPhone || l.phone || me?.mobile || '',
-      email: l.email || me?.email || '',
+      phone: initialPhone || l.phone || '',
     }));
   }, [initialPurpose, initialCategory, initialPropertyType, initialPhone]);
 
@@ -424,7 +469,21 @@ export default function PostPropertyWizard({
     );
   };
 
-  const onPublish = () => {
+  /** Upload photos in display order (the first one becomes the cover). Returns the ones that failed. */
+  const uploadPhotos = async (listingId: number, photos: ListingPhoto[]): Promise<ListingPhoto[]> => {
+    const failed: ListingPhoto[] = [];
+    for (const photo of photos) {
+      try {
+        await uploadListingPhoto(listingId, dataUrlToBlob(photo.src), photo.category);
+      } catch {
+        failed.push(photo);
+      }
+    }
+    return failed;
+  };
+
+  const onPublish = async () => {
+    if (publishing) return;
     for (let s = 0; s < 5; s++) {
       const e = validate(s, listing);
       if (Object.keys(e).length) {
@@ -434,18 +493,47 @@ export default function PostPropertyWizard({
         return;
       }
     }
-    if (!publishListing(listing)) {
-      setNotice({ tone: 'error', text: 'Could not publish your property. Try removing a few photos and publish again.' });
+    if (!getSession()) {
+      // Keep the work: save the draft locally, then ask the owner to log in.
+      saveDraft(listing, step);
+      setNeedsLogin(true);
+      setNotice({ tone: 'error', text: 'Log in as an owner to publish. Your draft has been saved on this device.' });
       return;
     }
-    setPublished(listing);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setPublishing(true);
+    setNotice(null);
+    try {
+      const created = await createOwnerListing(listing);
+      setCreatedId(created.listing_id);
+      setFailedPhotos(await uploadPhotos(created.listing_id, listing.photos));
+      clearDraft();
+      setPublished(listing);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      setNotice({ tone: 'error', text: errorMessage(err, 'Could not publish your property. Please try again.') });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const retryFailedPhotos = async () => {
+    if (!createdId || publishing) return;
+    setPublishing(true);
+    try {
+      setFailedPhotos(await uploadPhotos(createdId, failedPhotos));
+    } finally {
+      setPublishing(false);
+    }
   };
 
   const addPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
     const added: ListingPhoto[] = [];
     for (const file of Array.from(files)) {
+      if (listing.photos.length + added.length >= MAX_PHOTOS) {
+        setNotice({ tone: 'error', text: `You can add up to ${MAX_PHOTOS} photos.` });
+        break;
+      }
       if (file.size > 10 * 1024 * 1024) {
         setNotice({ tone: 'error', text: `${file.name}: Image exceeds the 10 MB limit.` });
         continue;
@@ -472,11 +560,27 @@ export default function PostPropertyWizard({
           Your listing is <span className="font-semibold text-amber-600">Pending Verification</span>. It isn&apos;t visible to
           buyers yet and will go live once it&apos;s verified.
         </p>
+        {failedPhotos.length > 0 && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-sm text-amber-900" role="alert">
+            <p>
+              {failedPhotos.length} of {published.photos.length} photo{published.photos.length === 1 ? '' : 's'} could not be uploaded.
+            </p>
+            <button
+              type="button"
+              onClick={() => void retryFailedPhotos()}
+              disabled={publishing}
+              className="mt-2 inline-flex items-center gap-1.5 font-semibold text-amber-800 underline disabled:opacity-60 cursor-pointer"
+            >
+              {publishing && <Loader2 size={14} className="animate-spin" />}
+              Retry upload
+            </button>
+          </div>
+        )}
         <div className="mt-6 flex items-center gap-4 rounded-xl bg-slate-50 p-3 text-left">
           {published.photos[0] && <img src={published.photos[0].src} alt="" className="h-16 w-16 rounded-lg object-cover" />}
           <div className="min-w-0">
             <p className="truncate font-semibold text-slate-900">
-              {published.bhk} {published.propertyType}
+              {[needsBhk(published) ? published.bhk : '', published.propertyType].filter(Boolean).join(' ')}
             </p>
             <p className="truncate text-xs text-slate-500">
               {published.locality}, {published.city}
@@ -492,6 +596,8 @@ export default function PostPropertyWizard({
             type="button"
             onClick={() => {
               setPublished(null);
+              setCreatedId(null);
+              setFailedPhotos([]);
               setListing(emptyListing());
               setStep(0);
             }}
@@ -721,6 +827,11 @@ export default function PostPropertyWizard({
                   <Section title="Room Details">
                     <Field label="Bedrooms">
                       <Chips options={['1', '2', '3', '4', '5+']} value={listing.bedrooms} onChange={(v) => set('bedrooms', v)} />
+                      {bedroomsDifferFromBhk(listing) && (
+                        <p className="mt-2 text-xs text-amber-700">
+                          This differs from your BHK choice ({listing.bhk}). {listing.bedrooms} bedrooms will be saved; the listing title keeps {listing.bhk}.
+                        </p>
+                      )}
                     </Field>
                     <Field label="Bathrooms">
                       <Chips options={['1', '2', '3', '4', '5+']} value={listing.bathrooms} onChange={(v) => set('bathrooms', v)} />
@@ -896,12 +1007,16 @@ export default function PostPropertyWizard({
                 </Section>
                 {isRental(listing) && (
                   <Section title="Tenant Preference">
-                    <Chips options={tenantOptions} value={listing.tenantPreference} onChange={(v) => toggleIn('tenantPreference', v)} />
+                    <Chips
+                      options={tenantOptions}
+                      value={listing.tenantPreference}
+                      onChange={(v) => set('tenantPreference', listing.tenantPreference.includes(v) ? [] : [v])}
+                    />
                     <div className="grid gap-5 sm:grid-cols-2">
-                      <Field label="Lock-in Period" optional>
+                      <Field label="Lock-in Period" optional error={errors.lockInPeriod}>
                         <TextInput placeholder="e.g. 6 months" value={listing.lockInPeriod} onChange={(v) => set('lockInPeriod', v)} />
                       </Field>
-                      <Field label="Preferred Agreement Duration" optional>
+                      <Field label="Preferred Agreement Duration" optional error={errors.agreementDuration}>
                         <TextInput
                           placeholder="e.g. 11 months"
                           value={listing.agreementDuration}
@@ -919,7 +1034,12 @@ export default function PostPropertyWizard({
               <>
                 <Section title="Add Property Photos" subtitle="Upload clear photos of your property. The first photo is the cover.">
                   <Field label="Choose Photo Category">
-                    <Chips options={photoCategories} value={photoCategory} onChange={(v) => setPhotoCategory(v as PhotoCategory)} />
+                    <Chips
+                      options={photoCategories}
+                      value={photoCategory}
+                      disabled={UNAVAILABLE_PHOTO_CATEGORIES}
+                      onChange={(v) => setPhotoCategory(v as PhotoCategory)}
+                    />
                   </Field>
                   <div className="flex flex-wrap gap-3">
                     <button
@@ -1028,6 +1148,7 @@ export default function PostPropertyWizard({
                   <Chips
                     options={showAllFeatures ? featureOptions : featureOptions.slice(0, COLLAPSED_COUNT)}
                     value={listing.features}
+                    disabled={UNAVAILABLE_FEATURES}
                     onChange={(v) => toggleIn('features', v)}
                   />
                   <button
@@ -1057,7 +1178,11 @@ export default function PostPropertyWizard({
                 <Section title="Property Facing">
                   <Chips options={facingOptions} value={listing.facing} onChange={(v) => set('facing', v)} />
                   <Field label="Overlooking">
-                    <Chips options={overlookingOptions} value={listing.overlooking} onChange={(v) => toggleIn('overlooking', v)} />
+                    <Chips
+                      options={overlookingOptions}
+                      value={listing.overlooking}
+                      onChange={(v) => set('overlooking', listing.overlooking.includes(v) ? [] : [v])}
+                    />
                   </Field>
                   <Field label="No. of Open Sides">
                     <Chips options={openSidesOptions} value={listing.openSides} onChange={(v) => set('openSides', v)} />
@@ -1077,6 +1202,14 @@ export default function PostPropertyWizard({
               }`}
             >
               {notice.text}
+              {needsLogin && (
+                <>
+                  {' '}
+                  <Link href={loginHref(pathname || '/owner/dashboard/add-property', 'owner')} className="font-semibold underline">
+                    Log in
+                  </Link>
+                </>
+              )}
             </p>
           )}
 
@@ -1100,10 +1233,12 @@ export default function PostPropertyWizard({
             ) : (
               <button
                 type="button"
-                onClick={onPublish}
-                className="rounded-lg bg-[#087ed9] px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-600 transition cursor-pointer"
+                onClick={() => void onPublish()}
+                disabled={publishing}
+                className="rounded-lg bg-[#087ed9] px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-60 transition cursor-pointer flex items-center gap-2"
               >
-                Publish Property
+                {publishing && <Loader2 size={16} className="animate-spin" />}
+                {publishing ? 'Publishing…' : 'Publish Property'}
               </button>
             )}
           </div>
@@ -1159,7 +1294,7 @@ function Review({ listing: l, onEdit }: { listing: OwnerListing; onEdit: (step: 
         </div>
         <div className="p-5">
           <h3 className="text-lg font-bold text-slate-900">
-            {[l.bhk, l.propertyType].filter(Boolean).join(' ')}
+            {[needsBhk(l) ? l.bhk : '', l.propertyType].filter(Boolean).join(' ')}
             {l.society && ` in ${l.society}`}
           </h3>
           <p className="mt-1 flex items-center gap-1 text-sm text-slate-500">
@@ -1187,7 +1322,7 @@ function Review({ listing: l, onEdit }: { listing: OwnerListing; onEdit: (step: 
             ['Looking to', l.purpose],
             ['Category', l.category],
             ['Property Type', l.propertyType],
-            ['BHK', l.bhk],
+            ['BHK', needsBhk(l) && l.bhk],
             ['Phone', l.phone && `+91 ${l.phone}`],
             ['Email', l.email],
           ])
@@ -1209,7 +1344,7 @@ function Review({ listing: l, onEdit }: { listing: OwnerListing; onEdit: (step: 
           'Property Details',
           2,
           rows([
-            ['Bedrooms', l.bedrooms],
+            ['Bedrooms', bedroomsLabel(l)],
             ['Bathrooms', l.bathrooms],
             ['Balconies', l.balconies],
             [isPlot(l) ? 'Plot Area' : 'Carpet Area', area(l.carpetArea)],

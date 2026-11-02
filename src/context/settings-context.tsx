@@ -1,199 +1,175 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import {
-  AdminUser,
-  RoleDefinition,
-  PlatformSettings,
-  SecurityAuditLog,
-  AdminRoleType,
-} from "@/types/settings";
-import {
-  initialAdminUsers,
-  initialRoles,
-  initialPlatformSettings,
-  initialAuditLogs,
-} from "@/lib/settings-data";
+  AdminAuditLog,
+  AdminRole,
+  AdminStaffRow,
+  AssignableRole,
+  changeAdminStaffRole,
+  getAdminRoles,
+  grantAdminStaff,
+  listAdminAuditLogs,
+  listAdminStaff,
+  revokeAdminStaff,
+} from "@/lib/api/admin";
+import { errorMessage, isApiError } from "@/lib/api/client";
 import { usePropertyStore } from "@/context/property-context";
+import { useAdminAuth } from "@/context/admin-auth-context";
 
+/**
+ * Settings data from the backend: admin staff (/admin/staff,
+ * settings.manage_team), the role/permission matrix (/admin/roles, any
+ * admin) and the audit log (/admin/audit-logs, settings.view_audit_logs).
+ * Each part loads only when the admin's role may see it. Platform
+ * configuration has no backend and is not loaded.
+ */
 interface SettingsContextType {
-  adminUsers: AdminUser[];
-  roles: RoleDefinition[];
-  platformSettings: PlatformSettings;
-  auditLogs: SecurityAuditLog[];
-  addAdminUser: (
-    user: Omit<AdminUser, "id" | "createdAt" | "lastActive">
-  ) => void;
-  updateAdminUser: (id: string, updates: Partial<AdminUser>) => void;
-  deleteAdminUser: (id: string) => void;
-  updateRolePermissions: (
-    roleId: string,
-    permissions: RoleDefinition["permissions"]
-  ) => void;
-  updatePlatformSettings: (settings: Partial<PlatformSettings>) => void;
-  resetToDefaultSettings: () => void;
+  staff: AdminStaffRow[];
+  roles: AdminRole[];
+  auditLogs: AdminAuditLog[];
+  auditTotal: number;
+  loading: boolean;
+  loadError: string | null;
+  reload: () => void;
+  loadMoreAudit: () => Promise<void>;
+  /** Each resolves true when the backend accepted the change; failures are toasted. */
+  grantStaff: (userId: number, role: AssignableRole) => Promise<boolean>;
+  changeStaffRole: (userId: number, role: AssignableRole) => Promise<boolean>;
+  revokeStaff: (userId: number) => Promise<boolean>;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
-const SETTINGS_STORAGE_KEY = "restamp_admin_settings_v1";
+const AUDIT_PAGE = 50;
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(initialAdminUsers);
-  const [roles, setRoles] = useState<RoleDefinition[]>(initialRoles);
-  const [platformSettings, setPlatformSettings] =
-    useState<PlatformSettings>(initialPlatformSettings);
-  const [auditLogs, setAuditLogs] = useState<SecurityAuditLog[]>(initialAuditLogs);
-  const [isHydrated, setIsHydrated] = useState(false);
-
   const { showToast } = usePropertyStore();
+  const { admin, can } = useAdminAuth();
+  const [staff, setStaff] = useState<AdminStaffRow[]>([]);
+  const [roles, setRoles] = useState<AdminRole[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditPage, setAuditPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const canTeam = !!admin && can("settings.manage_team");
+  const canAudit = !!admin && can("settings.view_audit_logs");
 
-  // Load from localStorage
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.adminUsers) setAdminUsers(parsed.adminUsers);
-        if (parsed.roles) setRoles(parsed.roles);
-        if (parsed.platformSettings) setPlatformSettings(parsed.platformSettings);
-        if (parsed.auditLogs) setAuditLogs(parsed.auditLogs);
+    if (!admin) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    (async () => {
+      try {
+        const [r, s, a] = await Promise.all([
+          getAdminRoles(),
+          canTeam ? listAdminStaff() : Promise.resolve(null),
+          canAudit ? listAdminAuditLogs({}, 1, AUDIT_PAGE) : Promise.resolve(null),
+        ]);
+        if (cancelled) return;
+        setRoles(r.items);
+        setStaff(s?.items || []);
+        setAuditLogs(a?.items || []);
+        setAuditTotal(a?.total || 0);
+        setAuditPage(1);
+      } catch (e) {
+        if (!cancelled) setLoadError(errorMessage(e, "Could not load settings."));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    } catch {
-      // fallback to initial
-    } finally {
-      setIsHydrated(true);
-    }
-  }, []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [admin, canTeam, canAudit, reloadKey]);
 
-  // Save to localStorage
-  useEffect(() => {
-    if (!isHydrated) return;
+  const loadMoreAudit = useCallback(async () => {
     try {
-      localStorage.setItem(
-        SETTINGS_STORAGE_KEY,
-        JSON.stringify({
-          adminUsers,
-          roles,
-          platformSettings,
-          auditLogs,
-        })
-      );
+      const res = await listAdminAuditLogs({}, auditPage + 1, AUDIT_PAGE);
+      setAuditLogs((prev) => [...prev, ...res.items.filter((x) => !prev.some((p) => p.id === x.id))]);
+      setAuditTotal(res.total);
+      setAuditPage(auditPage + 1);
     } catch (e) {
-      console.error("Failed to save settings to localStorage", e);
+      showToast(errorMessage(e, "Could not load more audit entries."), "error");
     }
-  }, [adminUsers, roles, platformSettings, auditLogs, isHydrated]);
+  }, [auditPage, showToast]);
 
-  const addAdminUser = (
-    user: Omit<AdminUser, "id" | "createdAt" | "lastActive">
-  ) => {
-    const nextNum = adminUsers.length + 101;
-    const id = `ADM-${nextNum}`;
-    const now = new Date().toISOString();
+  const failure = useCallback(
+    (e: unknown, fallback: string) => {
+      const text =
+        isApiError(e) && (e.kind === "validation" || e.kind === "denied" || e.status === 409) && e.detail
+          ? e.detail
+          : errorMessage(e, fallback);
+      showToast(text, "error");
+    },
+    [showToast]
+  );
 
-    const created: AdminUser = {
-      ...user,
-      id,
-      createdAt: now,
-      lastActive: "Invited (Pending login)",
-    };
+  const grantStaff = useCallback(
+    async (userId: number, role: AssignableRole) => {
+      try {
+        const row = await grantAdminStaff(userId, role);
+        setStaff((prev) => [...prev.filter((s) => s.user_id !== row.user_id), row]);
+        showToast("Admin access granted.", "success");
+        return true;
+      } catch (e) {
+        failure(e, "Could not grant admin access.");
+        return false;
+      }
+    },
+    [failure, showToast]
+  );
 
-    setAdminUsers((prev) => [created, ...prev]);
+  const changeStaffRole = useCallback(
+    async (userId: number, role: AssignableRole) => {
+      try {
+        const row = await changeAdminStaffRole(userId, role);
+        setStaff((prev) => prev.map((s) => (s.user_id === row.user_id ? row : s)));
+        showToast("Admin role updated.", "success");
+        return true;
+      } catch (e) {
+        failure(e, "Could not change this admin's role.");
+        return false;
+      }
+    },
+    [failure, showToast]
+  );
 
-    // Log action to audit logs
-    const newLog: SecurityAuditLog = {
-      id: `LOG-${Date.now().toString().slice(-4)}`,
-      actor: "Ramesh Sundaram",
-      actorEmail: "ramesh.sundaram@restamp.in",
-      role: "Super Admin",
-      action: "Invited Admin Staff",
-      category: "Access",
-      ipAddress: "103.28.246.12",
-      timestamp: new Date().toLocaleString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      status: "Success",
-      details: `Invited ${user.name} (${user.email}) with role ${user.role}.`,
-    };
-
-    setAuditLogs((prev) => [newLog, ...prev]);
-    showToast(`Staff member ${user.name} added.`, "success");
-  };
-
-  const updateAdminUser = (id: string, updates: Partial<AdminUser>) => {
-    setAdminUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, ...updates } : u))
-    );
-    showToast(`Staff member updated.`, "success");
-  };
-
-  const deleteAdminUser = (id: string) => {
-    setAdminUsers((prev) => prev.filter((u) => u.id !== id));
-    showToast(`Staff member removed.`, "info");
-  };
-
-  const updateRolePermissions = (
-    roleId: string,
-    permissions: RoleDefinition["permissions"]
-  ) => {
-    setRoles((prev) =>
-      prev.map((r) => (r.id === roleId ? { ...r, permissions } : r))
-    );
-    showToast(`Role permissions updated.`, "success");
-  };
-
-  const updatePlatformSettings = (settings: Partial<PlatformSettings>) => {
-    setPlatformSettings((prev) => ({ ...prev, ...settings }));
-
-    const newLog: SecurityAuditLog = {
-      id: `LOG-${Date.now().toString().slice(-4)}`,
-      actor: "Ramesh Sundaram",
-      actorEmail: "ramesh.sundaram@restamp.in",
-      role: "Super Admin",
-      action: "Saved Platform Settings",
-      category: "Setting",
-      ipAddress: "103.28.246.12",
-      timestamp: new Date().toLocaleString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      status: "Success",
-      details: `Updated platform marketplace configuration & security policies.`,
-    };
-
-    setAuditLogs((prev) => [newLog, ...prev]);
-    showToast(`Platform settings saved successfully.`, "success");
-  };
-
-  const resetToDefaultSettings = () => {
-    setAdminUsers(initialAdminUsers);
-    setRoles(initialRoles);
-    setPlatformSettings(initialPlatformSettings);
-    setAuditLogs(initialAuditLogs);
-    localStorage.removeItem(SETTINGS_STORAGE_KEY);
-    showToast("Settings reset to defaults.", "info");
-  };
+  const revokeStaff = useCallback(
+    async (userId: number) => {
+      try {
+        await revokeAdminStaff(userId);
+        setStaff((prev) => prev.filter((s) => s.user_id !== userId));
+        showToast("Admin access revoked.", "success");
+        return true;
+      } catch (e) {
+        failure(e, "Could not revoke admin access.");
+        return false;
+      }
+    },
+    [failure, showToast]
+  );
 
   return (
     <SettingsContext.Provider
       value={{
-        adminUsers,
+        staff,
         roles,
-        platformSettings,
         auditLogs,
-        addAdminUser,
-        updateAdminUser,
-        deleteAdminUser,
-        updateRolePermissions,
-        updatePlatformSettings,
-        resetToDefaultSettings,
+        auditTotal,
+        loading,
+        loadError,
+        reload: () => setReloadKey((k) => k + 1),
+        loadMoreAudit,
+        grantStaff,
+        changeStaffRole,
+        revokeStaff,
       }}
     >
       {children}
@@ -203,7 +179,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
 export function useSettingsStore() {
   const context = useContext(SettingsContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error("useSettingsStore must be used within a SettingsProvider");
   }
   return context;

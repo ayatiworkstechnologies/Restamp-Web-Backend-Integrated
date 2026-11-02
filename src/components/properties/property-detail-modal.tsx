@@ -1,68 +1,89 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   X,
   CheckCircle2,
   XCircle,
   FileText,
-  ShieldCheck,
   Building,
   User,
   History,
   MapPin,
-  Sparkles,
-  Download,
-  ExternalLink,
-  Edit,
-  Clock,
-  Car,
-  Compass,
-  CheckSquare,
-  Square,
   AlertTriangle,
+  ImageOff,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
-import { Property } from "@/types/property";
-import { usePropertyStore } from "@/context/property-context";
+import Link from "next/link";
+import { AdminProperty, usePropertyStore } from "@/context/property-context";
+import { useAdminAuth } from "@/context/admin-auth-context";
+import type { AdminListingDetail } from "@/lib/api/admin";
+import { errorMessage } from "@/lib/api/client";
+import { cleanImageUrl, CONSTRUCTION_LABELS, DEAL_LABELS, typeLabel } from "@/lib/api/mappers";
 
 interface PropertyDetailModalProps {
-  property: Property | null;
+  property: AdminProperty | null;
   isOpen: boolean;
   onClose: () => void;
-  onApprove: (property: Property) => void;
-  onReject: (property: Property) => void;
-  onEdit: (property: Property) => void;
+  onApprove: (property: AdminProperty) => void;
+  onReject: (property: AdminProperty) => void;
 }
 
-export function PropertyDetailModal({
-  property,
-  isOpen,
-  onClose,
-  onApprove,
-  onReject,
-  onEdit,
-}: PropertyDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<
-    "overview" | "documents" | "owner" | "checklist" | "audit"
-  >("overview");
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+const formatDateTime = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
 
-  const { updateChecklist, toggleFeatured, toggleVerified, showToast } = usePropertyStore();
+const ACTOR_LABEL: Record<string, string> = { admin: "Admin", owner: "Owner", auto: "Automatic check" };
+
+/**
+ * Full listing review from GET /admin/listings/{id}: the owner's listing
+ * card, the owner reference and the verification history. Facts the backend
+ * does not hold (documents, RERA, KYC, inspection checklist) are shown as
+ * not available instead of being filled in.
+ */
+export function PropertyDetailModal({ property, isOpen, onClose, onApprove, onReject }: PropertyDetailModalProps) {
+  const [activeTab, setActiveTab] = useState<"overview" | "documents" | "owner" | "audit">("overview");
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [detail, setDetail] = useState<AdminListingDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { getDetail } = usePropertyStore();
+  const { can } = useAdminAuth();
+  const listingId = property?.listingId;
+  const status = property?.status;
+
+  useEffect(() => {
+    if (!isOpen || !listingId) return;
+    let cancelled = false;
+    setDetail(null);
+    setError("");
+    setLoading(true);
+    setSelectedImageIndex(0);
+    getDetail(listingId)
+      .then((d) => {
+        if (!cancelled) setDetail(d);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(errorMessage(e, "Could not load this listing."));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Re-load after a decision changes the row's status.
+  }, [isOpen, listingId, status, getDetail]);
 
   if (!isOpen || !property) return null;
 
-  const formatPrice = (price: number) => {
-    if (price >= 10000000) {
-      return `₹${(price / 10000000).toFixed(2)} Cr`;
-    }
-    return `₹${(price / 100000).toFixed(0)} Lakhs`;
-  };
-
-  const images = property.images && property.images.length > 0
-    ? property.images
-    : [
-        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80",
-      ];
+  const l = detail?.listing;
+  const images = l
+    ? [l.cover_image_url, ...(l.gallery || [])].map((u) => cleanImageUrl(u)).filter((u, i, a) => u && a.indexOf(u) === i)
+    : property.image
+    ? [property.image]
+    : [];
+  const lastRejection = [...(detail?.verification_history || [])].reverse().find((v) => v.action === "rejected");
 
   const statusColors = {
     Active: "bg-[#e7f8ee] text-[#199864] border-[#b4eed3]",
@@ -71,73 +92,72 @@ export function PropertyDetailModal({
     Draft: "bg-[#f1f4f9] text-[#6e7d94] border-[#dde3ee]",
   };
 
+  const specs: [string, string | number | null | undefined][] = l
+    ? [
+        ["Listing type", DEAL_LABELS[l.transaction_type] || l.transaction_type],
+        ["Property type", typeLabel(l.property_type)],
+        ["Construction", l.construction_status ? CONSTRUCTION_LABELS[l.construction_status] : null],
+        ["Bedrooms", l.bedrooms],
+        ["Bathrooms", l.bathrooms],
+        ["Balconies", l.balconies],
+        ["Area", l.area_value != null ? `${l.area_value} ${l.area_unit || "sqft"}` : null],
+        ["Super built-up", l.super_built_up_area != null ? `${l.super_built_up_area} sqft` : null],
+        ["Floor", l.floor_on ? `${l.floor_on}${l.total_floors ? ` of ${l.total_floors}` : ""}` : null],
+        ["Furnishing", l.furnishing],
+        ["Facing", l.facing],
+        ["Age", l.property_age_band],
+        ["Enquiries", l.enquiry_count],
+        ["Visits", l.visit_count],
+        ["Calls", l.call_count],
+      ]
+    : [];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
       <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col rounded-3xl border border-[#e2e8f2] bg-white shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#edf1f8] px-6 py-4 bg-[#fbfcfe]">
-          <div className="flex items-center gap-3">
-            <span className="rounded-xl bg-[#2854cb]/10 px-3 py-1 font-mono text-xs font-black text-[#2854cb]">
-              {property.id}
-            </span>
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="rounded-xl bg-[#2854cb]/10 px-3 py-1 font-mono text-xs font-black text-[#2854cb]">#{property.id}</span>
             <div className="min-w-0">
-              <h2 className="truncate text-base font-extrabold text-[#19273f]">
-                {property.title}
-              </h2>
+              <h2 className="truncate text-base font-extrabold text-[#19273f]">{property.title}</h2>
               <div className="flex items-center gap-2 text-xs text-[#8292aa]">
                 <MapPin size={12} className="text-[#a1b0c6]" />
                 <span>
-                  {property.locality}, {property.city}
+                  {property.locality}, {property.city} {property.pincode}
                 </span>
                 <span>•</span>
-                <span className="font-semibold text-[#324564]">{property.type}</span>
+                <span className="font-semibold text-[#324564]">{property.typeLabel}</span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span
-              className={`rounded-full border px-3 py-1 text-xs font-bold ${
-                statusColors[property.status]
-              }`}
-            >
-              {property.status}
-            </span>
-
-            {/* If pending, show quick approve & reject */}
-            {property.status === "Pending" && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onApprove(property)}
-                  className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-[#10b981] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#059669] transition-all"
-                >
-                  <CheckCircle2 size={14} />
-                  <span>Approve</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onReject(property)}
-                  className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-[#ef4444] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#dc2626] transition-all"
-                >
-                  <XCircle size={14} />
-                  <span>Reject</span>
-                </button>
-              </>
+            <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusColors[property.status]}`}>{property.statusLabel}</span>
+            {property.status === "Pending" && can("properties.approve") && (
+              <button
+                type="button"
+                onClick={() => onApprove(property)}
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-[#10b981] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#059669] transition-all"
+              >
+                <CheckCircle2 size={14} />
+                <span>Verify</span>
+              </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => onEdit(property)}
-              className="rounded-xl border border-[#e2e8f2] p-2 text-[#5a6a82] hover:bg-[#f6f8fb] hover:text-[#182740]"
-              title="Edit property details"
-            >
-              <Edit size={16} />
-            </button>
-
+            {property.status === "Pending" && can("properties.reject") && (
+              <button
+                type="button"
+                onClick={() => onReject(property)}
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-[#ef4444] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#dc2626] transition-all"
+              >
+                <XCircle size={14} />
+                <span>Reject</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
+              aria-label="Close"
               className="rounded-xl border border-[#e2e8f2] p-2 text-[#5a6a82] hover:bg-[#f6f8fb] hover:text-[#182740]"
             >
               <X size={16} />
@@ -145,16 +165,13 @@ export function PropertyDetailModal({
           </div>
         </div>
 
-        {/* Rejection notice banner if status is Rejected */}
-        {property.status === "Rejected" && (
+        {property.status === "Rejected" && lastRejection && (
           <div className="border-b border-[#fee2e2] bg-[#fef2f2] px-6 py-3">
             <div className="flex items-start gap-2.5 text-xs text-[#991b1b]">
               <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[#dc2626]" />
               <div>
-                <span className="font-bold">
-                  Listing Rejected ({property.rejectionCategory || "Compliance"}):
-                </span>{" "}
-                {property.rejectionReason}
+                <span className="font-bold">Rejected{lastRejection.category ? ` (${lastRejection.category})` : ""}:</span>{" "}
+                {lastRejection.reason || "No reason recorded."}
               </div>
             </div>
           </div>
@@ -164,10 +181,9 @@ export function PropertyDetailModal({
         <div className="flex overflow-x-auto border-b border-[#eef2f7] bg-white px-6">
           {[
             { id: "overview", label: "Overview & Specs", icon: Building },
-            { id: "documents", label: "Legal & RERA", icon: FileText, count: property.documents?.length },
-            { id: "owner", label: "Owner & KYC", icon: User },
-            { id: "checklist", label: "Verification Checklist", icon: ShieldCheck },
-            { id: "audit", label: "Audit Log", icon: History, count: property.auditLog?.length },
+            { id: "documents", label: "Legal & RERA", icon: FileText },
+            { id: "owner", label: "Owner", icon: User },
+            { id: "audit", label: "Review History", icon: History, count: detail?.verification_history.length },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -175,501 +191,175 @@ export function PropertyDetailModal({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
                 className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-xs font-bold transition-all ${
-                  isActive
-                    ? "border-[#2854cb] text-[#2854cb]"
-                    : "border-transparent text-[#7d8ca4] hover:text-[#233550]"
+                  isActive ? "border-[#2854cb] text-[#2854cb]" : "border-transparent text-[#7d8ca4] hover:text-[#233550]"
                 }`}
               >
                 <Icon size={14} />
                 <span>{tab.label}</span>
                 {tab.count !== undefined && (
-                  <span className="rounded-full bg-[#f0f3f8] px-1.5 py-0.2 text-[10px] text-[#6d7c92]">
-                    {tab.count}
-                  </span>
+                  <span className="rounded-full bg-[#f0f3f8] px-1.5 py-0.2 text-[10px] text-[#6d7c92]">{tab.count}</span>
                 )}
               </button>
             );
           })}
         </div>
 
-        {/* Modal Body / Tab Content (Scrollable) */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-[#7d8ca4]">
+              <Loader2 size={16} className="animate-spin text-[#2854cb]" /> Loading listing…
+            </div>
+          )}
+          {error && (
+            <div className="rounded-xl border border-[#fee2e2] bg-[#fef2f2] p-3 text-xs text-[#991b1b]" role="alert">
+              {error}
+            </div>
+          )}
+
           {activeTab === "overview" && (
             <div className="space-y-6">
-              {/* Image Gallery */}
-              <div className="space-y-3">
-                <div className="relative h-64 sm:h-80 w-full overflow-hidden rounded-2xl border border-[#e2e8f2] bg-slate-100">
-                  <img
-                    src={images[selectedImageIndex] || images[0]}
-                    alt={property.title}
-                    className="h-full w-full object-cover"
-                  />
-                  <div className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-md">
-                    <span>
-                      Photo {selectedImageIndex + 1} of {images.length}
-                    </span>
-                  </div>
-
-                  {/* Badges on image */}
-                  <div className="absolute top-3 left-3 flex items-center gap-2">
-                    {property.featured && (
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-[#f59e0b] px-2.5 py-1 text-[10px] font-extrabold text-white shadow-md">
-                        <Sparkles size={12} /> FEATURED
-                      </span>
-                    )}
-                    {property.verifiedBadge && (
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-[#10b981] px-2.5 py-1 text-[10px] font-extrabold text-white shadow-md">
-                        <ShieldCheck size={12} /> RESTAMP VERIFIED
-                      </span>
-                    )}
-                  </div>
+              <div className="space-y-2">
+                <div className="relative h-64 sm:h-80 overflow-hidden rounded-2xl bg-slate-100">
+                  {images.length ? (
+                    <img src={images[selectedImageIndex] || images[0]} alt={property.title} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-[#93a2b8]">
+                      <ImageOff size={28} />
+                      <span className="text-xs font-semibold">No photos uploaded</span>
+                    </div>
+                  )}
                 </div>
-
-                {/* Thumbnails */}
                 {images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {images.map((img, idx) => (
                       <button
-                        key={idx}
+                        key={img}
                         type="button"
                         onClick={() => setSelectedImageIndex(idx)}
-                        className={`relative h-16 w-20 shrink-0 overflow-hidden rounded-xl border-2 transition-all ${
-                          selectedImageIndex === idx
-                            ? "border-[#2854cb] shadow-md ring-2 ring-[#2854cb]/20"
-                            : "border-transparent opacity-70 hover:opacity-100"
+                        className={`h-14 w-20 shrink-0 overflow-hidden rounded-lg border-2 ${
+                          selectedImageIndex === idx ? "border-[#2854cb]" : "border-transparent"
                         }`}
                       >
-                        <img src={img} alt="thumbnail" className="h-full w-full object-cover" />
+                        <img src={img} alt={`Photo ${idx + 1}`} className="h-full w-full object-cover" />
                       </button>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Price & Primary Details Card */}
-              <div className="grid grid-cols-2 gap-4 rounded-2xl border border-[#e8ecf4] bg-[#f9fbfe] p-5 sm:grid-cols-4">
-                <div>
-                  <span className="text-[11px] font-bold text-[#8797ae] uppercase">Asking Price</span>
-                  <div className="mt-1 text-xl font-extrabold text-[#19273f]">
-                    {formatPrice(property.price)}
-                  </div>
-                  <div className="text-[11px] text-[#8797ae]">
-                    ₹{(property.price / (property.carpetAreaSqFt || 1000)).toFixed(0)} / sq.ft
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-[11px] font-bold text-[#8797ae] uppercase">Carpet Area</span>
-                  <div className="mt-1 text-xl font-extrabold text-[#19273f]">
-                    {property.carpetAreaSqFt} <span className="text-xs font-semibold">sq.ft</span>
-                  </div>
-                  <div className="text-[11px] text-[#8797ae]">
-                    Super: {property.superBuiltUpAreaSqFt || property.carpetAreaSqFt * 1.2} sq.ft
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-[11px] font-bold text-[#8797ae] uppercase">Configuration</span>
-                  <div className="mt-1 text-xl font-extrabold text-[#19273f]">
-                    {property.bhk > 0 ? `${property.bhk} BHK` : property.type}
-                  </div>
-                  <div className="text-[11px] text-[#8797ae]">
-                    {property.bathrooms} Baths · {property.balconies} Balconies
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-[11px] font-bold text-[#8797ae] uppercase">Possession</span>
-                  <div className="mt-1 text-base font-extrabold text-[#19273f]">
-                    {property.possessionStatus}
-                  </div>
-                  <div className="text-[11px] text-[#8797ae]">
-                    {property.possessionDate || "Immediate"}
-                  </div>
+              <div className="rounded-2xl border border-[#e8edf5] bg-[#fbfcfe] p-4">
+                <div className="text-[11px] font-bold uppercase text-[#94a3b8]">Price</div>
+                <div className="text-xl font-extrabold text-[#17253d]">{l?.price_display || property.priceDisplay}</div>
+                <div className="mt-1 text-xs text-[#7d8ca4]">
+                  Submitted {formatDateTime(l?.submitted_at || property.submittedAt)}
                 </div>
               </div>
 
-              {/* Description */}
-              <div>
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752]">
-                  Description
-                </h3>
-                <p className="mt-2 text-xs leading-relaxed text-[#5c6e88]">
-                  {property.description}
-                </p>
-              </div>
+              {l && (
+                <>
+                  <div>
+                    <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wider text-[#8392a8]">Description</h3>
+                    <p className="whitespace-pre-line text-sm text-[#4a5b75]">{l.description || "No description provided."}</p>
+                  </div>
 
-              {/* Detailed Specs Grid */}
-              <div>
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752] mb-3">
-                  Property Specifications
-                </h3>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 rounded-2xl border border-[#edf1f8] p-4 bg-white">
-                  <div>
-                    <span className="text-[11px] text-[#8c9cb2]">Furnishing</span>
-                    <div className="text-xs font-bold text-[#24354f]">{property.furnishing}</div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {specs
+                      .filter(([, v]) => v !== null && v !== undefined && v !== "")
+                      .map(([label, value]) => (
+                        <div key={label} className="rounded-xl border border-[#eef2f7] bg-white p-3">
+                          <div className="text-[10px] font-bold uppercase text-[#9aa7bb]">{label}</div>
+                          <div className="mt-0.5 text-sm font-bold text-[#23334e]">{value}</div>
+                        </div>
+                      ))}
                   </div>
-                  <div>
-                    <span className="text-[11px] text-[#8c9cb2]">Floor Level</span>
-                    <div className="text-xs font-bold text-[#24354f]">{property.floor}</div>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-[#8c9cb2]">Facing Direction</span>
-                    <div className="text-xs font-bold text-[#24354f]">{property.facing}</div>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-[#8c9cb2]">Reserved Parking</span>
-                    <div className="text-xs font-bold text-[#24354f]">{property.parking}</div>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-[#8c9cb2]">Age of Property</span>
-                    <div className="text-xs font-bold text-[#24354f]">{property.ageOfProperty}</div>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-[#8c9cb2]">Monthly Maintenance</span>
-                    <div className="text-xs font-bold text-[#24354f]">
-                      ₹{property.maintenanceFeeMonthly || 0} / month
+
+                  {l.amenities && l.amenities.length > 0 && (
+                    <div>
+                      <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wider text-[#8392a8]">Amenities</h3>
+                      <div className="flex flex-wrap gap-1.5">
+                        {l.amenities.map((a) => (
+                          <span key={a} className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[11px] font-semibold text-[#2854cb]">
+                            {a}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div className="col-span-2 sm:col-span-3 border-t border-[#f0f3f8] pt-2">
-                    <span className="text-[11px] text-[#8c9cb2]">Full Address</span>
-                    <div className="text-xs font-medium text-[#24354f]">
-                      {property.address}, {property.locality}, {property.city},{" "}
-                      {property.state} - {property.pincode} ({property.landmark || "N/A"})
-                    </div>
-                  </div>
-                </div>
-              </div>
+                  )}
 
-              {/* Amenities */}
-              <div>
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752] mb-3">
-                  Amenities & Facilities ({property.amenities?.length || 0})
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {property.amenities?.map((amenity) => (
-                    <span
-                      key={amenity}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-[#e2e8f2] bg-[#f8fafc] px-3 py-1.5 text-xs font-semibold text-[#41536d]"
+                  {property.status === "Active" && (
+                    <Link
+                      href={`/properties/${property.listingId}`}
+                      target="_blank"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2854cb] hover:underline"
                     >
-                      <CheckCircle2 size={13} className="text-[#10b981]" />
-                      {amenity}
-                    </span>
-                  ))}
-                </div>
-              </div>
+                      <ExternalLink size={13} /> View the public listing
+                    </Link>
+                  )}
+                </>
+              )}
             </div>
           )}
 
           {activeTab === "documents" && (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between rounded-xl border border-[#e8ecf4] bg-[#f8fbfe] p-4">
-                <div>
-                  <div className="text-xs font-extrabold text-[#22334f]">
-                    RERA Registration & Legal Clearance
-                  </div>
-                  <div className="mt-0.5 text-xs text-[#7f8fa5]">
-                    State Regulatory Authority:{" "}
-                    <span className="font-semibold text-[#22334f]">
-                      {property.reraId || "Application in progress"}
-                    </span>
-                  </div>
-                </div>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${
-                    property.reraVerified
-                      ? "bg-[#ecfdf5] text-[#059669]"
-                      : "bg-[#fffbeb] text-[#d97706]"
-                  }`}
-                >
-                  {property.reraVerified ? "RERA Verified" : "Verification Pending"}
-                </span>
-              </div>
-
-              <div>
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752] mb-3">
-                  Submitted Deeds & Certificates ({property.documents?.length || 0})
-                </h3>
-                <div className="space-y-3">
-                  {property.documents?.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between rounded-xl border border-[#e8ecf4] p-4 bg-white transition-all hover:border-[#ccd7ea]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4ff] text-[#2854cb]">
-                          <FileText size={20} />
-                        </span>
-                        <div>
-                          <div className="text-xs font-bold text-[#1f2f4a]">{doc.title}</div>
-                          <div className="mt-0.5 text-[11px] text-[#8697ae]">
-                            {doc.type} · {doc.fileSize} · Uploaded on {doc.uploadedAt}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                            doc.status === "Verified"
-                              ? "bg-[#ecfdf5] text-[#059669]"
-                              : doc.status === "Rejected"
-                              ? "bg-[#fef2f2] text-[#dc2626]"
-                              : "bg-[#fffbeb] text-[#d97706]"
-                          }`}
-                        >
-                          {doc.status}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => showToast(`Opening preview for ${doc.title}...`, "info")}
-                          className="rounded-lg border border-[#e2e8f2] p-1.5 text-[#6c7c94] hover:bg-[#f6f8fb] hover:text-[#182740]"
-                          title="Preview Document"
-                        >
-                          <ExternalLink size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => showToast(`Downloaded ${doc.title}`, "success")}
-                          className="rounded-lg border border-[#e2e8f2] p-1.5 text-[#6c7c94] hover:bg-[#f6f8fb] hover:text-[#182740]"
-                          title="Download Document"
-                        >
-                          <Download size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="rounded-2xl border border-dashed border-[#dce3ee] p-8 text-center text-sm text-[#7d8ca4]">
+              Ownership documents, RERA details and document checks are not available yet. Owners cannot upload documents and
+              the backend does not store them.
             </div>
           )}
 
           {activeTab === "owner" && (
-            <div className="space-y-6">
-              <div className="rounded-2xl border border-[#e8ecf4] bg-[#fbfcfe] p-5">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#2854cb] text-lg font-black text-white shadow-md">
-                    {property.owner.name.slice(0, 2).toUpperCase()}
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-[#e8edf5] p-4">
+                <div className="text-sm font-extrabold text-[#17253d]">{detail?.owner.display_name || property.ownerName}</div>
+                <div className="mt-1 text-xs text-[#7d8ca4]">User #{detail?.owner.user_id ?? property.ownerId}</div>
+                {detail?.owner.status && (
+                  <div className="mt-2 inline-block rounded-full bg-[#f0f3f8] px-2.5 py-0.5 text-[11px] font-bold capitalize text-[#4a5b75]">
+                    Account {detail.owner.status}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-extrabold text-[#19273f]">
-                        {property.owner.name}
-                      </h3>
-                      {property.owner.isKycVerified ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#ecfdf5] px-2.5 py-0.5 text-[10px] font-bold text-[#059669]">
-                          <ShieldCheck size={12} /> KYC VERIFIED
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fffbeb] px-2.5 py-0.5 text-[10px] font-bold text-[#d97706]">
-                          KYC PENDING
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 text-xs text-[#8090a7]">
-                      {property.owner.accountType} · Member since {property.owner.joinedDate}
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 border-t border-[#edf1f8] pt-4">
-                      <div>
-                        <span className="text-[11px] text-[#8c9cb2]">Phone Number</span>
-                        <div className="text-xs font-bold text-[#21314b]">
-                          {property.owner.phone}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-[11px] text-[#8c9cb2]">Email Address</span>
-                        <div className="text-xs font-bold text-[#21314b]">
-                          {property.owner.email}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-[11px] text-[#8c9cb2]">Active Listings</span>
-                        <div className="text-xs font-bold text-[#21314b]">
-                          {property.owner.totalListings} properties
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
-            </div>
-          )}
-
-          {activeTab === "checklist" && (
-            <div className="space-y-4">
-              <div className="text-xs text-[#78889f]">
-                Admin verification checklist for compliance with real estate regulatory standards.
-                Items marked here reflect audit state.
-              </div>
-              <div className="space-y-2.5 rounded-2xl border border-[#e8ecf4] p-4 bg-white">
-                {[
-                  {
-                    key: "legalDocumentsVerified" as const,
-                    label: "Title Deeds & Encumbrance Verified",
-                    desc: "30-year non-encumbrance certificate and sale deed authenticity confirmed.",
-                  },
-                  {
-                    key: "pricingValidated" as const,
-                    label: "Pricing Validated Against Guideline Value",
-                    desc: "Quoted price aligns with local registrar and prevailing market square foot rates.",
-                  },
-                  {
-                    key: "physicalInspectionDone" as const,
-                    label: "Physical / Ground Inspection Completed",
-                    desc: "Property boundary, road access, and physical condition visually audited.",
-                  },
-                  {
-                    key: "highResolutionPhotos" as const,
-                    label: "High Resolution Photos & Media Audited",
-                    desc: "Authentic, clear photos with correct orientation and no watermarks.",
-                  },
-                  {
-                    key: "ownerIdentityConfirmed" as const,
-                    label: "Owner Aadhaar / PAN Verification Matches",
-                    desc: "Name and government identification align directly with registered title deed.",
-                  },
-                ].map((item) => {
-                  const isChecked = !!property.adminChecklist?.[item.key];
-                  return (
-                    <label
-                      key={item.key}
-                      className="flex items-start gap-3 rounded-xl border border-[#edf1f8] p-3 hover:bg-[#fafcff] cursor-pointer transition-colors"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => updateChecklist(property.id, item.key, !isChecked)}
-                        className="mt-0.5 text-[#2854cb]"
-                      >
-                        {isChecked ? (
-                          <CheckSquare size={18} className="text-[#10b981]" />
-                        ) : (
-                          <Square size={18} className="text-slate-300" />
-                        )}
-                      </button>
-                      <div className="flex-1 text-xs">
-                        <span
-                          className={`font-bold ${
-                            isChecked ? "text-[#1d2d46]" : "text-[#62738b]"
-                          }`}
-                        >
-                          {item.label}
-                        </span>
-                        <p className="mt-0.5 text-[#8b9cb1]">{item.desc}</p>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
+              {can("users.view") && (
+                <Link
+                  href={`/admin-dashboard/users?id=${detail?.owner.user_id ?? property.ownerId}`}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2854cb] hover:underline"
+                >
+                  <User size={13} /> Open owner in User Management
+                </Link>
+              )}
+              <p className="text-xs text-[#9aa7bb]">Owner KYC is not available yet.</p>
             </div>
           )}
 
           {activeTab === "audit" && (
-            <div className="space-y-4">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752]">
-                Action Timeline & History
-              </h3>
-              <div className="space-y-3">
-                {property.auditLog?.map((log, idx) => (
-                  <div
-                    key={log.id || idx}
-                    className="flex items-start gap-3 rounded-xl border border-[#edf1f8] bg-[#fcfdfe] p-3.5"
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef4ff] text-[#2854cb]">
-                      <Clock size={15} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#1f2e48]">{log.action}</span>
-                        <span className="text-[10px] text-[#93a2b7]">{log.timestamp}</span>
-                      </div>
-                      <div className="mt-0.5 text-[11px] text-[#718299]">
-                        by <span className="font-semibold text-[#324564]">{log.actor}</span> (
-                        {log.role})
-                      </div>
-                      {log.notes && (
-                        <p className="mt-1 text-xs text-[#52637b] rounded-lg bg-white border border-[#edf1f8] p-2">
-                          {log.notes}
-                        </p>
-                      )}
+            <div className="space-y-2">
+              {(detail?.verification_history || []).length === 0 ? (
+                <p className="text-sm text-[#7d8ca4]">{detail ? "No review events yet." : ""}</p>
+              ) : (
+                [...(detail?.verification_history || [])].reverse().map((v) => (
+                  <div key={`${v.attempt_no}-${v.triggered_at}`} className="rounded-xl border border-[#eef2f7] p-3 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold capitalize text-[#23334e]">
+                        {v.action || "event"} · {ACTOR_LABEL[v.actor || ""] || v.actor || "unknown"}
+                      </span>
+                      <span className="text-[#93a2b7]">{formatDateTime(v.triggered_at)}</span>
                     </div>
+                    {(v.reason || v.category) && (
+                      <p className="mt-1 text-[#5a6a82]">
+                        {v.category ? `${v.category}: ` : ""}
+                        {v.reason}
+                      </p>
+                    )}
+                    <p className="mt-0.5 text-[10px] text-[#a0acbe]">
+                      Attempt {v.attempt_no} · result {v.result}
+                      {v.triggered_by_user_id ? ` · by user #${v.triggered_by_user_id}` : ""}
+                    </p>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex flex-wrap items-center justify-between border-t border-[#edf1f8] px-6 py-4 bg-[#fbfcfe]">
-          <div className="flex items-center gap-4 text-xs">
-            <button
-              type="button"
-              onClick={() => toggleFeatured(property.id)}
-              className={`flex items-center gap-1.5 font-bold transition-colors ${
-                property.featured ? "text-[#f59e0b]" : "text-[#8393aa] hover:text-[#233550]"
-              }`}
-            >
-              <Sparkles size={14} />
-              <span>{property.featured ? "Featured on Home" : "Mark as Featured"}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => toggleVerified(property.id)}
-              className={`flex items-center gap-1.5 font-bold transition-colors ${
-                property.verifiedBadge ? "text-[#10b981]" : "text-[#8393aa] hover:text-[#233550]"
-              }`}
-            >
-              <ShieldCheck size={14} />
-              <span>{property.verifiedBadge ? "Verified Badge Active" : "Add Verified Badge"}</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            {property.status === "Pending" ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onReject(property)}
-                  className="rounded-xl border border-[#fee2e2] bg-[#fef2f2] px-4 py-2 text-xs font-bold text-[#dc2626] hover:bg-[#fee2e2] transition-colors"
-                >
-                  Reject Listing
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onApprove(property)}
-                  className="rounded-xl bg-[#10b981] px-5 py-2 text-xs font-bold text-white shadow-[0_4px_12px_#10b98135] hover:bg-[#059669] transition-all"
-                >
-                  Approve & Activate
-                </button>
-              </>
-            ) : property.status === "Rejected" ? (
-              <button
-                type="button"
-                onClick={() => onApprove(property)}
-                className="rounded-xl bg-[#2854cb] px-5 py-2 text-xs font-bold text-white hover:bg-[#1f45ae] transition-colors"
-              >
-                Re-approve Property
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onReject(property)}
-                className="rounded-xl border border-[#fee2e2] bg-[#fef2f2] px-4 py-2 text-xs font-bold text-[#dc2626] hover:bg-[#fee2e2] transition-colors"
-              >
-                Delist / Reject
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-[#dbe2ee] px-4 py-2 text-xs font-semibold text-[#576882] hover:bg-[#f8fafc]"
-            >
-              Close
-            </button>
-          </div>
         </div>
       </div>
     </div>

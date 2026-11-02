@@ -1,8 +1,18 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useMemo } from "react";
-import { Property, PropertyStatus, AdminChecklist } from "@/types/property";
-import { initialProperties } from "@/lib/properties-data";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { PropertyStatus, PropertyType } from "@/types/property";
+import {
+  AdminListingDetail,
+  AdminListingRow,
+  getAdminListing,
+  listAdminListings,
+  rejectAdminListing,
+  verifyAdminListing,
+} from "@/lib/api/admin";
+import { errorMessage, isApiError } from "@/lib/api/client";
+import { cleanImageUrl, DEAL_LABELS, typeLabel } from "@/lib/api/mappers";
+import { useAdminAuth } from "@/context/admin-auth-context";
 
 interface ToastMessage {
   id: number;
@@ -10,429 +20,265 @@ interface ToastMessage {
   type: "success" | "error" | "info";
 }
 
-interface PropertyContextType {
-  properties: Property[];
-  stats: {
-    total: number;
-    active: number;
-    pending: number;
-    rejected: number;
-    draft: number;
-    totalValue: number;
-    pendingApprovalProperties: Property[];
+/**
+ * One admin listing row (GET /admin/listings) shaped for the console. Only
+ * backend fields; nothing is estimated. `status` is the console's tab
+ * bucket: Pending / Rejected / Active (verified + available) / Draft
+ * (every other verified state: hidden, sold, rented, leased, or removed),
+ * with the precise state in `statusLabel`.
+ */
+export interface AdminProperty {
+  id: string;
+  listingId: number;
+  title: string;
+  type: PropertyType;
+  typeLabel: string;
+  dealLabel: string;
+  price: number;
+  priceDisplay: string;
+  status: PropertyStatus;
+  statusLabel: string;
+  verificationStatus: string;
+  listingStatus: string;
+  removed: boolean;
+  locality: string;
+  city: string;
+  pincode: string;
+  ownerId: number;
+  ownerName: string;
+  submittedAt: string | null;
+  image: string;
+}
+
+const TYPE_BUCKET: Record<string, PropertyType> = {
+  APARTMENT: "Apartment",
+  VILLA: "Villa",
+  HOUSE: "Independent House",
+  PLOT: "Plot",
+  AGRICULTURAL_LAND: "Plot",
+  COMMERCIAL: "Commercial",
+};
+
+const LISTING_STATE_LABEL: Record<string, string> = {
+  CLOSED: "Hidden by owner",
+  SOLD: "Sold",
+  RENTED: "Rented",
+  LEASED: "Leased",
+  EXPIRED: "Expired",
+};
+
+export function toAdminProperty(r: AdminListingRow): AdminProperty {
+  let status: PropertyStatus = "Draft";
+  let statusLabel = LISTING_STATE_LABEL[r.listing_status] || r.listing_status;
+  if (r.removed) statusLabel = "Removed by owner";
+  else if (r.verification_status === "PENDING") [status, statusLabel] = ["Pending", "Pending review"];
+  else if (r.verification_status === "REJECTED") [status, statusLabel] = ["Rejected", "Rejected"];
+  else if (r.listing_status === "AVAILABLE") [status, statusLabel] = ["Active", "Live"];
+  return {
+    id: String(r.listing_id),
+    listingId: r.listing_id,
+    title: r.title,
+    type: TYPE_BUCKET[r.property_type] || "Apartment",
+    typeLabel: typeLabel(r.property_type),
+    dealLabel: DEAL_LABELS[r.transaction_type] || r.transaction_type,
+    price: Math.round(r.price_paise / 100),
+    priceDisplay: r.price_display,
+    status,
+    statusLabel,
+    verificationStatus: r.verification_status,
+    listingStatus: r.listing_status,
+    removed: r.removed,
+    locality: r.locality,
+    city: r.city,
+    pincode: r.pincode,
+    ownerId: r.owner_user_id,
+    ownerName: r.owner_name || "Owner",
+    submittedAt: r.submitted_at || null,
+    image: cleanImageUrl(r.cover_image_url),
   };
+}
+
+interface PropertyContextType {
+  properties: AdminProperty[];
+  loading: boolean;
+  loadError: string | null;
+  /** True when more listings exist than were loaded. */
+  truncated: boolean;
+  stats: { total: number; active: number; pending: number; rejected: number; inactive: number };
+  reload: () => void;
+  getDetail: (id: number) => Promise<AdminListingDetail>;
+  /** PENDING -> VERIFIED. Resolves true on success; failures are toasted. */
+  approveProperty: (id: number, notes?: string) => Promise<boolean>;
+  /** PENDING -> REJECTED with a required reason. */
+  rejectProperty: (id: number, reason: string, category?: string) => Promise<boolean>;
+  batchApprove: (ids: number[]) => Promise<void>;
   toast: ToastMessage | null;
   showToast: (message: string, type?: "success" | "error" | "info") => void;
   hideToast: () => void;
-  approveProperty: (
-    id: string,
-    notes?: string,
-    makeFeatured?: boolean,
-    makeVerified?: boolean
-  ) => void;
-  rejectProperty: (id: string, reason: string, category?: string) => void;
-  batchApprove: (ids: string[]) => void;
-  batchReject: (ids: string[], reason: string, category?: string) => void;
-  updateProperty: (id: string, updates: Partial<Property>) => void;
-  deleteProperty: (id: string) => void;
-  addProperty: (newProp: Omit<Property, "id" | "submittedAt" | "updatedAt" | "auditLog">) => string;
-  toggleFeatured: (id: string) => void;
-  toggleVerified: (id: string) => void;
-  updateChecklist: (id: string, key: keyof AdminChecklist, value: boolean) => void;
-  resetToDefault: () => void;
 }
 
 const PropertyContext = createContext<PropertyContextType | undefined>(undefined);
 
-const STORAGE_KEY = "restamp_admin_properties_v1";
+// Load up to this many listings for the console's in-page filters (5 pages of 100).
+const MAX_PAGES = 5;
+
+function actionError(e: unknown, fallback: string): string {
+  if (isApiError(e, "validation") && e.detail) return e.detail;
+  return errorMessage(e, fallback);
+}
 
 export function PropertyProvider({ children }: { children: React.ReactNode }) {
-  const [properties, setProperties] = useState<Property[]>(initialProperties);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const { admin, can } = useAdminAuth();
+  const [properties, setProperties] = useState<AdminProperty[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const canView = !!admin && can("properties.view");
 
-  // Load from localStorage on client mount
+  const showToast = useCallback((message: string, type: "success" | "error" | "info" = "success") => {
+    setToast({ id: Date.now(), message, type });
+  }, []);
+  const hideToast = useCallback(() => setToast(null), []);
+
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setProperties(parsed);
-        }
-      }
-    } catch {
-      // fallback to initial
-    } finally {
-      setIsHydrated(true);
+    if (!canView) {
+      setProperties([]);
+      setLoading(false);
+      return;
     }
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    (async () => {
+      try {
+        const rows: AdminListingRow[] = [];
+        let total = 0;
+        for (let page = 1; page <= MAX_PAGES; page++) {
+          const res = await listAdminListings({ include_removed: true }, page, 100);
+          rows.push(...res.items);
+          total = res.total;
+          if (rows.length >= total || res.items.length === 0) break;
+        }
+        if (cancelled) return;
+        setProperties(rows.map(toAdminProperty));
+        setTruncated(rows.length < total);
+      } catch (e) {
+        if (!cancelled) setLoadError(errorMessage(e, "Could not load listings."));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [canView, reloadKey]);
+
+  const replaceRow = useCallback((detail: AdminListingDetail) => {
+    const l = detail.listing;
+    setProperties((prev) =>
+      prev.map((p) =>
+        p.listingId === l.listing_id
+          ? toAdminProperty({
+              listing_id: l.listing_id,
+              title: l.title,
+              property_type: l.property_type,
+              transaction_type: l.transaction_type,
+              price_paise: l.price_paise,
+              price_period: l.price_period,
+              price_display: l.price_display,
+              verification_status: l.verification_status,
+              listing_status: l.listing_status,
+              removed: !!l.removed,
+              submitted_at: l.submitted_at,
+              owner_user_id: detail.owner.user_id,
+              owner_name: detail.owner.display_name,
+              locality: l.locality,
+              city: l.city,
+              pincode: l.pincode,
+              cover_image_url: l.cover_image_url,
+            })
+          : p
+      )
+    );
   }, []);
 
-  // Save to localStorage when properties change (only after initial hydration)
-  useEffect(() => {
-    if (!isHydrated) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(properties));
-    } catch (e) {
-      console.error("Failed to save properties to localStorage", e);
-    }
-  }, [properties, isHydrated]);
+  const approveProperty = useCallback(
+    async (id: number, notes?: string) => {
+      try {
+        replaceRow(await verifyAdminListing(id, notes));
+        showToast("Listing verified. It is now visible to buyers if available.", "success");
+        return true;
+      } catch (e) {
+        showToast(actionError(e, "Could not verify this listing."), "error");
+        return false;
+      }
+    },
+    [replaceRow, showToast]
+  );
 
-  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
-    const id = Date.now();
-    setToast({ id, message, type });
-    setTimeout(() => {
-      setToast((current) => (current?.id === id ? null : current));
-    }, 4000);
-  };
+  const rejectProperty = useCallback(
+    async (id: number, reason: string, category?: string) => {
+      try {
+        replaceRow(await rejectAdminListing(id, reason, category));
+        showToast("Listing rejected. The owner can fix it and resubmit.", "success");
+        return true;
+      } catch (e) {
+        showToast(actionError(e, "Could not reject this listing."), "error");
+        return false;
+      }
+    },
+    [replaceRow, showToast]
+  );
 
-  const hideToast = () => setToast(null);
+  const batchApprove = useCallback(
+    async (ids: number[]) => {
+      let ok = 0;
+      let failed = 0;
+      for (const id of ids) {
+        try {
+          replaceRow(await verifyAdminListing(id));
+          ok++;
+        } catch {
+          failed++;
+        }
+      }
+      showToast(
+        failed ? `Verified ${ok} listing(s); ${failed} could not be verified.` : `Verified ${ok} listing(s).`,
+        failed ? "error" : "success"
+      );
+    },
+    [replaceRow, showToast]
+  );
 
-  const stats = useMemo(() => {
-    const total = properties.length;
-    const active = properties.filter((p) => p.status === "Active").length;
-    const pending = properties.filter((p) => p.status === "Pending").length;
-    const rejected = properties.filter((p) => p.status === "Rejected").length;
-    const draft = properties.filter((p) => p.status === "Draft").length;
-    const totalValue = properties.reduce((acc, curr) => acc + curr.price, 0);
-    const pendingApprovalProperties = properties.filter((p) => p.status === "Pending");
-    return { total, active, pending, rejected, draft, totalValue, pendingApprovalProperties };
-  }, [properties]);
-
-  const approveProperty = (
-    id: string,
-    notes?: string,
-    makeFeatured?: boolean,
-    makeVerified: boolean = true
-  ) => {
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-    const formattedTime = now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const timestamp = `${formattedDate}, ${formattedTime}`;
-
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-
-        const updatedChecklist = {
-          ...item.adminChecklist,
-          legalDocumentsVerified: true,
-          pricingValidated: true,
-          ownerIdentityConfirmed: true,
-        };
-
-        const updatedAuditLog = [
-          {
-            id: `LOG-${Date.now().toString().slice(-4)}`,
-            action: "Listing Approved",
-            actor: "Admin (Current Session)",
-            role: "Administrator",
-            timestamp,
-            notes: notes || "Property approved and published to RESTAMP marketplace.",
-          },
-          ...(item.auditLog || []),
-        ];
-
-        return {
-          ...item,
-          status: "Active" as PropertyStatus,
-          reviewedAt: timestamp,
-          reviewedBy: "RESTAMP Admin",
-          approvalNotes: notes || "Approved for marketplace listing.",
-          rejectionReason: undefined,
-          rejectionCategory: undefined,
-          featured: makeFeatured !== undefined ? makeFeatured : item.featured,
-          verifiedBadge: makeVerified,
-          adminChecklist: updatedChecklist,
-          auditLog: updatedAuditLog,
-          updatedAt: timestamp,
-        };
-      })
-    );
-
-    showToast(`Property ${id} approved successfully! Listing is now Active.`);
-  };
-
-  const rejectProperty = (
-    id: string,
-    reason: string,
-    category: string = "Compliance & Verification"
-  ) => {
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-    const formattedTime = now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const timestamp = `${formattedDate}, ${formattedTime}`;
-
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-
-        const updatedAuditLog = [
-          {
-            id: `LOG-${Date.now().toString().slice(-4)}`,
-            action: "Listing Rejected",
-            actor: "Admin (Current Session)",
-            role: "Administrator",
-            timestamp,
-            notes: `Rejected with reason: ${reason} (${category})`,
-          },
-          ...(item.auditLog || []),
-        ];
-
-        return {
-          ...item,
-          status: "Rejected" as PropertyStatus,
-          reviewedAt: timestamp,
-          reviewedBy: "RESTAMP Admin",
-          rejectionReason: reason,
-          rejectionCategory: category,
-          approvalNotes: undefined,
-          auditLog: updatedAuditLog,
-          updatedAt: timestamp,
-        };
-      })
-    );
-
-    showToast(`Property ${id} was rejected. Owner notification generated.`, "error");
-  };
-
-  const batchApprove = (ids: string[]) => {
-    if (ids.length === 0) return;
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-    const timestamp = `${formattedDate}, Batch Action`;
-
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (!ids.includes(item.id)) return item;
-        return {
-          ...item,
-          status: "Active" as PropertyStatus,
-          reviewedAt: timestamp,
-          reviewedBy: "RESTAMP Admin",
-          approvalNotes: "Batch approved by administrator.",
-          verifiedBadge: true,
-          auditLog: [
-            {
-              id: `LOG-${Date.now().toString().slice(-4)}`,
-              action: "Batch Approval",
-              actor: "Admin",
-              role: "Administrator",
-              timestamp,
-              notes: "Approved via bulk action toolbar.",
-            },
-            ...(item.auditLog || []),
-          ],
-          updatedAt: timestamp,
-        };
-      })
-    );
-
-    showToast(`${ids.length} properties approved in batch!`, "success");
-  };
-
-  const batchReject = (ids: string[], reason: string, category: string = "Administrative") => {
-    if (ids.length === 0) return;
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-    const timestamp = `${formattedDate}, Batch Action`;
-
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (!ids.includes(item.id)) return item;
-        return {
-          ...item,
-          status: "Rejected" as PropertyStatus,
-          reviewedAt: timestamp,
-          reviewedBy: "RESTAMP Admin",
-          rejectionReason: reason,
-          rejectionCategory: category,
-          auditLog: [
-            {
-              id: `LOG-${Date.now().toString().slice(-4)}`,
-              action: "Batch Rejection",
-              actor: "Admin",
-              role: "Administrator",
-              timestamp,
-              notes: `Batch rejected: ${reason}`,
-            },
-            ...(item.auditLog || []),
-          ],
-          updatedAt: timestamp,
-        };
-      })
-    );
-
-    showToast(`${ids.length} properties marked as Rejected.`, "error");
-  };
-
-  const updateProperty = (id: string, updates: Partial<Property>) => {
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, ${now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        return {
-          ...item,
-          ...updates,
-          updatedAt: timestamp,
-          auditLog: [
-            {
-              id: `LOG-${Date.now().toString().slice(-4)}`,
-              action: "Listing Updated",
-              actor: "Admin",
-              role: "Administrator",
-              timestamp,
-              notes: "Property details modified by admin.",
-            },
-            ...(item.auditLog || []),
-          ],
-        };
-      })
-    );
-
-    showToast(`Property ${id} updated successfully.`);
-  };
-
-  const deleteProperty = (id: string) => {
-    setProperties((prev) => prev.filter((p) => p.id !== id));
-    showToast(`Property ${id} was deleted from database.`, "info");
-  };
-
-  const addProperty = (newProp: Omit<Property, "id" | "submittedAt" | "updatedAt" | "auditLog">) => {
-    const randomNum = Math.floor(1030 + Math.random() * 900);
-    const newId = `RST-${randomNum}`;
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-    const formattedTime = now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const timestamp = `${formattedDate}, ${formattedTime}`;
-
-    const createdProperty: Property = {
-      ...newProp,
-      id: newId,
-      submittedAt: timestamp,
-      updatedAt: timestamp,
-      initials: newProp.title.slice(0, 2).toUpperCase(),
-      tint: "#EBF3FE",
-      auditLog: [
-        {
-          id: `LOG-${Date.now().toString().slice(-4)}`,
-          action: "Listing Created",
-          actor: "Admin",
-          role: "Administrator",
-          timestamp,
-          notes: "Property created directly from admin console.",
-        },
-      ],
-    };
-
-    setProperties((prev) => [createdProperty, ...prev]);
-    showToast(`Property ${newId} created successfully!`, "success");
-    return newId;
-  };
-
-  const toggleFeatured = (id: string) => {
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        const nextState = !item.featured;
-        return { ...item, featured: nextState };
-      })
-    );
-    showToast("Featured status updated.");
-  };
-
-  const toggleVerified = (id: string) => {
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        const nextState = !item.verifiedBadge;
-        return { ...item, verifiedBadge: nextState };
-      })
-    );
-    showToast("Verified badge updated.");
-  };
-
-  const updateChecklist = (id: string, key: keyof AdminChecklist, value: boolean) => {
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        return {
-          ...item,
-          adminChecklist: {
-            ...item.adminChecklist,
-            [key]: value,
-          },
-        };
-      })
-    );
-  };
-
-  const resetToDefault = () => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-    setProperties(initialProperties);
-    showToast("Reset demo data to initial state.", "info");
-  };
+  const stats = useMemo(
+    () => ({
+      total: properties.length,
+      active: properties.filter((p) => p.status === "Active").length,
+      pending: properties.filter((p) => p.status === "Pending").length,
+      rejected: properties.filter((p) => p.status === "Rejected").length,
+      inactive: properties.filter((p) => p.status === "Draft").length,
+    }),
+    [properties]
+  );
 
   return (
     <PropertyContext.Provider
       value={{
         properties,
+        loading,
+        loadError,
+        truncated,
         stats,
-        toast,
-        showToast,
-        hideToast,
+        reload: () => setReloadKey((k) => k + 1),
+        getDetail: getAdminListing,
         approveProperty,
         rejectProperty,
         batchApprove,
-        batchReject,
-        updateProperty,
-        deleteProperty,
-        addProperty,
-        toggleFeatured,
-        toggleVerified,
-        updateChecklist,
-        resetToDefault,
+        toast,
+        showToast,
+        hideToast,
       }}
     >
       {children}
@@ -442,7 +288,7 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
 
 export function usePropertyStore() {
   const context = useContext(PropertyContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error("usePropertyStore must be used within a PropertyProvider");
   }
   return context;

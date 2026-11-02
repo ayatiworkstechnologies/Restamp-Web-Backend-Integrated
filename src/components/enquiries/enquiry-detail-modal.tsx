@@ -1,309 +1,172 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  X,
-  Phone,
-  Mail,
-  MapPin,
-  Building,
-  User,
-  ExternalLink,
-  ShieldCheck,
-  CheckCircle2,
-  Trash2,
-  Clock,
-  Archive,
-  Save,
-} from "lucide-react";
-import { Enquiry, EnquiryStatus } from "@/types/enquiry";
-import { useEnquiryStore } from "@/context/enquiry-context";
+import { X, Building, User, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
+import { EnquiryStatus } from "@/types/enquiry";
+import { AdminEnquiryItem, useEnquiryStore } from "@/context/enquiry-context";
+import type { AdminEnquiryDetail } from "@/lib/api/admin";
+import { errorMessage } from "@/lib/api/client";
+import { useAdminAuth } from "@/context/admin-auth-context";
 
 interface EnquiryDetailModalProps {
-  enquiry: Enquiry | null;
+  enquiry: AdminEnquiryItem | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function EnquiryDetailModal({
-  enquiry,
-  isOpen,
-  onClose,
-}: EnquiryDetailModalProps) {
-  const { updateEnquiryStatus, updateAdminNotes, deleteEnquiry } =
-    useEnquiryStore();
+const formatDateTime = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
-  const [notes, setNotes] = useState(enquiry?.adminNotes || "");
+const STATUS_LABELS: Record<EnquiryStatus, string> = { Active: "New", Addressed: "Owner responded", Archived: "Closed" };
+
+/**
+ * Read-only enquiry thread (GET /admin/enquiries/{id}). The status is set by
+ * the owner's lead workflow, so the switcher only shows where it stands.
+ * Admin notes on enquiries are not supported by the backend.
+ */
+export function EnquiryDetailModal({ enquiry, isOpen, onClose }: EnquiryDetailModalProps) {
+  const { getDetail } = useEnquiryStore();
+  const { can } = useAdminAuth();
+  const [detail, setDetail] = useState<AdminEnquiryDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const enquiryId = enquiry?.enquiryId;
 
   useEffect(() => {
-    if (enquiry) {
-      setNotes(enquiry.adminNotes || "");
-    }
-  }, [enquiry]);
+    if (!isOpen || !enquiryId) return;
+    let cancelled = false;
+    setDetail(null);
+    setError("");
+    setLoading(true);
+    getDetail(enquiryId)
+      .then((d) => {
+        if (!cancelled) setDetail(d);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(errorMessage(e, "Could not load this enquiry."));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, enquiryId, getDetail]);
 
   if (!isOpen || !enquiry) return null;
-
-  const handleSaveNotes = () => {
-    updateAdminNotes(enquiry.id, notes);
-  };
-
-  const formatPrice = (price: number) => {
-    if (price >= 10000000) {
-      return `₹${(price / 10000000).toFixed(2)} Cr`;
-    }
-    if (price >= 100000) {
-      return `₹${(price / 100000).toFixed(2)} L`;
-    }
-    return `₹${price.toLocaleString("en-IN")}`;
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[#e8ecf4] bg-white p-6 shadow-2xl">
-        {/* Header */}
         <div className="flex items-start justify-between border-b border-[#f1f4f9] pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-sm font-bold text-[#162d66] bg-[#f0f4ff] px-2 py-0.5 rounded-md">
-                {enquiry.id}
-              </span>
-              <span className="rounded-full bg-[#f1f5f9] px-2.5 py-0.5 text-xs text-[#64748b]">
-                {enquiry.channel}
-              </span>
-              <span className="text-xs text-[#94a3b8]">
-                {new Date(enquiry.createdAt).toLocaleDateString("en-IN", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
+              <span className="font-mono text-sm font-bold text-[#162d66] bg-[#f0f4ff] px-2 py-0.5 rounded-md">#{enquiry.id}</span>
+              <span className="text-xs text-[#94a3b8]">{formatDateTime(enquiry.createdAt)}</span>
             </div>
-            <h2 className="mt-1 text-lg font-bold text-[#101828]">
-              {enquiry.type}
-            </h2>
+            <h2 className="mt-1 text-lg font-bold text-[#101828]">Buyer enquiry</h2>
           </div>
-
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close"
             className="rounded-xl p-1.5 text-[#94a3b8] hover:bg-[#f1f5f9] hover:text-[#101828]"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Status Quick Switcher */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#f8fafc] border border-[#e8ecf4] p-3">
-          <div className="text-xs font-semibold text-[#64748b]">
-            Lead Status:
-          </div>
+          <div className="text-xs font-semibold text-[#64748b]">Lead status (set by the owner):</div>
           <div className="flex items-center gap-1.5">
-            {(["Active", "Addressed", "Archived"] as EnquiryStatus[]).map(
-              (st) => {
-                const isActive = enquiry.status === st;
-                return (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => updateEnquiryStatus(enquiry.id, st)}
-                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
-                      isActive
-                        ? st === "Active"
-                          ? "bg-[#d97706] text-white shadow-sm"
-                          : st === "Addressed"
-                          ? "bg-[#059669] text-white shadow-sm"
-                          : "bg-[#64748b] text-white shadow-sm"
-                        : "bg-white text-[#475467] border border-[#e8ecf4] hover:bg-[#f1f5f9]"
-                    }`}
-                  >
-                    {isActive && <CheckCircle2 className="h-3.5 w-3.5" />}
-                    <span>{st}</span>
-                  </button>
-                );
-              }
-            )}
+            {(["Active", "Addressed", "Archived"] as EnquiryStatus[]).map((st) => {
+              const isActive = enquiry.status === st;
+              return (
+                <span
+                  key={st}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold ${
+                    isActive
+                      ? st === "Active"
+                        ? "bg-[#d97706] text-white shadow-sm"
+                        : st === "Addressed"
+                        ? "bg-[#059669] text-white shadow-sm"
+                        : "bg-[#64748b] text-white shadow-sm"
+                      : "bg-white text-[#94a3b8] border border-[#e8ecf4]"
+                  }`}
+                >
+                  {isActive && <CheckCircle2 className="h-3.5 w-3.5" />}
+                  <span>{STATUS_LABELS[st]}</span>
+                </span>
+              );
+            })}
           </div>
         </div>
+        {enquiry.closingReason && <p className="mt-2 text-xs text-[#64748b]">Closing outcome: {enquiry.closingReason}</p>}
 
         <div className="mt-4 space-y-4">
-          {/* Buyer's Message */}
           <div className="rounded-2xl border border-[#e8ecf4] bg-[#fffbf0] p-4">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#b45309]">
-              Buyer Inquiry Message
-            </span>
-            <p className="mt-1.5 text-sm text-[#101828] leading-relaxed italic">
-              "{enquiry.message}"
-            </p>
-          </div>
-
-          {/* Grid: Buyer Details & Property Owner */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Buyer Card */}
-            <div className="rounded-2xl border border-[#e8ecf4] bg-white p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748b]">
-                  Buyer Information
-                </span>
-                {enquiry.buyer.isKycVerified ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-semibold text-[#059669]">
-                    <ShieldCheck className="h-3 w-3" />
-                    KYC Verified
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-[#94a3b8]">
-                    Unverified Buyer
-                  </span>
-                )}
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#b45309]">Conversation</span>
+            {loading && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-[#94a3b8]">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading messages…
               </div>
-
-              <div className="mt-2.5">
-                <div className="font-semibold text-sm text-[#101828]">
-                  {enquiry.buyer.name}
-                </div>
-                <div className="text-xs text-[#64748b]">
-                  {enquiry.buyer.city}
-                </div>
-              </div>
-
-              <div className="mt-3 space-y-1.5 pt-2.5 border-t border-[#f1f4f9] text-xs">
-                <a
-                  href={`tel:${enquiry.buyer.phone}`}
-                  className="flex items-center gap-2 text-[#162d66] hover:underline"
+            )}
+            {error && <p className="mt-2 text-xs text-[#b91c1c]" role="alert">{error}</p>}
+            <div className="mt-2 space-y-2">
+              {detail?.messages.length === 0 && <p className="text-xs text-[#94a3b8]">No messages.</p>}
+              {detail?.messages.map((m, i) => (
+                <div
+                  key={m.id ?? i}
+                  className={`rounded-xl px-3 py-2 text-sm ${m.sender === "OWNER" ? "bg-[#ecfdf5] text-[#065f46]" : "bg-white text-[#101828] border border-[#f1f4f9]"}`}
                 >
-                  <Phone className="h-3.5 w-3.5 text-[#94a3b8]" />
-                  <span>{enquiry.buyer.phone}</span>
-                </a>
-                <a
-                  href={`mailto:${enquiry.buyer.email}`}
-                  className="flex items-center gap-2 text-[#64748b] hover:text-[#162d66] hover:underline"
-                >
-                  <Mail className="h-3.5 w-3.5 text-[#94a3b8]" />
-                  <span>{enquiry.buyer.email}</span>
-                </a>
-              </div>
-            </div>
-
-            {/* Owner Card */}
-            <div className="rounded-2xl border border-[#e8ecf4] bg-white p-4">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748b]">
-                Property Owner / Seller
-              </span>
-
-              <div className="mt-2.5">
-                <div className="font-semibold text-sm text-[#101828]">
-                  {enquiry.property.ownerName}
+                  <p className="whitespace-pre-line">{m.body}</p>
+                  <p className="mt-1 text-[10px] text-[#94a3b8]">
+                    {m.sender === "OWNER" ? enquiry.ownerName : enquiry.buyerName} · {formatDateTime(m.created_at)}
+                  </p>
                 </div>
-                <div className="text-xs text-[#64748b]">Listing Owner</div>
-              </div>
-
-              <div className="mt-3 space-y-1.5 pt-2.5 border-t border-[#f1f4f9] text-xs">
-                <a
-                  href={`tel:${enquiry.property.ownerPhone}`}
-                  className="flex items-center gap-2 text-[#162d66] hover:underline"
-                >
-                  <Phone className="h-3.5 w-3.5 text-[#94a3b8]" />
-                  <span>{enquiry.property.ownerPhone}</span>
-                </a>
-                {enquiry.property.ownerEmail && (
-                  <a
-                    href={`mailto:${enquiry.property.ownerEmail}`}
-                    className="flex items-center gap-2 text-[#64748b] hover:text-[#162d66] hover:underline"
-                  >
-                    <Mail className="h-3.5 w-3.5 text-[#94a3b8]" />
-                    <span>{enquiry.property.ownerEmail}</span>
-                  </a>
-                )}
-              </div>
+              ))}
             </div>
           </div>
 
-          {/* Target Property Card */}
-          <div className="rounded-2xl border border-[#e8ecf4] bg-[#f8fafc] p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748b]">
-                Target Property
-              </span>
-              <span className="font-mono text-xs text-[#94a3b8]">
-                {enquiry.property.id}
-              </span>
-            </div>
-
-            <div className="mt-2 flex items-start justify-between gap-4">
-              <div>
-                <Link
-                  href={`/admin-dashboard/properties?id=${enquiry.property.id}`}
-                  className="font-bold text-sm text-[#101828] hover:text-[#162d66] hover:underline inline-flex items-center gap-1.5"
-                >
-                  <Building className="h-4 w-4 text-[#162d66]" />
-                  <span>{enquiry.property.title}</span>
-                  <ExternalLink className="h-3 w-3 text-[#94a3b8]" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-[#e8ecf4] p-4">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748b]">Buyer</span>
+              <div className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-[#101828]">
+                <User className="h-4 w-4 text-[#94a3b8]" /> {enquiry.buyerName}
+              </div>
+              {can("users.view") && (
+                <Link href={`/admin-dashboard/users?id=${enquiry.buyerId}`} className="mt-1 inline-block text-xs font-semibold text-[#162d66] hover:underline">
+                  Open user #{enquiry.buyerId}
                 </Link>
-                <div className="mt-1 flex items-center gap-1.5 text-xs text-[#64748b]">
-                  <MapPin className="h-3 w-3 text-[#94a3b8]" />
-                  <span>{enquiry.property.location}</span>
-                  <span>•</span>
-                  <span>{enquiry.property.type}</span>
-                </div>
+              )}
+            </div>
+            <div className="rounded-2xl border border-[#e8ecf4] p-4">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748b]">Property Owner</span>
+              <div className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-[#101828]">
+                <User className="h-4 w-4 text-[#94a3b8]" /> {enquiry.ownerName}
               </div>
-
-              <div className="text-right">
-                <div className="text-base font-extrabold text-[#162d66]">
-                  {formatPrice(enquiry.property.price)}
-                </div>
-                <div className="text-[10px] text-[#94a3b8]">Asking Price</div>
-              </div>
+              {can("users.view") && (
+                <Link href={`/admin-dashboard/users?id=${enquiry.ownerId}`} className="mt-1 inline-block text-xs font-semibold text-[#162d66] hover:underline">
+                  Open user #{enquiry.ownerId}
+                </Link>
+              )}
             </div>
           </div>
 
-          {/* Admin Remarks / Notes */}
-          <div className="rounded-2xl border border-[#e8ecf4] bg-white p-4 space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748b]">
-              Internal Admin Remarks
+          <Link
+            href={`/admin-dashboard/properties?id=${enquiry.listingId}`}
+            className="flex items-center justify-between rounded-2xl border border-[#e8ecf4] p-4 hover:bg-[#f8fafc]"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-[#101828]">
+              <Building className="h-4 w-4 text-[#94a3b8]" /> {enquiry.listingTitle}
             </span>
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add internal notes about this inquiry..."
-              className="w-full rounded-xl border border-[#e8ecf4] p-2.5 text-xs text-[#101828] placeholder-[#94a3b8] focus:border-[#162d66] focus:outline-none"
-            />
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleSaveNotes}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#162d66] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0f1f47] transition-colors"
-              >
-                <Save className="h-3.5 w-3.5" />
-                <span>Save Remarks</span>
-              </button>
-            </div>
+            <ExternalLink className="h-3.5 w-3.5 text-[#94a3b8]" />
+          </Link>
+
+          <div className="rounded-2xl border border-dashed border-[#e8ecf4] p-4 text-xs text-[#94a3b8]">
+            Admin remarks on enquiries are not available yet. Owners&apos; private lead notes are never shown here.
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-6 flex items-center justify-between border-t border-[#f1f4f9] pt-4">
-          <button
-            type="button"
-            onClick={() => {
-              deleteEnquiry(enquiry.id);
-              onClose();
-            }}
-            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-[#ef4444] hover:bg-[#fef2f2] transition-colors"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span>Delete Enquiry</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-[#e8ecf4] bg-white px-4 py-2 text-xs font-semibold text-[#475467] hover:bg-[#f8fafc] transition-colors"
-          >
-            Close
-          </button>
         </div>
       </div>
     </div>

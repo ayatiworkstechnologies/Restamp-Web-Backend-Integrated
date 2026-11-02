@@ -1,91 +1,48 @@
 "use client";
 
-import { Suspense, useRef, useState, useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Smartphone, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Smartphone, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 import { useAdminAuth } from '@/context/admin-auth-context';
-import { DEMO_ADMIN_OTP } from '@/lib/admin-auth';
+import { safeInternalPath } from '@/lib/safeRedirect';
+import { OTP_LENGTH, useOtpLogin } from '@/lib/useOtpLogin';
 
-const OTP_LENGTH = 6;
-
+/**
+ * Admin sign-in uses the same mobile OTP login as everyone else; admin
+ * access is then decided by the backend (GET /admin/me). There are no
+ * preset admins, demo codes or client-side role grants.
+ */
 function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get('redirect') || '/admin-dashboard';
-  const { loginWithMobile, isAuthenticated, isLoading } = useAdminAuth();
+  const redirectUrl = safeInternalPath(searchParams.get('redirect')) || '/admin-dashboard';
+  const { isAuthenticated, isLoading, accessError, refresh } = useAdminAuth();
 
-  const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
-  const [mobile, setMobile] = useState('');
-  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
-  const [error, setError] = useState('');
-  const [isVerifying, setIsVerifying] = useState(false);
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const login = useOtpLogin();
+  const { step, mobile, setMobile, otp, error, setError, busy, debugCode, otpRefs, changeOtp, otpKeyDown, pasteOtp } = login;
+  const isVerifying = busy;
 
-  // If already authenticated, redirect to dashboard
+  // Already an admin: go straight to the console.
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
       router.push(redirectUrl);
     }
   }, [isAuthenticated, isLoading, router, redirectUrl]);
 
-  const sendOtp = (e: React.FormEvent) => {
+  const sendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = mobile.replace(/\D/g, '');
-    if (!/^[6-9]\d{9}$/.test(clean)) {
-      setError('Enter a valid 10-digit registered mobile number');
-      return;
-    }
-    setError('');
-    setOtp(Array(OTP_LENGTH).fill(''));
-    setStep('otp');
-    setTimeout(() => otpRefs.current[0]?.focus(), 50);
+    await login.sendCode();
   };
 
-  const changeOtp = (index: number, value: string) => {
-    const digit = value.replace(/\D/g, '').slice(-1);
-    const next = [...otp];
-    next[index] = digit;
-    setOtp(next);
-    if (digit && index < OTP_LENGTH - 1) {
-      otpRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const otpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const pasteOtp = (e: React.ClipboardEvent) => {
-    const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LENGTH);
-    if (!digits) return;
+  const verifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newOtp = Array.from({ length: OTP_LENGTH }, (_, i) => digits[i] ?? '');
-    setOtp(newOtp);
-    otpRefs.current[Math.min(digits.length, OTP_LENGTH - 1)]?.focus();
-  };
-
-  const verifyOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = otp.join('');
-    if (code !== DEMO_ADMIN_OTP) {
-      setError('Incorrect admin OTP code. Please use demo OTP: 123456');
-      return;
-    }
-
-    setIsVerifying(true);
-    setError('');
-
-    const success = loginWithMobile(mobile, code);
-    if (success) {
-      router.push(redirectUrl);
-    } else {
-      setIsVerifying(false);
-      setError('Admin verification failed. Please try again.');
-    }
+    const session = await login.verifyCode();
+    if (!session) return;
+    const admin = await refresh();
+    if (admin) router.push(redirectUrl);
+    else setError('Signed in, but this account does not have admin access.');
   };
 
   return (
@@ -183,14 +140,16 @@ function AdminLoginForm() {
               </div>
             </div>
 
-            {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+            {(error || accessError) && <p className="text-xs text-red-500 font-medium" role="alert">{error || accessError}</p>}
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99]"
+              disabled={busy}
+              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
             >
-              <span>Get Security OTP</span>
-              <ArrowRight size={16} />
+              {busy && <Loader2 size={16} className="animate-spin" />}
+              <span>{busy ? 'Sending…' : 'Get Security OTP'}</span>
+              {!busy && <ArrowRight size={16} />}
             </button>
           </form>
         ) : (
@@ -204,9 +163,11 @@ function AdminLoginForm() {
               </p>
             </div>
 
-            <p className="rounded-xl bg-sky-50 border border-sky-100 px-3.5 py-2.5 text-center text-xs text-sky-900 font-medium">
-              Demo Admin OTP: <span className="font-extrabold tracking-widest text-[#087ed9] ml-1">{DEMO_ADMIN_OTP}</span>
-            </p>
+            {debugCode && (
+              <p className="rounded-xl bg-amber-50 border border-amber-100 px-3.5 py-2.5 text-center text-xs text-amber-900 font-medium">
+                Test mode code from the server: <span className="font-extrabold tracking-widest ml-1">{debugCode}</span>
+              </p>
+            )}
 
             <div className="flex justify-between gap-2 pt-1" onPaste={pasteOtp}>
               {otp.map((digit, i) => (
@@ -240,20 +201,15 @@ function AdminLoginForm() {
             <div className="flex items-center justify-between text-xs pt-1">
               <button
                 type="button"
-                onClick={() => {
-                  setStep('mobile');
-                  setError('');
-                }}
+                onClick={login.backToMobile}
                 className="flex items-center gap-1 text-slate-500 hover:text-slate-800 cursor-pointer font-medium"
               >
                 <ArrowLeft size={13} /> Change number
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setOtp(Array(OTP_LENGTH).fill(''));
-                  setError('');
-                }}
+                disabled={busy}
+                onClick={() => void login.sendCode()}
                 className="text-[#087ed9] hover:underline cursor-pointer font-semibold"
               >
                 Resend OTP

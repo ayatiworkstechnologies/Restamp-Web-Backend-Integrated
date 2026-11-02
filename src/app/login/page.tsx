@@ -1,17 +1,15 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loginWithMobile } from '@/lib/profile';
-import { getSubscription } from '@/lib/ownerPlan';
-import { hasActiveAgentSubscription } from '@/lib/agentPlan';
-import { Smartphone, ShieldCheck, ArrowLeft, ArrowRight } from 'lucide-react';
-
-// Static OTP until a real SMS service is connected
-const DEMO_OTP = '123456';
-const OTP_LENGTH = 6;
+import { ensureRole, updateDisplayName } from '@/lib/api/auth';
+import { errorMessage } from '@/lib/api/client';
+import { isPlaceholderName, Session } from '@/lib/api/session';
+import { safeInternalPath } from '@/lib/safeRedirect';
+import { OTP_LENGTH, useOtpLogin } from '@/lib/useOtpLogin';
+import { Smartphone, ShieldCheck, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 
 const roleLabels: Record<string, string> = {
   buyer: 'Buyer',
@@ -20,81 +18,84 @@ const roleLabels: Record<string, string> = {
   admin: 'Administrator',
 };
 
-// Owners land on dashboard once plan is active, agents on dashboard if active else package selection
-const afterLogin = (role: string) =>
-  role === 'owner'
-    ? getSubscription()
-      ? '/owner/dashboard'
-      : '/owner/plans'
-    : role === 'agent'
-    ? hasActiveAgentSubscription()
-      ? '/agent/dashboard'
-      : '/agent/packages'
-    : '/profile';
+/**
+ * Where to go after signing in. Owners get the backend OWNER role and the
+ * owner dashboard (access is decided by role, not by a plan purchase);
+ * everyone else returns to where they came from, or their profile.
+ */
+async function afterLogin(role: string, next: string | null): Promise<string> {
+  if (role === 'owner') {
+    await ensureRole('OWNER');
+    return next || '/owner/dashboard';
+  }
+  return next || '/profile';
+}
 
 function LoginForm() {
   const router = useRouter();
-  const role = useSearchParams().get('role') ?? '';
+  const searchParams = useSearchParams();
+  const role = searchParams.get('role') ?? '';
+  const next = safeInternalPath(searchParams.get('next'));
   const roleLabel = roleLabels[role];
 
   useEffect(() => {
     if (role === 'admin') {
       router.replace('/admin/login');
+    } else if (role === 'agent') {
+      // The agent area keeps its own sign-in page (not connected to the backend yet).
+      router.replace('/agent/login');
     }
   }, [role, router]);
 
-  const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
-  const [mobile, setMobile] = useState('');
-  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
-  const [error, setError] = useState('');
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const login = useOtpLogin();
+  const { step, mobile, setMobile, otp, error, setError, busy, debugCode, otpRefs, changeOtp, otpKeyDown, pasteOtp } = login;
+  const [nameStep, setNameStep] = useState(false);
+  const [name, setName] = useState('');
+  const [finishing, setFinishing] = useState(false);
 
-  const sendOtp = (e: React.FormEvent) => {
+  const finish = async () => {
+    setFinishing(true);
+    try {
+      router.push(await afterLogin(role, next));
+    } catch (e) {
+      setError(errorMessage(e, 'Signed in, but could not open the owner area. Please try again.'));
+      setFinishing(false);
+    }
+  };
+
+  const sendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!/^[6-9]\d{9}$/.test(mobile)) {
-      setError('Enter a valid 10-digit mobile number');
+    await login.sendCode();
+  };
+
+  const verifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const session: Session | null = await login.verifyCode();
+    if (!session) return;
+    // A first login has the phone number as its name: ask for a real one.
+    if (isPlaceholderName(session.displayName)) {
+      setNameStep(true);
       return;
     }
-    setError('');
-    setOtp(Array(OTP_LENGTH).fill(''));
-    setStep('otp');
-    setTimeout(() => otpRefs.current[0]?.focus(), 0);
+    await finish();
   };
 
-  const changeOtp = (index: number, value: string) => {
-    const digit = value.replace(/\D/g, '').slice(-1);
-    const next = [...otp];
-    next[index] = digit;
-    setOtp(next);
-    if (digit && index < OTP_LENGTH - 1) otpRefs.current[index + 1]?.focus();
-  };
-
-  const otpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) otpRefs.current[index - 1]?.focus();
-  };
-
-  const pasteOtp = (e: React.ClipboardEvent) => {
-    const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LENGTH);
-    if (!digits) return;
+  const saveName = async (e: React.FormEvent) => {
     e.preventDefault();
-    setOtp(Array.from({ length: OTP_LENGTH }, (_, i) => digits[i] ?? ''));
-    otpRefs.current[Math.min(digits.length, OTP_LENGTH - 1)]?.focus();
-  };
-
-  const verifyOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp.join('') !== DEMO_OTP) {
-      setError('Incorrect OTP. Please try again.');
+    const trimmed = name.trim().replace(/\s+/g, ' ');
+    if (trimmed.length < 2) {
+      setError('Please enter your name');
       return;
     }
+    setFinishing(true);
     setError('');
-    const me = loginWithMobile(mobile, role);
-    router.push(afterLogin(me.role));
-  };
-
-  const handleSocialLogin = (provider: 'Google' | 'Apple') => {
-    const me = loginWithMobile(provider === 'Google' ? '9876543210' : '9876543211', role || 'buyer');
-    router.push(afterLogin(me.role));
+    try {
+      await updateDisplayName(trimmed);
+      await finish();
+    } catch (e) {
+      setError(errorMessage(e, 'Could not save your name. Please try again.'));
+      setFinishing(false);
+    }
   };
 
   return (
@@ -186,14 +187,16 @@ function LoginForm() {
               </div>
             </div>
 
-            {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+            {error && <p className="text-xs text-red-500 font-medium" role="alert">{error}</p>}
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99]"
+              disabled={busy}
+              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
             >
-              <span>Get OTP</span>
-              <ArrowRight size={16} />
+              {busy ? <Loader2 size={16} className="animate-spin" /> : null}
+              <span>{busy ? 'Sending…' : 'Get OTP'}</span>
+              {!busy && <ArrowRight size={16} />}
             </button>
 
             {/* Social Divider */}
@@ -208,8 +211,9 @@ function LoginForm() {
             <div className="space-y-2.5">
               <button
                 type="button"
-                onClick={() => handleSocialLogin('Google')}
-                className="w-full flex items-center justify-center gap-2.5 py-2.5 sm:py-3 px-4 rounded-full bg-[#f1f3f6] hover:bg-[#e4e7ec] text-slate-800 text-xs sm:text-sm font-medium transition cursor-pointer active:scale-[0.99]"
+                disabled
+                title="Google sign-in is not available on the website yet"
+                className="disabled:opacity-50 disabled:cursor-not-allowed w-full flex items-center justify-center gap-2.5 py-2.5 sm:py-3 px-4 rounded-full bg-[#f1f3f6] hover:bg-[#e4e7ec] text-slate-800 text-xs sm:text-sm font-medium transition cursor-pointer active:scale-[0.99]"
               >
                 {/* Official Gmail / Google M Icon */}
                 <svg className="w-5 h-4 shrink-0" viewBox="52 42 88 66">
@@ -224,8 +228,9 @@ function LoginForm() {
 
               <button
                 type="button"
-                onClick={() => handleSocialLogin('Apple')}
-                className="w-full flex items-center justify-center gap-2.5 py-2.5 sm:py-3 px-4 rounded-full bg-[#f1f3f6] hover:bg-[#e4e7ec] text-slate-800 text-xs sm:text-sm font-medium transition cursor-pointer active:scale-[0.99]"
+                disabled
+                title="Apple sign-in is not available yet"
+                className="disabled:opacity-50 disabled:cursor-not-allowed w-full flex items-center justify-center gap-2.5 py-2.5 sm:py-3 px-4 rounded-full bg-[#f1f3f6] hover:bg-[#e4e7ec] text-slate-800 text-xs sm:text-sm font-medium transition cursor-pointer active:scale-[0.99]"
               >
                 {/* Official Apple Icon */}
                 <svg className="w-4 h-4.5 shrink-0 fill-current text-slate-900" viewBox="0 0 814 1000">
@@ -233,14 +238,39 @@ function LoginForm() {
                 </svg>
                 <span>Sign In With Apple</span>
               </button>
+              <p className="text-center text-[11px] text-slate-400">Google and Apple sign-in are coming soon. Please use your mobile number.</p>
             </div>
 
             <div className="pt-2 text-center text-xs text-slate-500">
-              Dont have an account?{' '}
-              <Link href="/login" className="font-semibold text-[#087ed9] hover:underline">
-                Create One
-              </Link>
+              New to Restamp? Your account is created when you verify your number.
             </div>
+          </form>
+        ) : nameStep ? (
+          <form onSubmit={saveName} className="space-y-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">What&apos;s your name?</h1>
+              <p className="mt-1 text-xs sm:text-sm text-slate-500">
+                Owners see this name when you contact them.
+              </p>
+            </div>
+            <input
+              type="text"
+              autoFocus
+              maxLength={100}
+              placeholder="Your full name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20"
+            />
+            {error && <p className="text-xs text-red-500 font-medium" role="alert">{error}</p>}
+            <button
+              type="submit"
+              disabled={finishing}
+              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition disabled:opacity-60 cursor-pointer shadow-sm flex items-center justify-center gap-2"
+            >
+              {finishing && <Loader2 size={16} className="animate-spin" />}
+              Continue
+            </button>
           </form>
         ) : (
           <form onSubmit={verifyOtp} className="space-y-4">
@@ -253,9 +283,11 @@ function LoginForm() {
               </p>
             </div>
 
-            <p className="rounded-xl bg-sky-50 border border-sky-100 px-3.5 py-2.5 text-center text-xs text-sky-900 font-medium">
-              Demo OTP: <span className="font-extrabold tracking-widest text-[#087ed9] ml-1">{DEMO_OTP}</span>
-            </p>
+            {debugCode && (
+              <p className="rounded-xl bg-amber-50 border border-amber-100 px-3.5 py-2.5 text-center text-xs text-amber-900 font-medium">
+                Test mode code from the server: <span className="font-extrabold tracking-widest ml-1">{debugCode}</span>
+              </p>
+            )}
 
             <div className="flex justify-between gap-2 pt-1" onPaste={pasteOtp}>
               {otp.map((digit, i) => (
@@ -276,31 +308,30 @@ function LoginForm() {
               ))}
             </div>
 
-            {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+            {error && <p className="text-xs text-red-500 font-medium" role="alert">{error}</p>}
 
             <button
               type="submit"
-              disabled={otp.join('').length < OTP_LENGTH}
-              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shadow-sm"
+              disabled={busy || finishing || otp.join('').length < OTP_LENGTH}
+              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
             >
+              {(busy || finishing) && <Loader2 size={16} className="animate-spin" />}
               Verify &amp; Login
             </button>
 
             <div className="flex items-center justify-between text-xs pt-1">
               <button
                 type="button"
-                onClick={() => {
-                  setStep('mobile');
-                  setError('');
-                }}
+                onClick={login.backToMobile}
                 className="flex items-center gap-1 text-slate-500 hover:text-slate-800 cursor-pointer font-medium"
               >
                 <ArrowLeft size={13} /> Change number
               </button>
               <button
                 type="button"
-                onClick={() => setOtp(Array(OTP_LENGTH).fill(''))}
-                className="text-[#087ed9] hover:underline cursor-pointer font-semibold"
+                disabled={busy}
+                onClick={() => void login.sendCode()}
+                className="text-[#087ed9] hover:underline cursor-pointer font-semibold disabled:opacity-50"
               >
                 Resend OTP
               </button>

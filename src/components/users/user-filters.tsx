@@ -93,9 +93,8 @@ export function UserFiltersBar({
           >
             <option value="all">All Statuses</option>
             <option value="Active">Active</option>
-            <option value="Pending KYC">Pending KYC</option>
             <option value="Suspended">Suspended</option>
-            <option value="Inactive">Inactive</option>
+            <option value="Inactive">Closed</option>
           </select>
         </div>
 
@@ -103,7 +102,9 @@ export function UserFiltersBar({
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-bold text-[#98a6bb]">KYC:</span>
           <select
-            value={filters.kycStatus}
+            value="all"
+            disabled
+            title="Not available yet: KYC is not supported by the backend"
             onChange={(e) => onFilterChange({ kycStatus: e.target.value as any })}
             className="rounded-xl border border-[#e2e8f2] bg-[#fbfcfe] px-3 py-2 text-xs font-semibold text-[#324564] outline-none transition-all hover:bg-white focus:border-[#2854cb] cursor-pointer"
           >
@@ -120,7 +121,9 @@ export function UserFiltersBar({
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-bold text-[#98a6bb]">Owner Type:</span>
             <select
-              value={filters.ownerType || "all"}
+              value="all"
+              disabled
+              title="Not available yet: owner types are not recorded"
               onChange={(e) => onFilterChange({ ownerType: e.target.value as any })}
               className="rounded-xl border border-[#e2e8f2] bg-[#fbfcfe] px-3 py-2 text-xs font-semibold text-[#324564] outline-none transition-all hover:bg-white focus:border-[#2854cb] cursor-pointer"
             >
@@ -142,8 +145,8 @@ export function UserFiltersBar({
           >
             <option value="recent">Recently Registered</option>
             <option value="name_asc">Name: A to Z</option>
-            <option value="listings_desc">Most Listings</option>
-            <option value="enquiries_desc">Most Enquiries</option>
+            <option value="listings_desc" disabled>Most Listings (not available yet)</option>
+            <option value="enquiries_desc" disabled>Most Enquiries (not available yet)</option>
           </select>
         </div>
       </div>

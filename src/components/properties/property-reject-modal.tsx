@@ -1,14 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertTriangle, XCircle, X } from "lucide-react";
-import { Property } from "@/types/property";
+import { AlertTriangle, XCircle, X, Loader2 } from "lucide-react";
+import { AdminProperty } from "@/context/property-context";
 
 interface PropertyRejectModalProps {
-  property: Property | null;
+  property: AdminProperty | null;
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (id: string, reason: string, category: string) => void;
+  /** POST /admin/listings/{id}/reject; resolves true when the backend accepted it. */
+  onConfirm: (id: number, reason: string, category: string) => Promise<boolean>;
 }
 
 const rejectionCategories = [
@@ -30,17 +31,23 @@ export function PropertyRejectModal({
   const [category, setCategory] = useState(rejectionCategories[0]);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   if (!isOpen || !property) return null;
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!reason.trim()) {
-      setError("Please provide a rejection reason so the owner knows how to rectify their listing.");
+      setError("Please provide a rejection reason.");
       return;
     }
     setError("");
-    onConfirm(property.id, reason.trim(), category);
-    onClose();
+    setSaving(true);
+    const ok = await onConfirm(property.listingId, reason.trim().slice(0, 500), category);
+    setSaving(false);
+    if (ok) {
+      setReason("");
+      onClose();
+    }
   };
 
   return (
@@ -55,7 +62,7 @@ export function PropertyRejectModal({
             <div>
               <h2 className="text-base font-extrabold text-[#991b1b]">Reject Property Listing</h2>
               <p className="text-xs text-[#808fa5]">
-                Refuse <span className="font-semibold text-[#17253d]">{property.id}</span> with owner feedback
+                Reject listing <span className="font-semibold text-[#17253d]">#{property.id}</span> with a reason
               </p>
             </div>
           </div>
@@ -71,8 +78,9 @@ export function PropertyRejectModal({
         <div className="mt-4 flex items-start gap-3 rounded-xl border border-[#fed7aa] bg-[#fffaf5] p-3 text-xs text-[#9a3412]">
           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[#ea580c]" />
           <div>
-            <span className="font-bold">Owner Notification:</span> Rejecting this property will notify the seller (
-            <span className="font-semibold">{property.owner.name}</span>, {property.owner.phone}) and allow them to upload corrected documents.
+            <span className="font-bold">What happens:</span> the listing stays hidden from buyers and{' '}
+            <span className="font-semibold">{property.ownerName}</span> sees it as Rejected in their dashboard, where they can
+            resubmit it. Your reason is kept in the review history and audit log; owners are not notified and cannot see it yet.
           </div>
         </div>
 
@@ -106,6 +114,7 @@ export function PropertyRejectModal({
             </label>
             <textarea
               rows={3}
+              maxLength={500}
               value={reason}
               onChange={(e) => {
                 setReason(e.target.value);
@@ -133,10 +142,11 @@ export function PropertyRejectModal({
           </button>
           <button
             type="button"
-            onClick={handleReject}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#ef4444] px-4 py-2 text-xs font-bold text-white shadow-[0_4px_12px_#ef444435] hover:bg-[#dc2626] transition-all"
+            onClick={() => void handleReject()}
+            disabled={saving}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#ef4444] px-4 py-2 text-xs font-bold text-white shadow-[0_4px_12px_#ef444435] hover:bg-[#dc2626] disabled:opacity-60 transition-all"
           >
-            <XCircle size={15} />
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <XCircle size={15} />}
             <span>Confirm Rejection</span>
           </button>
         </div>

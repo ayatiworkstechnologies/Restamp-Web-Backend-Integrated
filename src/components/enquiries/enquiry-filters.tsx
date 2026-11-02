@@ -21,9 +21,9 @@ const statusTabs: {
   key: "all" | "active" | "addressed" | "archived";
 }[] = [
   { label: "All Enquiries", value: "all", key: "all" },
-  { label: "Active", value: "Active", key: "active" },
-  { label: "Addressed", value: "Addressed", key: "addressed" },
-  { label: "Archived", value: "Archived", key: "archived" },
+  { label: "New", value: "Active", key: "active" },
+  { label: "Owner responded", value: "Addressed", key: "addressed" },
+  { label: "Closed", value: "Archived", key: "archived" },
 ];
 
 const enquiryTypes: ("all" | EnquiryType)[] = [
@@ -118,7 +118,9 @@ export function EnquiryFiltersBar({
         <div className="flex flex-wrap items-center gap-2">
           {/* Enquiry Type */}
           <select
-            value={filters.type}
+            value="all"
+            disabled
+            title="Not available yet: enquiries have no type"
             onChange={(e) =>
               onFilterChange({ type: e.target.value as "all" | EnquiryType })
             }
@@ -147,7 +149,7 @@ export function EnquiryFiltersBar({
             className="rounded-xl border border-[#e8ecf4] bg-white px-3 py-2 text-xs font-medium text-[#475467] shadow-sm hover:border-[#ccd7ea] focus:border-[#162d66] focus:outline-none"
           >
             <option value="recent">Sort: Most Recent</option>
-            <option value="price_desc">Sort: Property Price (High to Low)</option>
+
             <option value="status">Sort: Status</option>
           </select>
 

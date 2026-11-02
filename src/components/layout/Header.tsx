@@ -4,8 +4,9 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { clearProfile, getProfile, type Profile } from '@/lib/profile';
 import { useWishlist } from '@/lib/wishlist';
+import { signOut } from '@/lib/api/auth';
+import { isPlaceholderName, useSession } from '@/lib/api/session';
 import {
   Menu,
   X,
@@ -151,7 +152,14 @@ export default function Header() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const pathname = usePathname();
   const wishlistCount = useWishlist().length;
-  const [profile, setProfile] = useState<Profile | null>(null);
+  // Signed-in state comes from the backend session (name and current role).
+  const { session } = useSession();
+  const profile = session
+    ? {
+        name: isPlaceholderName(session.displayName) ? '' : session.displayName,
+        role: session.role === 'OWNER' ? 'Owner' : session.role === 'BROKER' ? 'Agent' : 'Buyer',
+      }
+    : null;
 
   const headerRef = useRef<HTMLElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
@@ -171,14 +179,6 @@ export default function Header() {
       setActiveDropdown(null);
     }, 220);
   };
-
-  // Sync profile from storage & listen to updates
-  useEffect(() => {
-    const sync = () => setProfile(getProfile());
-    sync();
-    window.addEventListener('profile-change', sync);
-    return () => window.removeEventListener('profile-change', sync);
-  }, []);
 
   // Close menus on page route changes
   useEffect(() => {
@@ -229,8 +229,7 @@ export default function Header() {
   };
 
   const logout = () => {
-    clearProfile();
-    setProfile(null);
+    signOut();
     setUserDropdown(false);
     router.push('/');
   };
@@ -485,7 +484,7 @@ export default function Header() {
               <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl z-50 animate-fadeIn">
                 <div className="p-3 border-b border-slate-100">
                   <p className="text-xs font-bold text-slate-900 truncate">{profile.name || 'User Profile'}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">+91 {profile.mobile}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Signed in with your mobile number</p>
                   <span className="mt-2 inline-block rounded-full bg-sky-50 px-2.5 py-0.5 text-[10px] font-semibold text-[#087ed9] capitalize">
                     {profile.role || 'Buyer'}
                   </span>
@@ -1162,7 +1161,7 @@ export default function Header() {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900">
-                    {profile ? profile.name || `+91 ${profile.mobile}` : 'Login / Register'}
+                    {profile ? profile.name || 'Restamp user' : 'Login / Register'}
                   </p>
                   <p className="text-[10px] text-slate-400">
                     {profile ? `Role: ${profile.role}` : 'Access your account'}

@@ -16,13 +16,9 @@ import { EnquiryHeader } from "@/components/enquiries/enquiry-header";
 import { EnquiryFiltersBar } from "@/components/enquiries/enquiry-filters";
 import { EnquiryTable } from "@/components/enquiries/enquiry-table";
 import { EnquiryDetailModal } from "@/components/enquiries/enquiry-detail-modal";
-import { EnquiryAddModal } from "@/components/enquiries/enquiry-add-modal";
-import { useEnquiryStore } from "@/context/enquiry-context";
-import {
-  Enquiry,
-  EnquiryFilters,
-  EnquiryStatus,
-} from "@/types/enquiry";
+import { AdminEnquiryItem, useEnquiryStore } from "@/context/enquiry-context";
+import { useAdminAuth } from "@/context/admin-auth-context";
+import { EnquiryFilters, EnquiryStatus } from "@/types/enquiry";
 
 function EnquiryManagementContent() {
   const searchParams = useSearchParams();
@@ -33,11 +29,13 @@ function EnquiryManagementContent() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   // Modals state
-  const [selectedEnquiry, setSelectedEnquiry] = useState<Enquiry | null>(null);
+  const [selectedEnquiry, setSelectedEnquiry] = useState<AdminEnquiryItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isAddOpen, setIsAddOpen] = useState(false);
 
-  const { enquiries, stats, addEnquiry } = useEnquiryStore();
+  const { enquiries, stats, loading, loadError, truncated, reload } = useEnquiryStore();
+  const { admin } = useAdminAuth();
+  // ?user=<id> (from User Management): enquiries where that user is the buyer or the owner.
+  const userFilter = searchParams.get("user");
 
   // Filters state
   const [filters, setFilters] = useState<EnquiryFilters>({
@@ -64,7 +62,7 @@ function EnquiryManagementContent() {
   }, [initialStatus, initialId, enquiries]);
 
   // Handle Inspection modal
-  const handleInspect = (enquiry: Enquiry) => {
+  const handleInspect = (enquiry: AdminEnquiryItem) => {
     setSelectedEnquiry(enquiry);
     setIsDetailOpen(true);
   };
@@ -88,50 +86,32 @@ function EnquiryManagementContent() {
           return false;
         }
 
-        // Type filter
-        if (filters.type !== "all" && e.type !== filters.type) {
+        if (userFilter && String(e.buyerId) !== userFilter && String(e.ownerId) !== userFilter) {
           return false;
         }
 
         // Search query
         if (filters.search.trim()) {
           const query = filters.search.toLowerCase();
-          const matchesBuyerName = e.buyer.name.toLowerCase().includes(query);
-          const matchesBuyerPhone = e.buyer.phone.toLowerCase().includes(query);
-          const matchesBuyerEmail = e.buyer.email.toLowerCase().includes(query);
-          const matchesCity = e.buyer.city.toLowerCase().includes(query);
-          const matchesId = e.id.toLowerCase().includes(query);
-          const matchesPropTitle = e.property.title.toLowerCase().includes(query);
-          const matchesPropLocation = e.property.location.toLowerCase().includes(query);
-          const matchesOwner = e.property.ownerName.toLowerCase().includes(query);
-
-          if (
-            !matchesBuyerName &&
-            !matchesBuyerPhone &&
-            !matchesBuyerEmail &&
-            !matchesCity &&
-            !matchesId &&
-            !matchesPropTitle &&
-            !matchesPropLocation &&
-            !matchesOwner
-          ) {
-            return false;
-          }
+          const matches =
+            e.buyerName.toLowerCase().includes(query) ||
+            e.ownerName.toLowerCase().includes(query) ||
+            e.id.includes(query) ||
+            e.listingTitle.toLowerCase().includes(query) ||
+            e.lastMessage.toLowerCase().includes(query);
+          if (!matches) return false;
         }
 
         return true;
       })
       .sort((a, b) => {
-        if (filters.sortBy === "price_desc") {
-          return (b.property.price || 0) - (a.property.price || 0);
-        }
         if (filters.sortBy === "status") {
           return a.status.localeCompare(b.status);
         }
-        // default "recent"
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        // default "recent" (higher id = created later)
+        return b.enquiryId - a.enquiryId;
       });
-  }, [enquiries, filters]);
+  }, [enquiries, filters, userFilter]);
 
   // Keep selectedEnquiry up-to-date with any changes in store
   const activeEnquiry = useMemo(() => {
@@ -204,7 +184,7 @@ function EnquiryManagementContent() {
                 <div className="absolute right-0 top-12 z-50 w-80 rounded-2xl border border-[#e8ecf4] bg-white p-4 shadow-xl">
                   <div className="flex items-center justify-between border-b border-[#f1f4f9] pb-3">
                     <h4 className="font-semibold text-[#101828] text-sm">
-                      Active Inquiries ({stats.active})
+                      New Enquiries ({stats.active})
                     </h4>
                     <button
                       type="button"
@@ -215,12 +195,12 @@ function EnquiryManagementContent() {
                     </button>
                   </div>
                   <div className="mt-3 space-y-2 max-h-64 overflow-y-auto">
-                    {stats.activeItems.length === 0 ? (
+                    {stats.active === 0 ? (
                       <p className="text-xs text-[#64748b] text-center py-4">
-                        All incoming inquiries have been addressed!
+                        No enquiries are waiting for an owner response.
                       </p>
                     ) : (
-                      stats.activeItems.map((item) => (
+                      enquiries.filter((e) => e.status === "Active").slice(0, 8).map((item) => (
                         <div
                           key={item.id}
                           onClick={() => {
@@ -231,19 +211,15 @@ function EnquiryManagementContent() {
                         >
                           <div className="flex items-center justify-between text-xs">
                             <span className="font-semibold text-[#101828]">
-                              {item.buyer.name}
+                              {item.buyerName}
                             </span>
                             <span className="text-[10px] text-[#b45309] font-medium bg-[#fef3c7] px-1.5 py-0.5 rounded">
-                              {item.status}
+                              {item.statusLabel}
                             </span>
                           </div>
                           <p className="mt-0.5 text-xs text-[#64748b] line-clamp-1">
-                            {item.property.title}
+                            {item.listingTitle}
                           </p>
-                          <div className="mt-1 flex items-center justify-between text-[11px] text-[#94a3b8]">
-                            <span>{item.type}</span>
-                            <span>{item.channel}</span>
-                          </div>
                         </div>
                       ))
                     )}
@@ -255,11 +231,11 @@ function EnquiryManagementContent() {
             {/* Admin Avatar */}
             <div className="flex items-center gap-2 border-l border-[#e8ecf4] pl-3">
               <div className="h-8 w-8 rounded-full bg-[#162d66] text-white flex items-center justify-center font-bold text-xs">
-                RA
+                {(admin?.name || "Admin").slice(0, 2).toUpperCase()}
               </div>
               <div className="hidden sm:block text-left">
-                <p className="text-xs font-semibold text-[#101828]">RESTAMP Admin</p>
-                <p className="text-[10px] text-[#64748b]">Platform Manager</p>
+                <p className="text-xs font-semibold text-[#101828]">{admin?.name || "Admin"}</p>
+                <p className="text-[10px] text-[#64748b]">{admin?.role}</p>
               </div>
             </div>
           </div>
@@ -269,7 +245,6 @@ function EnquiryManagementContent() {
         <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
           {/* Header with KPI cards and CTA */}
           <EnquiryHeader
-            onAddNew={() => setIsAddOpen(true)}
             onFilterActive={() =>
               setFilters((prev) => ({ ...prev, status: "Active" }))
             }
@@ -287,11 +262,31 @@ function EnquiryManagementContent() {
             statusCounts={statusCounts}
           />
 
+          {loadError && (
+            <div className="rounded-2xl border border-[#fee2e2] bg-[#fef2f2] p-4 text-sm text-[#991b1b]" role="alert">
+              {loadError}{" "}
+              <button type="button" onClick={reload} className="font-bold underline">
+                Try again
+              </button>
+            </div>
+          )}
+          {truncated && (
+            <div className="rounded-2xl border border-[#fde68a] bg-[#fffbeb] p-3 text-xs text-[#92400e]">
+              Showing the newest {enquiries.length} enquiries only.
+            </div>
+          )}
+          {userFilter && (
+            <div className="rounded-2xl border border-[#d0e0ff] bg-[#f0f4ff] p-3 text-xs text-[#162d66]">
+              Showing enquiries for user #{userFilter}.
+            </div>
+          )}
+
           {/* Table View */}
-          <EnquiryTable
-            enquiries={filteredEnquiries}
-            onInspect={handleInspect}
-          />
+          {loading ? (
+            <div className="rounded-2xl border border-[#e8ecf4] bg-white py-12 text-center text-sm text-[#94a3b8]">Loading enquiries…</div>
+          ) : (
+            <EnquiryTable enquiries={filteredEnquiries} onInspect={handleInspect} />
+          )}
         </main>
       </div>
 
@@ -302,15 +297,6 @@ function EnquiryManagementContent() {
         onClose={() => setIsDetailOpen(false)}
       />
 
-      {/* Log Inbound Lead Modal */}
-      <EnquiryAddModal
-        isOpen={isAddOpen}
-        onClose={() => setIsAddOpen(false)}
-        onAdd={(newLead) => {
-          addEnquiry(newLead);
-          setIsAddOpen(false);
-        }}
-      />
     </div>
   );
 }

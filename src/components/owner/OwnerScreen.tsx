@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import PostPropertyWizard from '@/components/owner/PostPropertyWizard';
 import { ownerPlans, type OwnerPlan } from '@/lib/ownerPlan';
-import { getProfile } from '@/lib/profile';
 import {
   Check,
   ChevronDown,
@@ -290,14 +289,6 @@ export default function OwnerScreen() {
 
   // FAQ accordion open state
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-
-  // Auto-fill logged in user's phone if available
-  useEffect(() => {
-    const profile = getProfile();
-    if (profile?.mobile) {
-      setPhone(profile.mobile);
-    }
-  }, []);
 
   const faqs = [
     {

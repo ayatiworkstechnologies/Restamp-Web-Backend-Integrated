@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { getProfile, saveProfile } from '@/lib/profile';
+import { loginHref, useSession } from '@/lib/api/session';
 import {
   activatePlan,
   getSubscription,
@@ -45,10 +45,12 @@ export default function OwnerPlansPage() {
   const [paying, setPaying] = useState(false);
   const [result, setResult] = useState<{ sub: OwnerSubscription; paymentId?: string; total: number; method?: string } | null>(null);
 
+  const { session, ready } = useSession();
   useEffect(() => {
-    if (!getProfile()) router.replace('/login?role=owner');
-    setCurrent(getSubscription());
-  }, [router]);
+    if (ready && !session) router.replace(loginHref('/owner/plans', 'owner'));
+    // No plan is ever "current": purchases are not connected to the backend.
+    setCurrent(null);
+  }, [router, ready, session]);
 
   const finish = (p: OwnerPlan, payment?: Parameters<typeof activatePlan>[1]) => {
     const saved = activatePlan(p, payment);
@@ -56,9 +58,6 @@ export default function OwnerPlansPage() {
       setPayError('Could not save your plan. Please try again.');
       return false;
     }
-    // Choosing a plan makes this account an owner
-    const me = getProfile();
-    if (me && me.role !== 'owner') saveProfile({ ...me, role: 'owner' });
     setCurrent(saved.sub);
     setResult({ ...saved, total: payment?.total ?? 0, method: payment?.method });
     setStage('success');
@@ -68,7 +67,8 @@ export default function OwnerPlansPage() {
 
   const choose = (p: OwnerPlan) => {
     if (p.price === 0) {
-      finish(p);
+      // Listing needs no plan today: the free tier simply opens the owner dashboard.
+      router.push('/owner/dashboard');
       return;
     }
     setPlan(p);
@@ -91,6 +91,7 @@ export default function OwnerPlansPage() {
     }
   };
 
+  // Kept for when a payment gateway exists; the Pay button is disabled until then.
   const pay = () => {
     if (!plan) return;
     let methodLabel: string;
@@ -418,10 +419,15 @@ export default function OwnerPlansPage() {
                           </div>
                         </dl>
                         {payError && <p className="mt-4 text-xs text-red-500">{payError}</p>}
+                        <p className="mt-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-900">
+                          Online payment is not available yet, so this plan cannot be bought here. You can still{' '}
+                          <a href="/owner/dashboard" className="font-semibold underline">list properties for free</a>.
+                        </p>
                         <button
                           type="button"
                           onClick={pay}
-                          disabled={paying}
+                          disabled
+                          title="Online payment is not available yet"
                           className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#087ed9] py-3 text-sm font-semibold text-white hover:bg-sky-600 transition disabled:opacity-70 cursor-pointer"
                         >
                           <Lock size={14} />

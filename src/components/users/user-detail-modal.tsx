@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   X,
@@ -9,55 +9,88 @@ import {
   User as UserIcon,
   FileText,
   Building,
-  MessageSquare,
-  History,
   Phone,
-  Mail,
-  MapPin,
   Clock,
-  Edit,
-  Send,
-  AlertTriangle,
-  CheckCircle2,
-  ExternalLink,
+  Loader2,
+  History,
 } from "lucide-react";
-import { User } from "@/types/user";
-import { useUserStore } from "@/context/user-context";
+import { AdminUser, useUserStore } from "@/context/user-context";
 import { usePropertyStore } from "@/context/property-context";
+import { useAdminAuth } from "@/context/admin-auth-context";
+import { listAdminAuditLogs, type AdminAuditLog, type AdminUserDetail } from "@/lib/api/admin";
+import { errorMessage } from "@/lib/api/client";
+import { initialsOf, tintOf } from "@/components/users/user-table";
 
 interface UserDetailModalProps {
-  user: User | null;
+  user: AdminUser | null;
   isOpen: boolean;
   onClose: () => void;
-  onVerifyKyc: (user: User) => void;
-  onSuspend: (user: User) => void;
-  onEdit: (user: User) => void;
+  onSuspend: (user: AdminUser) => void;
 }
 
-export function UserDetailModal({
-  user,
-  isOpen,
-  onClose,
-  onVerifyKyc,
-  onSuspend,
-  onEdit,
-}: UserDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<
-    "overview" | "kyc" | "activity" | "notes" | "audit"
-  >("overview");
-  const [newNote, setNewNote] = useState("");
+const formatDate = (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
 
-  const { addAdminNote } = useUserStore();
+const PROVIDER_LABEL: Record<string, string> = { phone: "Mobile OTP", google: "Google" };
+
+/**
+ * Account detail from GET /admin/users/{id} (full phone shown here only),
+ * the user's listings from the loaded admin listings, and admin actions on
+ * this account from the audit log (when the role may read it). KYC
+ * documents and admin notes have no backend and are shown as unavailable.
+ */
+export function UserDetailModal({ user, isOpen, onClose, onSuspend }: UserDetailModalProps) {
+  const [activeTab, setActiveTab] = useState<"overview" | "kyc" | "activity" | "audit">("overview");
+  const [detail, setDetail] = useState<AdminUserDetail | null>(null);
+  const [logs, setLogs] = useState<AdminAuditLog[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { getDetail } = useUserStore();
   const { properties } = usePropertyStore();
+  const { can } = useAdminAuth();
+  const userId = user?.userId;
+  const status = user?.status;
+  const canAudit = can("settings.view_audit_logs");
+
+  useEffect(() => {
+    if (!isOpen || !userId) return;
+    let cancelled = false;
+    setDetail(null);
+    setError("");
+    setLoading(true);
+    getDetail(userId)
+      .then((d) => {
+        if (!cancelled) setDetail(d);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(errorMessage(e, "Could not load this account."));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, userId, status, getDetail]);
+
+  useEffect(() => {
+    if (!isOpen || !userId || !canAudit) return;
+    let cancelled = false;
+    // Admin actions on accounts are logged with entity "user"; keep the ones about this user.
+    listAdminAuditLogs({ entity: "user" }, 1, 100)
+      .then((res) => {
+        if (!cancelled) setLogs(res.items.filter((l) => (l.after?.user_id ?? l.before?.user_id) === userId));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, userId, status, canAudit]);
 
   if (!isOpen || !user) return null;
 
-  const handleAddNote = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newNote.trim()) return;
-    addAdminNote(user.id, newNote.trim(), "RESTAMP Admin");
-    setNewNote("");
-  };
+  const ownerProperties = properties.filter((p) => p.ownerId === user.userId);
+  const canSuspend = can("users.suspend") && user.status !== "Inactive";
 
   const statusColors = {
     Active: "bg-[#e7f8ee] text-[#199864] border-[#b4eed3]",
@@ -66,85 +99,52 @@ export function UserDetailModal({
     Inactive: "bg-[#f1f4f9] text-[#6e7d94] border-[#dde3ee]",
   };
 
-  const kycColors = {
-    Verified: "bg-[#ecfdf5] text-[#059669]",
-    Pending: "bg-[#fffbeb] text-[#d97706]",
-    Rejected: "bg-[#fef2f2] text-[#dc2626]",
-    "Not Submitted": "bg-[#f1f4f9] text-[#6b7b92]",
-  };
-
-  // Find properties belonging to this owner
-  const ownerProperties = properties.filter((p) =>
-    user.listedPropertyIds?.includes(p.id) || p.owner?.name.toLowerCase() === user.name.toLowerCase()
-  );
+  const activity = detail?.activity;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
-      <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col rounded-3xl border border-[#e2e8f2] bg-white shadow-2xl overflow-hidden">
-        {/* Header */}
+      <div className="relative flex max-h-[92vh] w-full max-w-3xl flex-col rounded-3xl border border-[#e2e8f2] bg-white shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between border-b border-[#edf1f8] px-6 py-4 bg-[#fbfcfe]">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-base font-black text-[#2854cb] shadow-sm"
-              style={{ background: user.tint }}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black text-[#2854cb]"
+              style={{ background: tintOf(user.userId) }}
             >
-              {user.initials}
+              {initialsOf(user.name)}
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="truncate text-base font-extrabold text-[#19273f]">
-                  {user.name}
-                </h2>
-                <span className="font-mono text-xs font-bold text-[#8697ae]">{user.id}</span>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold capitalize ${
-                    user.role === "owner" ? "bg-[#f5f3ff] text-[#7c3aed]" : "bg-[#eff6ff] text-[#2563eb]"
-                  }`}
-                >
-                  {user.role}
-                </span>
-              </div>
+              <h2 className="truncate text-base font-extrabold text-[#19273f]">{detail?.display_name || user.name}</h2>
               <div className="flex items-center gap-2 text-xs text-[#8292aa]">
-                <MapPin size={12} className="text-[#a1b0c6]" />
-                <span>{user.city}, {user.state}</span>
+                <span className="font-mono text-[#2854cb]">#{user.id}</span>
                 <span>•</span>
-                <span>Joined {user.joinedDate}</span>
+                <span>{user.roleLabel}</span>
+                {user.adminRole && (
+                  <>
+                    <span>•</span>
+                    <span className="font-semibold text-[#2854cb]">Admin: {user.adminRole.replace(/_/g, " ")}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
-
           <div className="flex items-center gap-2">
-            <span
-              className={`rounded-full border px-3 py-1 text-xs font-bold ${
-                statusColors[user.status]
-              }`}
-            >
-              {user.status}
-            </span>
-
-            {user.kycStatus === "Pending" && (
+            <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusColors[user.status]}`}>{user.statusLabel}</span>
+            {canSuspend && (
               <button
                 type="button"
-                onClick={() => onVerifyKyc(user)}
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-[#10b981] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#059669] transition-all"
+                onClick={() => onSuspend(user)}
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-white shadow-sm ${
+                  user.status === "Suspended" ? "bg-[#10b981] hover:bg-[#059669]" : "bg-[#ef4444] hover:bg-[#dc2626]"
+                }`}
               >
-                <ShieldCheck size={14} />
-                <span>Verify KYC</span>
+                {user.status === "Suspended" ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
+                <span>{user.status === "Suspended" ? "Reactivate" : "Suspend"}</span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => onEdit(user)}
-              className="rounded-xl border border-[#e2e8f2] p-2 text-[#5a6a82] hover:bg-[#f6f8fb] hover:text-[#182740]"
-              title="Edit User Profile"
-            >
-              <Edit size={16} />
-            </button>
-
             <button
               type="button"
               onClick={onClose}
+              aria-label="Close"
               className="rounded-xl border border-[#e2e8f2] p-2 text-[#5a6a82] hover:bg-[#f6f8fb] hover:text-[#182740]"
             >
               <X size={16} />
@@ -152,32 +152,12 @@ export function UserDetailModal({
           </div>
         </div>
 
-        {/* Suspension Banner */}
-        {user.status === "Suspended" && (
-          <div className="border-b border-[#fee2e2] bg-[#fef2f2] px-6 py-3">
-            <div className="flex items-start gap-2.5 text-xs text-[#991b1b]">
-              <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[#dc2626]" />
-              <div>
-                <span className="font-bold">Account Suspended:</span>{" "}
-                {user.suspensionReason || "Administrative hold applied."}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tabs Bar */}
         <div className="flex overflow-x-auto border-b border-[#eef2f7] bg-white px-6">
           {[
-            { id: "overview", label: "Profile Overview", icon: UserIcon },
-            { id: "kyc", label: "KYC Documents", icon: ShieldCheck, count: user.kycDocuments?.length },
-            {
-              id: "activity",
-              label: user.role === "owner" ? "Listed Properties" : "Enquiries & Tours",
-              icon: user.role === "owner" ? Building : MessageSquare,
-              count: user.role === "owner" ? ownerProperties.length : user.enquiries?.length,
-            },
-            { id: "notes", label: "Admin Notes", icon: FileText, count: user.adminNotes?.length },
-            { id: "audit", label: "Audit Log", icon: History, count: user.auditLog?.length },
+            { id: "overview", label: "Profile", icon: UserIcon },
+            { id: "activity", label: "Listings", icon: Building, count: ownerProperties.length },
+            { id: "kyc", label: "KYC", icon: FileText },
+            { id: "audit", label: "Admin History", icon: History, count: canAudit ? logs.length : undefined },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -185,461 +165,142 @@ export function UserDetailModal({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
                 className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-xs font-bold transition-all ${
-                  isActive
-                    ? "border-[#2854cb] text-[#2854cb]"
-                    : "border-transparent text-[#7d8ca4] hover:text-[#233550]"
+                  isActive ? "border-[#2854cb] text-[#2854cb]" : "border-transparent text-[#7d8ca4] hover:text-[#233550]"
                 }`}
               >
                 <Icon size={14} />
                 <span>{tab.label}</span>
                 {tab.count !== undefined && (
-                  <span className="rounded-full bg-[#f0f3f8] px-1.5 py-0.2 text-[10px] text-[#6d7c92]">
-                    {tab.count}
-                  </span>
+                  <span className="rounded-full bg-[#f0f3f8] px-1.5 py-0.2 text-[10px] text-[#6d7c92]">{tab.count}</span>
                 )}
               </button>
             );
           })}
         </div>
 
-        {/* Scrollable Tab Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {activeTab === "overview" && (
-            <div className="space-y-6">
-              {/* Contact Information Card */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 rounded-2xl border border-[#e8ecf4] bg-[#fbfcfe] p-5">
-                <div>
-                  <span className="text-[11px] font-bold text-[#8697ae] uppercase">Email</span>
-                  <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-[#1f2e48]">
-                    <Mail size={13} className="text-[#3b82f6]" />
-                    <span>{user.email}</span>
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-[#7d8ca4]">
+              <Loader2 size={16} className="animate-spin text-[#2854cb]" /> Loading account…
+            </div>
+          )}
+          {error && (
+            <div className="rounded-xl border border-[#fee2e2] bg-[#fef2f2] p-3 text-xs text-[#991b1b]" role="alert">
+              {error}
+            </div>
+          )}
+
+          {activeTab === "overview" && detail && (
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-[#eef2f7] p-3">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-[#9aa7bb]">
+                    <Phone size={12} /> Mobile
                   </div>
-                  <div className="mt-1">
-                    {user.emailVerified ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#10b981]">
-                        <CheckCircle2 size={11} /> Verified
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-[#f59e0b]">Unverified</span>
-                    )}
+                  <div className="mt-0.5 text-sm font-bold text-[#23334e]">{detail.phone || "Not linked"}</div>
+                </div>
+                <div className="rounded-xl border border-[#eef2f7] p-3">
+                  <div className="text-[10px] font-bold uppercase text-[#9aa7bb]">Sign-in methods</div>
+                  <div className="mt-0.5 text-sm font-bold text-[#23334e]">
+                    {detail.providers.map((p) => PROVIDER_LABEL[p] || p).join(", ") || "—"}
                   </div>
                 </div>
-
-                <div>
-                  <span className="text-[11px] font-bold text-[#8697ae] uppercase">Phone</span>
-                  <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-[#1f2e48]">
-                    <Phone size={13} className="text-[#3b82f6]" />
-                    <span>{user.phone}</span>
+                <div className="rounded-xl border border-[#eef2f7] p-3">
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-[#9aa7bb]">
+                    <Clock size={12} /> Joined
                   </div>
-                  <div className="mt-1">
-                    {user.phoneVerified ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#10b981]">
-                        <CheckCircle2 size={11} /> OTP Verified
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-[#f59e0b]">Unverified</span>
-                    )}
-                  </div>
+                  <div className="mt-0.5 text-sm font-bold text-[#23334e]">{formatDate(detail.joined_at)}</div>
                 </div>
-
-                <div>
-                  <span className="text-[11px] font-bold text-[#8697ae] uppercase">KYC Standing</span>
-                  <div className="mt-1">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                        kycColors[user.kycStatus]
-                      }`}
-                    >
-                      <ShieldCheck size={12} />
-                      {user.kycStatus}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-[10px] text-[#8697ae]">
-                    Last active: {user.lastActive}
-                  </div>
+                <div className="rounded-xl border border-[#eef2f7] p-3">
+                  <div className="text-[10px] font-bold uppercase text-[#9aa7bb]">Account status</div>
+                  <div className="mt-0.5 text-sm font-bold capitalize text-[#23334e]">{detail.status}</div>
                 </div>
               </div>
 
-              {/* Specific to Owner */}
-              {user.role === "owner" && (
-                <div className="rounded-2xl border border-[#edf1f8] p-5 space-y-4">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752]">
-                    Seller / Listing Profile
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    <div>
-                      <span className="text-[11px] text-[#8c9cb2]">Account Type</span>
-                      <div className="text-xs font-bold text-[#20314b]">
-                        {user.ownerType || "Individual Homeowner"}
+              {activity && (
+                <div>
+                  <h3 className="mb-2 text-xs font-extrabold uppercase tracking-wider text-[#8392a8]">Platform activity</h3>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                    {[
+                      ["Listings", activity.listings_owned],
+                      ["Enquiries sent", activity.enquiries_sent],
+                      ["Enquiries received", activity.enquiries_received],
+                      ["Visits requested", activity.visits_requested],
+                      ["Agent locations", activity.broker_covered_locations],
+                    ].map(([label, value]) => (
+                      <div key={label as string} className="rounded-xl bg-[#f8fafc] p-3 text-center">
+                        <div className="text-lg font-extrabold text-[#1a2942]">{value}</div>
+                        <div className="text-[10px] font-semibold text-[#8696ab]">{label}</div>
                       </div>
-                    </div>
-                    <div>
-                      <span className="text-[11px] text-[#8c9cb2]">Agency / Developer</span>
-                      <div className="text-xs font-bold text-[#20314b]">
-                        {user.companyName || "Direct Owner"}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[11px] text-[#8c9cb2]">RERA Registration</span>
-                      <div className="text-xs font-bold text-[#20314b]">
-                        {user.reraRegistrationNumber || "N/A"}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[11px] text-[#8c9cb2]">Marketplace Listings</span>
-                      <div className="text-xs font-bold text-[#20314b]">
-                        {ownerProperties.length} properties
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               )}
+              {can("enquiries.view") && (
+                <Link
+                  href={`/admin-dashboard/enquiries?user=${user.userId}`}
+                  className="inline-block text-xs font-bold text-[#2854cb] hover:underline"
+                >
+                  View this user&apos;s enquiries →
+                </Link>
+              )}
+            </div>
+          )}
 
-              {/* Specific to Buyer */}
-              {user.role === "buyer" && user.buyerPreferences && (
-                <div className="rounded-2xl border border-[#edf1f8] p-5 space-y-4">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752]">
-                    Buyer Property Preferences
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    <div>
-                      <span className="text-[11px] text-[#8c9cb2]">Budget Range</span>
-                      <div className="text-xs font-bold text-[#20314b]">
-                        ₹{(user.buyerPreferences.budgetMin / 100000).toFixed(0)}L - ₹
-                        {(user.buyerPreferences.budgetMax / 100000).toFixed(0)}L
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[11px] text-[#8c9cb2]">Purchase Purpose</span>
-                      <div className="text-xs font-bold text-[#20314b]">
-                        {user.buyerPreferences.purpose}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[11px] text-[#8c9cb2]">Timeline</span>
-                      <div className="text-xs font-bold text-[#20314b]">
-                        {user.buyerPreferences.timeline}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[11px] text-[#8c9cb2]">Preferred BHK</span>
-                      <div className="text-xs font-bold text-[#20314b]">
-                        {user.buyerPreferences.preferredBhk.join(", ")}
-                      </div>
-                    </div>
-                    <div className="col-span-2 sm:col-span-4 border-t border-[#f0f3f8] pt-3">
-                      <span className="text-[11px] text-[#8c9cb2]">Target Localities</span>
-                      <div className="mt-1.5 flex flex-wrap gap-1.5">
-                        {user.buyerPreferences.preferredLocalities.map((loc) => (
-                          <span
-                            key={loc}
-                            className="rounded-lg border border-[#e2e8f2] bg-[#f8fafc] px-2.5 py-1 text-xs font-semibold text-[#324564]"
-                          >
-                            {loc}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+          {activeTab === "activity" && (
+            <div className="space-y-2">
+              {ownerProperties.length === 0 ? (
+                <p className="text-sm text-[#7d8ca4]">No listings owned by this account.</p>
+              ) : (
+                ownerProperties.map((p) => (
+                  <Link
+                    key={p.id}
+                    href={`/admin-dashboard/properties?id=${p.id}`}
+                    className="flex items-center justify-between rounded-xl border border-[#eef2f7] p-3 text-xs hover:bg-[#f8fafc]"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-bold text-[#23334e]">{p.title}</span>
+                      <span className="text-[#8696ab]">
+                        {p.locality} · {p.priceDisplay}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-[#f0f3f8] px-2 py-0.5 font-bold text-[#4a5b75]">{p.statusLabel}</span>
+                  </Link>
+                ))
               )}
             </div>
           )}
 
           {activeTab === "kyc" && (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between rounded-xl border border-[#e8ecf4] bg-[#f8fbfe] p-4">
-                <div>
-                  <div className="text-xs font-extrabold text-[#22334f]">
-                    KYC Compliance Standing
-                  </div>
-                  <div className="mt-0.5 text-xs text-[#7f8fa5]">
-                    Aadhaar, PAN & Identity documents for real estate transaction compliance
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onVerifyKyc(user)}
-                  className="rounded-xl bg-[#2854cb] px-4 py-2 text-xs font-bold text-white hover:bg-[#1f45ae] transition-colors"
-                >
-                  Review Documents
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {user.kycDocuments && user.kycDocuments.length > 0 ? (
-                  user.kycDocuments.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between rounded-xl border border-[#e8ecf4] p-4 bg-white"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4ff] text-[#2854cb]">
-                          <FileText size={20} />
-                        </span>
-                        <div>
-                          <div className="text-xs font-bold text-[#1f2e48]">{doc.type}</div>
-                          <div className="mt-0.5 text-[11px] text-[#8697ae]">
-                            Number: {doc.documentNumber} · {doc.fileSize} · Submitted {doc.submittedAt}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                            doc.status === "Verified"
-                              ? "bg-[#ecfdf5] text-[#059669]"
-                              : doc.status === "Rejected"
-                              ? "bg-[#fef2f2] text-[#dc2626]"
-                              : "bg-[#fffbeb] text-[#d97706]"
-                          }`}
-                        >
-                          {doc.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-xl border border-[#f0f3f8] bg-[#fafbfc] p-8 text-center text-xs text-[#8c9cb2]">
-                    No identity verification documents submitted yet.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "activity" && (
-            <div className="space-y-4">
-              {user.role === "owner" ? (
-                <>
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752]">
-                    Listed Properties ({ownerProperties.length})
-                  </h3>
-                  {ownerProperties.length > 0 ? (
-                    <div className="space-y-3">
-                      {ownerProperties.map((prop) => (
-                        <div
-                          key={prop.id}
-                          className="flex items-center justify-between rounded-xl border border-[#e8ecf4] p-4 bg-white"
-                        >
-                          <div className="flex items-center gap-3">
-                            {prop.images?.[0] ? (
-                              <img
-                                src={prop.images[0]}
-                                alt={prop.title}
-                                className="h-12 w-14 rounded-lg object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-12 w-14 items-center justify-center rounded-lg bg-[#eef4ff] text-xs font-black text-[#2854cb]">
-                                {prop.initials}
-                              </div>
-                            )}
-                            <div>
-                              <div className="text-xs font-bold text-[#1f2e48]">{prop.title}</div>
-                              <div className="mt-0.5 text-[11px] text-[#8596ac]">
-                                {prop.locality}, {prop.city} · {prop.type} · ₹
-                                {(prop.price / 100000).toFixed(0)}L
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-3">
-                            <span
-                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                                prop.status === "Active"
-                                  ? "bg-[#e7f8ee] text-[#199864]"
-                                  : prop.status === "Pending"
-                                  ? "bg-[#fff5e3] text-[#bf811a]"
-                                  : "bg-[#ffeaeb] text-[#d45561]"
-                              }`}
-                            >
-                              {prop.status}
-                            </span>
-                            <Link
-                              href={`/admin-dashboard/properties?id=${prop.id}`}
-                              className="rounded-lg border border-[#e2e8f2] px-2.5 py-1 text-xs font-bold text-[#2854cb] hover:bg-[#eff4ff]"
-                            >
-                              Review Property
-                            </Link>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-[#f0f3f8] bg-[#fafbfc] p-8 text-center text-xs text-[#8c9cb2]">
-                      No properties listed yet.
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752]">
-                    Property Inquiries & Tour Requests ({user.enquiries?.length || 0})
-                  </h3>
-                  {user.enquiries && user.enquiries.length > 0 ? (
-                    <div className="space-y-3">
-                      {user.enquiries.map((enq) => (
-                        <div
-                          key={enq.id}
-                          className="rounded-xl border border-[#e8ecf4] p-4 bg-white space-y-2"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <span className="font-mono text-[10px] text-[#2854cb] font-bold">
-                                {enq.propertyId}
-                              </span>
-                              <div className="text-xs font-bold text-[#1f2e48]">
-                                {enq.propertyTitle}
-                              </div>
-                              <div className="text-[11px] text-[#8090a6]">
-                                {enq.locality} · ₹{(enq.price / 100000).toFixed(0)}L
-                              </div>
-                            </div>
-                            <span className="rounded-full bg-[#eef4ff] px-2.5 py-0.5 text-[10px] font-bold text-[#2854cb]">
-                              {enq.type}
-                            </span>
-                          </div>
-                          <p className="rounded-lg bg-[#f9fafc] p-2.5 text-xs text-[#4b5b75]">
-                            &ldquo;{enq.message}&rdquo;
-                          </p>
-                          <div className="flex items-center justify-between text-[11px] text-[#93a2b7] pt-1">
-                            <span>Status: {enq.status}</span>
-                            <span>{enq.date}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-[#f0f3f8] bg-[#fafbfc] p-8 text-center text-xs text-[#8c9cb2]">
-                      No inquiries or tours submitted yet.
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {activeTab === "notes" && (
-            <div className="space-y-4">
-              <form onSubmit={handleAddNote} className="space-y-2">
-                <label className="block text-xs font-bold text-[#344560]">
-                  Add Internal Note (Admin only)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    placeholder="Enter private admin remark, call notes, or fraud alert..."
-                    className="flex-1 rounded-xl border border-[#dce3ee] bg-[#fafbfd] px-3.5 py-2 text-xs font-medium text-[#20314b] outline-none focus:border-[#2854cb] focus:bg-white"
-                  />
-                  <button
-                    type="submit"
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#2854cb] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#1f45ae]"
-                  >
-                    <Send size={13} />
-                    <span>Post</span>
-                  </button>
-                </div>
-              </form>
-
-              <div className="space-y-3 pt-3">
-                {user.adminNotes && user.adminNotes.length > 0 ? (
-                  user.adminNotes.map((note) => (
-                    <div
-                      key={note.id}
-                      className="rounded-xl border border-[#e8ecf4] bg-[#fbfcfe] p-3.5 space-y-1"
-                    >
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-[#2854cb]">{note.adminName}</span>
-                        <span className="text-[#9aa7bb]">{note.timestamp}</span>
-                      </div>
-                      <p className="text-xs text-[#3f5068] leading-relaxed">{note.content}</p>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-xl border border-[#f0f3f8] bg-[#fafbfc] p-6 text-center text-xs text-[#8c9cb2]">
-                    No internal notes added yet.
-                  </div>
-                )}
-              </div>
+            <div className="rounded-2xl border border-dashed border-[#dce3ee] p-8 text-center text-sm text-[#7d8ca4]">
+              KYC documents and verification are not available yet. The backend does not collect or store identity documents.
             </div>
           )}
 
           {activeTab === "audit" && (
-            <div className="space-y-4">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752]">
-                Account Audit Trail
-              </h3>
-              <div className="space-y-3">
-                {user.auditLog && user.auditLog.length > 0 ? (
-                  user.auditLog.map((log) => (
-                    <div
-                      key={log.id}
-                      className="flex items-start gap-3 rounded-xl border border-[#edf1f8] bg-[#fcfdfe] p-3.5"
-                    >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef4ff] text-[#2854cb]">
-                        <Clock size={15} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-[#1f2e48]">{log.action}</span>
-                          <span className="text-[10px] text-[#93a2b7]">{log.timestamp}</span>
-                        </div>
-                        <div className="mt-0.5 text-[11px] text-[#718299]">
-                          by <span className="font-semibold text-[#324564]">{log.actor}</span>
-                        </div>
-                        {log.details && (
-                          <p className="mt-1 text-xs text-[#52637b] rounded-lg bg-white border border-[#edf1f8] p-2">
-                            {log.details}
-                          </p>
-                        )}
-                      </div>
+            <div className="space-y-2">
+              {!canAudit ? (
+                <p className="text-sm text-[#7d8ca4]">Your admin role does not include the audit log.</p>
+              ) : logs.length === 0 ? (
+                <p className="text-sm text-[#7d8ca4]">No admin actions recorded for this account.</p>
+              ) : (
+                logs.map((l) => (
+                  <div key={l.id} className="rounded-xl border border-[#eef2f7] p-3 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-[#23334e]">{l.action === "ADMIN_USER_SUSPENDED" ? "Suspended" : l.action === "ADMIN_USER_REACTIVATED" ? "Reactivated" : l.action}</span>
+                      <span className="text-[#93a2b7]">{formatDate(l.created_at)}</span>
                     </div>
-                  ))
-                ) : (
-                  <div className="rounded-xl border border-[#f0f3f8] bg-[#fafbfc] p-6 text-center text-xs text-[#8c9cb2]">
-                    No audit records available.
+                    <p className="mt-1 text-[#5a6a82]">
+                      By {l.actor_name || `user #${l.actor_user_id}`}
+                      {typeof l.after?.reason === "string" ? ` · ${l.after.reason}` : ""}
+                    </p>
                   </div>
-                )}
-              </div>
+                ))
+              )}
             </div>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-[#edf1f8] px-6 py-4 bg-[#fbfcfe]">
-          <button
-            type="button"
-            onClick={() => onSuspend(user)}
-            className={`text-xs font-bold transition-colors ${
-              user.status === "Suspended"
-                ? "text-[#10b981] hover:underline"
-                : "text-[#dc2626] hover:underline"
-            }`}
-          >
-            {user.status === "Suspended" ? "Restore Account" : "Suspend Account"}
-          </button>
-
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => onEdit(user)}
-              className="rounded-xl border border-[#dbe2ee] px-4 py-2 text-xs font-semibold text-[#576882] hover:bg-[#f8fafc]"
-            >
-              Edit Profile
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl bg-[#2854cb] px-5 py-2 text-xs font-bold text-white hover:bg-[#1f45ae] transition-colors"
-            >
-              Done
-            </button>
-          </div>
         </div>
       </div>
     </div>

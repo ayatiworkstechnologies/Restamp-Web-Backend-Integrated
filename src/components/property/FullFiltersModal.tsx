@@ -63,7 +63,8 @@ interface FullFiltersModalProps {
   filters: FilterValues;
   onApply: (newFilters: FilterValues) => void;
   onReset: () => void;
-  allProperties: Property[];
+  /** Number of listings the draft filters match (backend count). */
+  countMatches?: (draft: FilterValues) => Promise<number>;
 }
 
 export const chennaiLocalities = [
@@ -291,7 +292,7 @@ export default function FullFiltersModal({
   filters,
   onApply,
   onReset,
-  allProperties,
+  countMatches,
 }: FullFiltersModalProps) {
   // Local state inside modal for fast interactive editing
   const [draft, setDraft] = useState<FilterValues>(filters);
@@ -326,10 +327,27 @@ export default function FullFiltersModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Real-time calculation of matched properties count inside modal
-  const previewCount = useMemo(() => {
-    return filterPropertiesWithValues(allProperties, draft).length;
-  }, [allProperties, draft]);
+  // Live count of matching listings from the backend (debounced). Unknown
+  // (null) while loading or when the count could not be fetched.
+  const [previewCount, setPreviewCount] = useState<number | null>(null);
+  const draftKey = JSON.stringify(draft);
+  useEffect(() => {
+    if (!isOpen || !countMatches) return;
+    let cancelled = false;
+    setPreviewCount(null);
+    const timer = setTimeout(() => {
+      countMatches(draft)
+        .then((n) => {
+          if (!cancelled) setPreviewCount(n);
+        })
+        .catch(() => undefined);
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, draftKey, countMatches]);
 
   const activeCount = useMemo(() => countActiveFilters(draft), [draft]);
 
@@ -583,6 +601,7 @@ export default function FullFiltersModal({
             <label className="text-xs font-extrabold text-slate-900 tracking-wider uppercase block mb-3">
               Furnishing
             </label>
+            <p className="text-[11px] text-slate-400 mb-2">Not available yet: listings can't be filtered by this.</p>
             <div className="flex flex-wrap gap-2">
               {furnishingOptions.map((furn) => {
                 const isSelected = draft.furnishing.includes(furn);
@@ -591,7 +610,8 @@ export default function FullFiltersModal({
                     key={furn}
                     type="button"
                     onClick={() => toggleFurnishing(furn)}
-                    className={`px-3.5 py-2 rounded-xl border text-xs sm:text-[13px] font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                    disabled
+                    className={`disabled:opacity-50 disabled:cursor-not-allowed px-3.5 py-2 rounded-xl border text-xs sm:text-[13px] font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                       isSelected
                         ? 'bg-[#087ed9] text-white border-[#087ed9] shadow-xs'
                         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -637,6 +657,7 @@ export default function FullFiltersModal({
             <label className="text-xs font-extrabold text-slate-900 tracking-wider uppercase block mb-3">
               Facing Direction
             </label>
+            <p className="text-[11px] text-slate-400 mb-2">Not available yet: listings can't be filtered by this.</p>
             <div className="flex flex-wrap gap-2">
               {facingOptions.map((fc) => {
                 const isSelected = draft.facing.includes(fc);
@@ -645,7 +666,8 @@ export default function FullFiltersModal({
                     key={fc}
                     type="button"
                     onClick={() => toggleFacing(fc)}
-                    className={`px-3.5 py-2 rounded-xl border text-xs sm:text-[13px] font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                    disabled
+                    className={`disabled:opacity-50 disabled:cursor-not-allowed px-3.5 py-2 rounded-xl border text-xs sm:text-[13px] font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                       isSelected
                         ? 'bg-[#087ed9] text-white border-[#087ed9] shadow-xs'
                         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -664,6 +686,7 @@ export default function FullFiltersModal({
             <label className="text-xs font-extrabold text-slate-900 tracking-wider uppercase block mb-3">
               Amenities & Facilities
             </label>
+            <p className="text-[11px] text-slate-400 mb-2">Not available yet: listings can't be filtered by this.</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {amenityOptions.map(({ key, label, icon: Icon }) => {
                 const isChecked = draft.amenities.includes(key);
@@ -672,7 +695,8 @@ export default function FullFiltersModal({
                     key={key}
                     type="button"
                     onClick={() => toggleAmenity(key)}
-                    className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition cursor-pointer ${
+                    disabled
+                    className={`disabled:opacity-50 disabled:cursor-not-allowed p-2.5 rounded-xl border text-left flex items-center gap-2 transition cursor-pointer ${
                       isChecked
                         ? 'bg-sky-50 border-[#087ed9] text-[#087ed9] font-bold shadow-2xs'
                         : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
@@ -698,7 +722,7 @@ export default function FullFiltersModal({
                     Verified Listings Only
                   </p>
                   <p className="text-[11px] text-slate-500">
-                    Show exclusively verified properties direct from promoters & developers
+                    Every listing shown on Restamp has been verified
                   </p>
                 </div>
               </div>
@@ -730,7 +754,7 @@ export default function FullFiltersModal({
           >
             <span>Apply Filters</span>
             <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs font-extrabold">
-              {previewCount}
+              {previewCount ?? '…'}
             </span>
           </button>
         </div>

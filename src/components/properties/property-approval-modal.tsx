@@ -1,19 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import { CheckCircle2, X, ShieldCheck, Sparkles } from "lucide-react";
-import { Property } from "@/types/property";
+import { CheckCircle2, X, ShieldCheck, Sparkles, Loader2 } from "lucide-react";
+import { AdminProperty } from "@/context/property-context";
 
 interface PropertyApprovalModalProps {
-  property: Property | null;
+  property: AdminProperty | null;
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (
-    id: string,
-    notes?: string,
-    makeFeatured?: boolean,
-    makeVerified?: boolean
-  ) => void;
+  /** POST /admin/listings/{id}/verify; resolves true when the backend accepted it. */
+  onConfirm: (id: number, notes?: string) => Promise<boolean>;
 }
 
 export function PropertyApprovalModal({
@@ -23,21 +19,18 @@ export function PropertyApprovalModal({
   onConfirm,
 }: PropertyApprovalModalProps) {
   const [notes, setNotes] = useState("");
-  const [makeFeatured, setMakeFeatured] = useState(false);
-  const [makeVerified, setMakeVerified] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   if (!isOpen || !property) return null;
 
-  const handleApprove = () => {
-    onConfirm(property.id, notes, makeFeatured, makeVerified);
-    onClose();
-  };
-
-  const formatPrice = (price: number) => {
-    if (price >= 10000000) {
-      return `₹${(price / 10000000).toFixed(2)} Cr`;
+  const handleApprove = async () => {
+    setSaving(true);
+    const ok = await onConfirm(property.listingId, notes.slice(0, 500));
+    setSaving(false);
+    if (ok) {
+      setNotes("");
+      onClose();
     }
-    return `₹${(price / 100000).toFixed(0)} Lakhs`;
   };
 
   return (
@@ -52,7 +45,7 @@ export function PropertyApprovalModal({
             <div>
               <h2 className="text-base font-extrabold text-[#17253d]">Approve Property Listing</h2>
               <p className="text-xs text-[#808fa5]">
-                Promote <span className="font-semibold text-[#17253d]">{property.id}</span> to Active status
+                Verify listing <span className="font-semibold text-[#17253d]">#{property.id}</span> so buyers can see it
               </p>
             </div>
           </div>
@@ -67,25 +60,25 @@ export function PropertyApprovalModal({
         {/* Property Summary Box */}
         <div className="mt-4 rounded-xl border border-[#eaf0fa] bg-[#f8fbff] p-4">
           <div className="flex items-start gap-3">
-            {property.images?.[0] ? (
+            {property.image ? (
               <img
-                src={property.images[0]}
+                src={property.image}
                 alt={property.title}
                 className="h-14 w-14 rounded-lg object-cover border border-[#dce5f5]"
               />
             ) : (
               <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-[#e3ecfc] text-xs font-bold text-[#2854cb]">
-                {property.initials || "PR"}
+                {property.title.slice(0, 2).toUpperCase()}
               </div>
             )}
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-extrabold text-[#1f2e48]">{property.title}</div>
               <div className="mt-0.5 text-xs text-[#7d8da4]">
-                {property.locality}, {property.city} · {property.type}
+                {property.locality}, {property.city} · {property.typeLabel} · {property.dealLabel}
               </div>
               <div className="mt-1 flex items-center gap-2">
-                <span className="text-xs font-bold text-[#1f2e48]">{formatPrice(property.price)}</span>
-                <span className="text-[11px] text-[#93a2b8]">· Submitted by {property.owner.name}</span>
+                <span className="text-xs font-bold text-[#1f2e48]">{property.priceDisplay}</span>
+                <span className="text-[11px] text-[#93a2b8]">· Submitted by {property.ownerName}</span>
               </div>
             </div>
           </div>
@@ -93,11 +86,11 @@ export function PropertyApprovalModal({
 
         {/* Options */}
         <div className="mt-4 space-y-3">
-          <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-[#e6ecf6] p-3 hover:bg-[#fafcff]">
+          <label className="flex items-start gap-3 cursor-not-allowed rounded-xl border border-[#e6ecf6] p-3 opacity-60" title="Not available yet">
             <input
               type="checkbox"
-              checked={makeVerified}
-              onChange={(e) => setMakeVerified(e.target.checked)}
+              checked={false}
+              disabled
               className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
             />
             <div className="text-xs">
@@ -105,16 +98,16 @@ export function PropertyApprovalModal({
                 <ShieldCheck size={14} className="text-[#10b981]" /> Attach &quot;RESTAMP Verified&quot; Badge
               </span>
               <p className="mt-0.5 text-[#8696ab]">
-                Confirms title deeds and legal checks have been audited by admin.
+                Not available yet: the platform has no separate verified badge.
               </p>
             </div>
           </label>
 
-          <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-[#e6ecf6] p-3 hover:bg-[#fafcff]">
+          <label className="flex items-start gap-3 cursor-not-allowed rounded-xl border border-[#e6ecf6] p-3 opacity-60" title="Not available yet">
             <input
               type="checkbox"
-              checked={makeFeatured}
-              onChange={(e) => setMakeFeatured(e.target.checked)}
+              checked={false}
+              disabled
               className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
             />
             <div className="text-xs">
@@ -122,7 +115,7 @@ export function PropertyApprovalModal({
                 <Sparkles size={14} className="text-[#f59e0b]" /> Feature on Marketplace Homepage
               </span>
               <p className="mt-0.5 text-[#8696ab]">
-                Gives this property premium placement in search results and carousel.
+                Not available yet: featured listings are not supported by the backend.
               </p>
             </div>
           </label>
@@ -133,6 +126,7 @@ export function PropertyApprovalModal({
             </label>
             <textarea
               rows={2}
+              maxLength={500}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Legal papers verified, clear title deed confirmed on 28 Oct..."
@@ -152,11 +146,12 @@ export function PropertyApprovalModal({
           </button>
           <button
             type="button"
-            onClick={handleApprove}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#10b981] px-4 py-2 text-xs font-bold text-white shadow-[0_4px_12px_#10b98135] hover:bg-[#059669] transition-all"
+            onClick={() => void handleApprove()}
+            disabled={saving}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[#10b981] px-4 py-2 text-xs font-bold text-white shadow-[0_4px_12px_#10b98135] hover:bg-[#059669] disabled:opacity-60 transition-all"
           >
-            <CheckCircle2 size={15} />
-            <span>Approve & Publish Listing</span>
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+            <span>Verify Listing</span>
           </button>
         </div>
       </div>

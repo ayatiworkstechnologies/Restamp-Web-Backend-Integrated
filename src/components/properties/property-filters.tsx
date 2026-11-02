@@ -36,7 +36,6 @@ const propertyTypes: ("All" | PropertyType)[] = [
   "Apartment",
   "Villa",
   "Independent House",
-  "Penthouse",
   "Commercial",
   "Plot",
 ];
@@ -162,7 +161,9 @@ export function PropertyFiltersBar({
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-bold text-[#98a6bb]">BHK:</span>
           <select
-            value={filters.bhk}
+            value="All"
+            disabled
+            title="Not available yet: admin listing rows do not include bedrooms"
             onChange={(e) => onFilterChange({ bhk: e.target.value as any })}
             className="rounded-xl border border-[#e2e8f2] bg-[#fbfcfe] px-3 py-2 text-xs font-semibold text-[#324564] outline-none transition-all hover:bg-white focus:border-[#2854cb] cursor-pointer"
           >
