@@ -94,10 +94,7 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
     <aside className="flex h-full w-64 flex-col overflow-y-auto border-r border-slate-100 bg-white">
       {/* Brand Header */}
       <Link href="/" className="flex items-center gap-2 px-6 py-5">
-        <Image src="/restamplogo.svg" alt="Restamp Logo" width={32} height={32} className="h-8 w-8 object-contain" />
-        <span className="text-lg font-bold tracking-tight text-slate-900">
-          Re<span className="text-[#087ed9]">stamp</span>
-        </span>
+        <Image src="/restamp-logo.svg" alt="Restamp" width={149} height={40} className="h-10 w-auto" />
       </Link>
       <div className="px-6 pb-3 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sky-50 text-[10px] font-bold uppercase tracking-wider text-[#087ed9]">

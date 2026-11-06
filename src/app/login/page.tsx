@@ -140,17 +140,7 @@ function LoginForm() {
         {/* Brand Logo & Back to Home */}
         <div className="mb-5 flex items-center justify-between">
           <Link href="/" className="inline-flex items-center gap-2">
-            <Image
-              src="/restamplogo.svg"
-              alt="Restamp Logo"
-              width={34}
-              height={34}
-              className="h-8.5 w-8.5 object-contain"
-              priority
-            />
-            <span className="text-slate-900 font-bold text-lg tracking-tight">
-              Re<span className="text-[#087ed9]">stamp</span>
-            </span>
+            <Image src="/restamp-logo.svg" alt="Restamp" width={149} height={40} className="h-10 w-auto" priority />
           </Link>
           <Link
             href="/"

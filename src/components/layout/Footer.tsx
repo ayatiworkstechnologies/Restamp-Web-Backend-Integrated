@@ -20,16 +20,7 @@ export default function Footer() {
             href="/"
             className="inline-flex items-center gap-2.5 text-white font-bold tracking-tight text-2xl group"
           >
-            <Image
-              src="/restamp-logo-white.svg"
-              alt="Restamp Logo"
-              width={34}
-              height={34}
-              className="h-8.5 w-8.5 object-contain"
-            />
-            <span className="text-white font-bold text-2xl tracking-tight">
-              Re<span className="text-[#087ed9]">stamp</span>
-            </span>
+            <Image src="/restamp-logo-full-white.svg" alt="Restamp" width={149} height={40} className="h-10 w-auto" />
           </Link>
           <p className="mt-3.5 text-xs text-slate-400 leading-relaxed max-w-xs">
             A new chapter starts with the right address.

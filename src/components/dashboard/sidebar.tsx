@@ -212,18 +212,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         {/* Brand header */}
         <div className="flex h-[88px] items-center justify-between border-b border-slate-100 px-6">
           <Link href="/admin-dashboard" className="flex items-center gap-2.5">
-            <Image
-              src="/restamplogo.svg"
-              alt="Restamp Logo"
-              width={34}
-              height={34}
-              className="h-8.5 w-8.5 object-contain shrink-0"
-              priority
-            />
             <div>
-              <span className="block text-[20px] font-bold tracking-tight text-slate-900 leading-tight">
-                Re<span className="text-[#087ed9]">stamp</span>
-              </span>
+              <Image src="/restamp-logo.svg" alt="Restamp" width={134} height={36} className="h-9 w-auto" priority />
               <span className="inline-block mt-0.5 rounded bg-sky-50 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-[#087ed9] border border-sky-200">
                 ADMIN CONSOLE
               </span>

@@ -284,17 +284,7 @@ export default function Header() {
           href="/"
           className="flex items-center gap-2 text-[#087ed9] font-extrabold text-xl tracking-tight shrink-0"
         >
-          <Image
-            src="/restamplogo.svg"
-            alt="Restamp Logo"
-            width={30}
-            height={30}
-            className="h-7.5 w-7.5 object-contain"
-            priority
-          />
-          <span className="text-slate-900 font-bold">
-            Re<span className="text-[#087ed9]">stamp</span>
-          </span>
+          <Image src="/restamp-logo.svg" alt="Restamp" width={149} height={40} className="h-10 w-auto" priority />
         </Link>
 
         {/* Desktop Navigation Links */}

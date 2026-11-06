@@ -53,10 +53,7 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
   const sidebar = (
     <aside className="flex h-full w-64 flex-col border-r border-slate-100 bg-white">
       <Link href="/" className="flex items-center gap-2 px-6 py-5">
-        <Image src="/restamplogo.svg" alt="Restamp Logo" width={32} height={32} className="h-8 w-8 object-contain" />
-        <span className="text-lg font-bold tracking-tight text-slate-900">
-          Re<span className="text-[#087ed9]">stamp</span>
-        </span>
+        <Image src="/restamp-logo.svg" alt="Restamp" width={149} height={40} className="h-10 w-auto" />
       </Link>
       <p className="px-6 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Owner Studio</p>
       <nav className="flex-1 space-y-1 px-3">
