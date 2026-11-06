@@ -195,7 +195,7 @@ export function AdminUserModal({
                         name="adminRole"
                         checked={isSelected}
                         onChange={() => setRole(r.role)}
-                        className="text-[#162d66] focus:ring-0 cursor-pointer"
+                        className="text-[#162d66] cursor-pointer"
                       />
                     </div>
                     <p className="mt-0.5 text-[11px] text-[#64748b]">
@@ -221,7 +221,7 @@ export function AdminUserModal({
               type="checkbox"
               checked={twoFactorEnabled}
               onChange={(e) => setTwoFactorEnabled(e.target.checked)}
-              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] focus:ring-0 cursor-pointer"
+              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] cursor-pointer"
             />
           </div>
 

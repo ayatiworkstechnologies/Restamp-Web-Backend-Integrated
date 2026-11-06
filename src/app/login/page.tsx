@@ -34,12 +34,16 @@ const afterLogin = (role: string) =>
 
 function LoginForm() {
   const router = useRouter();
-  const role = useSearchParams().get('role') ?? '';
+  const params = useSearchParams();
+  const role = params.get('role') ?? '';
+  const nextParam = params.get('next');
+  // Only allow internal paths, never an external URL.
+  const next = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : null;
   const roleLabel = roleLabels[role];
 
   useEffect(() => {
     if (role === 'admin') {
-      router.replace('/admin/login');
+      router.replace('/admin-login');
     }
   }, [role, router]);
 
@@ -89,27 +93,27 @@ function LoginForm() {
     }
     setError('');
     const me = loginWithMobile(mobile, role);
-    router.push(afterLogin(me.role));
+    router.push(next ?? afterLogin(me.role));
   };
 
   const handleSocialLogin = (provider: 'Google' | 'Apple') => {
     const me = loginWithMobile(provider === 'Google' ? '9876543210' : '9876543211', role || 'buyer');
-    router.push(afterLogin(me.role));
+    router.push(next ?? afterLogin(me.role));
   };
 
   return (
     <div className="w-full max-w-4xl bg-white rounded-[32px] p-4 sm:p-6 md:p-8 shadow-2xl shadow-black/40 flex flex-col md:flex-row gap-6 md:gap-10 items-stretch border border-slate-800/20">
       {/* Left Column: Visual Brand Card in Website Navy with Cyan/Blue Glow */}
-      <div className="relative w-full md:w-[46%] rounded-[24px] bg-[#070e17] overflow-hidden p-8 sm:p-10 flex flex-col justify-between min-h-[340px] md:min-h-[520px] select-none border border-slate-800">
+      <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 relative w-full md:w-[46%] rounded-[24px] overflow-hidden p-8 sm:p-10 flex flex-col justify-between min-h-[340px] md:min-h-[520px] select-none">
         {/* Top Typography */}
         <div className="relative z-10">
-          <span className="inline-block rounded-full bg-sky-500/15 border border-sky-400/20 px-3 py-1 text-[11px] font-semibold text-sky-400 tracking-wider uppercase backdrop-blur-xs mb-4">
+          <span className="inline-block rounded-full bg-sky-500/15 border border-sky-400/20 px-3 py-1 text-[11px] font-semibold text-sky-600 tracking-wider uppercase backdrop-blur-xs mb-4">
             Restamp Marketplace
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-[32px] font-extrabold text-white leading-[1.2] tracking-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-[32px] font-extrabold text-slate-900 leading-[1.2] tracking-tight">
             Convert your ideas into successful business.
           </h2>
-          <p className="mt-3.5 text-xs sm:text-sm text-slate-400 leading-relaxed max-w-xs">
+          <p className="mt-3.5 text-xs sm:text-sm text-slate-500 leading-relaxed max-w-xs">
             Discover verified properties, transparent agreements, and seamless transactions on Restamp.
           </p>
         </div>
@@ -123,11 +127,11 @@ function LoginForm() {
         </div>
 
         {/* Bottom Tag */}
-        <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400">
-          <span className="font-semibold tracking-wider uppercase text-slate-300">
+        <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-500">
+          <span className="font-semibold tracking-wider uppercase text-slate-600">
             Verified Portal
           </span>
-          <span className="text-sky-400 font-mono">v1.0</span>
+          <span className="text-sky-600 font-mono">v1.0</span>
         </div>
       </div>
 
@@ -171,7 +175,7 @@ function LoginForm() {
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Your mobile
               </label>
-              <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm focus-within:border-[#087ed9] focus-within:ring-2 focus-within:ring-[#087ed9]/20 transition shadow-2xs">
+              <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm focus-within:border-[#087ed9] transition shadow-2xs">
                 <Smartphone size={16} className="text-slate-400 shrink-0" />
                 <span className="text-slate-600 font-semibold">+91</span>
                 <input
@@ -190,7 +194,7 @@ function LoginForm() {
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99]"
+              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] h-[53px] text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99]"
             >
               <span>Get OTP</span>
               <ArrowRight size={16} />
@@ -271,7 +275,7 @@ function LoginForm() {
                   value={digit}
                   onChange={(e) => changeOtp(i, e.target.value)}
                   onKeyDown={(e) => otpKeyDown(i, e)}
-                  className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-center text-lg font-bold text-slate-900 outline-none focus:border-[#087ed9] focus:bg-white focus:ring-2 focus:ring-[#087ed9]/20 transition"
+                  className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-center text-lg font-bold text-slate-900 outline-none focus:border-[#087ed9] focus:bg-white transition"
                 />
               ))}
             </div>
@@ -281,7 +285,7 @@ function LoginForm() {
             <button
               type="submit"
               disabled={otp.join('').length < OTP_LENGTH}
-              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shadow-sm"
+              className="inline-flex items-center justify-center w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] h-[53px] text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shadow-sm"
             >
               Verify &amp; Login
             </button>
@@ -311,7 +315,7 @@ function LoginForm() {
         {/* Link to Administrator Console */}
         <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-center text-xs text-slate-400">
           <Link
-            href="/admin/login"
+            href="/admin-login"
             className="hover:text-slate-800 hover:underline inline-flex items-center gap-1.5 font-medium transition"
           >
             <ShieldCheck size={14} className="text-[#087ed9]" />

@@ -468,13 +468,13 @@ export default function OwnerScreen() {
                 </div>
 
                 {/* Floating Dark Pill Tag with Restamp Blue highlight matching reference */}
-                <div className="relative z-10 rounded-2xl bg-[#0c111d] text-white px-4 py-3.5 shadow-[0_16px_36px_-6px_rgba(0,0,0,0.3)] border border-slate-800/90 flex items-center gap-3.5 max-w-[270px] w-full transform group-hover:scale-[1.03] transition duration-300">
+                <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 relative z-10 rounded-2xl px-4 py-3.5 shadow-[0_16px_36px_-6px_rgba(0,0,0,0.3)] flex items-center gap-3.5 max-w-[270px] w-full transform group-hover:scale-[1.03] transition duration-300">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#087ed9]/25 text-[#38bdf8]">
                     <Tag size={16} strokeWidth={2.5} />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-white tracking-wide truncate">0% Brokerage</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5 leading-snug truncate">
+                    <p className="text-xs font-bold text-slate-900 tracking-wide truncate">0% Brokerage</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 leading-snug truncate">
                       When you list &amp; close with direct buyers
                     </p>
                   </div>
@@ -515,11 +515,11 @@ export default function OwnerScreen() {
                 </div>
 
                 {/* Foreground elevated dark card matching reference tilted address 2 */}
-                <div className="relative z-10 ml-auto mr-1 mt-4 rounded-2xl bg-[#0c111d] text-white p-3.5 shadow-[0_16px_36px_-6px_rgba(0,0,0,0.3)] border border-slate-800/90 max-w-[195px] w-full transform -rotate-2 group-hover:rotate-0 transition duration-300">
-                  <p className="text-[11px] font-bold text-white tracking-wide">Address 2 · Direct Lead</p>
+                <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 relative z-10 ml-auto mr-1 mt-4 rounded-2xl p-3.5 shadow-[0_16px_36px_-6px_rgba(0,0,0,0.3)] max-w-[195px] w-full transform -rotate-2 group-hover:rotate-0 transition duration-300">
+                  <p className="text-[11px] font-bold text-slate-900 tracking-wide">Address 2 · Direct Lead</p>
                   <div className="space-y-1.5 mt-2.5">
                     <div className="h-2 bg-gradient-to-r from-[#087ed9] to-[#38bdf8] rounded-full w-4/5" />
-                    <div className="h-2 bg-slate-700/70 rounded-full w-3/5" />
+                    <div className="h-2 bg-slate-200/70 rounded-full w-3/5" />
                   </div>
                 </div>
               </div>
@@ -625,10 +625,10 @@ export default function OwnerScreen() {
                 {/* Pill bar container holding 3 option cards matching reference */}
                 <div className="bg-[#eceef2] rounded-3xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-3 max-w-lg w-full border border-slate-200/60 shadow-inner">
                   {/* Option 1: Selected Active Card (like $1,800 black card in reference, with Restamp Blue) */}
-                  <div className="bg-[#0c111d] text-white rounded-2xl p-3 sm:p-3.5 shadow-[0_12px_28px_rgba(0,0,0,0.25)] border border-slate-800 flex-1 transform -translate-y-0.5">
-                    <p className="text-[10px] font-semibold text-[#38bdf8] uppercase tracking-wider">3 Month · Free</p>
-                    <p className="text-base sm:text-lg font-extrabold text-white mt-0.5 tracking-tight">
-                      ₹0 <span className="text-[10px] text-slate-400 font-normal">/ mo</span>
+                  <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 bg-[#0c111d] rounded-2xl p-3 sm:p-3.5 shadow-[0_12px_28px_rgba(0,0,0,0.25)] flex-1 transform -translate-y-0.5">
+                    <p className="text-[10px] font-semibold text-[#087ed9] uppercase tracking-wider">3 Month · Free</p>
+                    <p className="text-base sm:text-lg font-extrabold text-slate-900 mt-0.5 tracking-tight">
+                      ₹0 <span className="text-[10px] text-slate-500 font-normal">/ mo</span>
                     </p>
                   </div>
 

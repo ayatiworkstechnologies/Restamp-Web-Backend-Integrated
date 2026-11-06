@@ -239,12 +239,12 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="Name"
-                        className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9] transition"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#087ed9] transition"
                       />
                     </div>
 
                     {/* Country Code + Phone Number combo */}
-                    <div className="flex rounded-lg border border-slate-200 focus-within:border-[#087ed9] focus-within:ring-1 focus-within:ring-[#087ed9] transition overflow-hidden bg-white">
+                    <div className="flex rounded-lg border border-slate-200 focus-within:border-[#087ed9] transition overflow-hidden bg-white">
                       <div className="relative border-r border-slate-200 bg-slate-50 flex items-center">
                         <select
                           value={countryCode}
@@ -277,7 +277,7 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
                         maxLength={maxChars}
                         onChange={(e) => setMessage(e.target.value)}
                         rows={3}
-                        className="w-full h-full min-h-[92px] bg-white border border-slate-200 rounded-lg p-3 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9] resize-none transition"
+                        className="w-full h-full min-h-[92px] bg-white border border-slate-200 rounded-lg p-3 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#087ed9] resize-none transition"
                       />
                     </div>
                     <div className="text-right text-[11px] text-slate-400 mt-1 font-medium">
@@ -316,7 +316,7 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="bg-[#087ed9] hover:bg-[#076ec0] text-white font-bold text-xs sm:text-sm px-6 py-2.5 rounded-lg transition duration-200 shadow-xs cursor-pointer active:scale-98 disabled:opacity-60 inline-flex items-center gap-2"
+                    className="bg-[#087ed9] hover:bg-[#076ec0] text-white font-bold text-xs sm:text-sm px-6 h-[53px] rounded-lg transition duration-200 shadow-xs cursor-pointer active:scale-98 disabled:opacity-60 inline-flex items-center gap-2"
                   >
                     {isSubmitting ? (
                       <span>Sending...</span>

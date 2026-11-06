@@ -181,7 +181,7 @@ export function UserAddModal({ isOpen, onClose, onAdd }: UserAddModalProps) {
                   className="w-full rounded-xl border border-[#dce3ee] bg-[#fafbfd] px-3 py-2 text-xs font-semibold text-[#20314b] outline-none"
                 >
                   <option value="Individual Owner">Individual Homeowner</option>
-                  <option value="Agent / Broker">Real Estate Agent / Broker</option>
+                  <option value="Agent / Broker">Agent</option>
                   <option value="Builder / Developer">Builder / Developer</option>
                 </select>
               </div>

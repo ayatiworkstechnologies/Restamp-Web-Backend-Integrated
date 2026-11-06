@@ -105,7 +105,7 @@ export function PropertyTable({
                   type="checkbox"
                   checked={properties.length > 0 && selectedIds.length === properties.length}
                   onChange={handleSelectAll}
-                  className="rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
+                  className="rounded border-gray-300 text-[#2854cb]"
                 />
               </th>
               <th className="px-4 py-3.5">Property Listing</th>
@@ -137,7 +137,7 @@ export function PropertyTable({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleSelect(property.id)}
-                        className="rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
+                        className="rounded border-gray-300 text-[#2854cb]"
                       />
                     </td>
 

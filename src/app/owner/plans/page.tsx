@@ -184,7 +184,7 @@ export default function OwnerPlansPage() {
                       <p className="text-xs text-slate-400">{p.priceSub2}</p>
 
                       <ul className="mt-6 flex-1 space-y-3 border-t border-slate-100 pt-5">
-                        {[...p.features, `Up to ${p.listingLimit} active ${p.listingLimit === 1 ? 'listing' : 'listings'}`].map((f) => (
+                        {p.features.map((f) => (
                           <li key={f} className="flex items-start gap-2 text-sm text-slate-700">
                             <Check size={16} className="mt-0.5 shrink-0 text-[#087ed9]" />
                             {f}
@@ -196,7 +196,7 @@ export default function OwnerPlansPage() {
                         type="button"
                         disabled={isCurrent}
                         onClick={() => choose(p)}
-                        className={`mt-6 rounded-lg py-2.5 text-sm font-semibold transition cursor-pointer disabled:cursor-default ${
+                        className={`mt-6 h-[53px] min-w-[200px] rounded-[16px] text-sm font-semibold transition cursor-pointer disabled:cursor-default ${
                           isCurrent
                             ? 'bg-green-50 text-green-700'
                             : p.popular
@@ -297,7 +297,7 @@ export default function OwnerPlansPage() {
                             value={upiId}
                             onChange={(e) => setUpiId(e.target.value)}
                             placeholder="Enter UPI ID / VPA (e.g. name@okhdfcbank)"
-                            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20"
+                            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#087ed9]"
                           />
                         </label>
                       </div>
@@ -317,7 +317,7 @@ export default function OwnerPlansPage() {
                               )
                             }
                             placeholder="1234 5678 9012 3456"
-                            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20"
+                            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#087ed9]"
                           />
                         </label>
                         <label className="block sm:col-span-2">
@@ -325,7 +325,7 @@ export default function OwnerPlansPage() {
                           <input
                             value={cardName}
                             onChange={(e) => setCardName(e.target.value)}
-                            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20"
+                            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#087ed9]"
                           />
                         </label>
                         <label className="block">
@@ -338,7 +338,7 @@ export default function OwnerPlansPage() {
                               setExpiry(d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d);
                             }}
                             placeholder="MM/YY"
-                            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20"
+                            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#087ed9]"
                           />
                         </label>
                         <label className="block">
@@ -349,7 +349,7 @@ export default function OwnerPlansPage() {
                             value={cvv}
                             onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
                             placeholder="•••"
-                            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20"
+                            className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#087ed9]"
                           />
                         </label>
                       </div>
@@ -422,7 +422,7 @@ export default function OwnerPlansPage() {
                           type="button"
                           onClick={pay}
                           disabled={paying}
-                          className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#087ed9] py-3 text-sm font-semibold text-white hover:bg-sky-600 transition disabled:opacity-70 cursor-pointer"
+                          className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-[#087ed9] h-[53px] text-sm font-semibold text-white hover:bg-sky-600 transition disabled:opacity-70 cursor-pointer"
                         >
                           <Lock size={14} />
                           {paying ? 'Processing payment…' : `Pay Now ${rupees(bill.total)}`}
@@ -482,7 +482,7 @@ export default function OwnerPlansPage() {
                 <Link href="/owner/dashboard" className="rounded-lg border border-[#087ed9] px-5 py-2.5 text-sm font-semibold text-[#087ed9] hover:bg-sky-50 transition">
                   Go to dashboard
                 </Link>
-                <Link href="/owner/dashboard/add-property" className="rounded-lg bg-[#087ed9] px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-600 transition">
+                <Link href="/owner/dashboard/add-property" className="inline-flex items-center justify-center rounded-lg bg-[#087ed9] px-5 h-[53px] text-sm font-semibold text-white hover:bg-sky-600 transition">
                   Post property
                 </Link>
               </div>

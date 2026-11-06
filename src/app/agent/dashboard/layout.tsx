@@ -25,15 +25,17 @@ import {
   TrendingUp,
   MapPin,
   Sparkles,
+  Headset,
   type LucideIcon,
 } from 'lucide-react';
 
 const agentNav: { label: string; href: string; icon: LucideIcon }[] = [
-  { label: 'Overview Console', href: '/agent/dashboard', icon: LayoutDashboard },
-  { label: 'Live Mandates', href: '/agent/dashboard#mandates', icon: Building2 },
-  { label: 'Lead Pipeline', href: '/agent/dashboard#leads', icon: Users },
-  { label: 'Upgrade Locations', href: '/agent/packages', icon: CreditCard },
-  { label: 'Market Analytics', href: '/agent#agent-analytics-hub', icon: TrendingUp },
+  { label: 'Dashboard', href: '/agent/dashboard', icon: LayoutDashboard },
+  { label: 'Properties', href: '/agent/dashboard/properties', icon: Building2 },
+  { label: 'Leads', href: '/agent/dashboard/leads', icon: Users },
+  { label: 'Plan & Payments', href: '/agent/dashboard/payments', icon: CreditCard },
+  { label: 'Profile', href: '/agent/dashboard/profile', icon: UserRound },
+  { label: 'Contact Us', href: '/agent/dashboard/contact', icon: Headset },
 ];
 
 export default function AgentDashboardLayout({ children }: { children: React.ReactNode }) {
@@ -47,7 +49,7 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
     const p = getProfile();
     // Protect route: require agent authentication
     if (!p) {
-      router.replace('/agent/login?next=/agent/dashboard');
+      router.replace('/login?role=agent&next=/agent/dashboard');
       return;
     }
     setProfile(p);
@@ -80,7 +82,7 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
 
   const logout = () => {
     clearProfile();
-    router.push('/agent/login');
+    router.push('/login?role=agent');
   };
 
   // Calculate days remaining
@@ -89,7 +91,7 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
     : null;
 
   const sidebar = (
-    <aside className="flex h-full w-64 flex-col border-r border-slate-100 bg-white">
+    <aside className="flex h-full w-64 flex-col overflow-y-auto border-r border-slate-100 bg-white">
       {/* Brand Header */}
       <Link href="/" className="flex items-center gap-2 px-6 py-5">
         <Image src="/restamplogo.svg" alt="Restamp Logo" width={32} height={32} className="h-8 w-8 object-contain" />
@@ -99,7 +101,7 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
       </Link>
       <div className="px-6 pb-3 flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sky-50 text-[10px] font-bold uppercase tracking-wider text-[#087ed9]">
-          <ShieldCheck size={13} /> Partner Console
+          <ShieldCheck size={13} /> Agent Console
         </span>
         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title="Syndicate Online" />
       </div>
@@ -107,7 +109,7 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
       {/* Nav List */}
       <nav className="flex-1 space-y-1 px-3">
         {agentNav.map(({ label, href, icon: Icon }) => {
-          const active = pathname === href;
+          const active = href === '/agent/dashboard' ? pathname === href : pathname.startsWith(href);
           return (
             <Link
               key={href}
@@ -126,23 +128,23 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
 
       {/* Subscription Card */}
       {sub && (
-        <div className="m-3 rounded-2xl bg-[#070e17] p-4 text-white border border-slate-800">
+        <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 m-3 rounded-2xl p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-extrabold text-sky-400">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold text-sky-600">
               <Crown size={14} /> {sub.badge || sub.planName}
             </div>
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-600">
               Active Paid
             </span>
           </div>
 
-          <p className="mt-2 text-xs font-bold text-slate-200">
+          <p className="mt-2 text-xs font-bold text-slate-700">
             {sub.selectedLocations?.length || 0} / {sub.locationLimit} Micro-Markets Covered
           </p>
 
-          <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+          <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
             <span>Valid till:</span>
-            <span className="text-slate-300 font-medium">
+            <span className="text-slate-600 font-medium">
               {sub.expiresAt
                 ? new Date(sub.expiresAt).toLocaleDateString('en-IN', {
                     day: 'numeric',
@@ -154,12 +156,12 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
           </p>
 
           {daysRemaining !== null && (
-            <p className="text-[10px] text-sky-300 font-bold mt-0.5">
+            <p className="text-[10px] text-sky-600 font-bold mt-0.5">
               {daysRemaining} days remaining in cycle
             </p>
           )}
 
-          <div className="mt-3.5 pt-3 border-t border-slate-800/80 flex items-center gap-2">
+          <div className="mt-3.5 pt-3 border-t border-slate-200 flex items-center gap-2">
             <Link
               href="/agent/packages"
               className="flex-1 rounded-xl bg-[#087ed9] hover:bg-sky-500 py-1.5 text-center text-[11px] font-bold text-white transition shadow-xs"
@@ -184,7 +186,7 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
   return (
     <div className="flex min-h-screen bg-slate-50">
       {/* Desktop sidebar */}
-      <div className="hidden lg:block lg:w-64 lg:shrink-0">{sidebar}</div>
+      <div className="sticky top-0 hidden h-screen lg:block lg:w-64 lg:shrink-0">{sidebar}</div>
 
       {/* Mobile drawer */}
       {open && (
@@ -209,7 +211,7 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
           {/* Quick RERA verification indicator */}
           <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-slate-600">
             <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
-            <span>RERA Registered Channel Partner:</span>
+            <span>RERA Registered Agent:</span>
             <span className="font-mono text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md text-[11px] font-bold">
               {sub?.reraNumber || 'TN/AGENT/0491/2023'}
             </span>
@@ -227,12 +229,12 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
               href="/agent"
               className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
             >
-              Public Partner Hub
+              Public Agent Hub
             </Link>
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">{children}</main>
+        <main className="w-full flex-1 px-4 py-6 sm:px-8 sm:py-8">{children}</main>
       </div>
     </div>
   );

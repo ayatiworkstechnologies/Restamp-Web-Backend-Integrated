@@ -154,7 +154,7 @@ export function PlatformConfigView() {
               type="checkbox"
               checked={formData.requireOwnerKyc}
               onChange={(e) => handleChange("requireOwnerKyc", e.target.checked)}
-              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] focus:ring-0 cursor-pointer"
+              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] cursor-pointer"
             />
           </div>
 
@@ -172,7 +172,7 @@ export function PlatformConfigView() {
               type="checkbox"
               checked={formData.requireReraNumber}
               onChange={(e) => handleChange("requireReraNumber", e.target.checked)}
-              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] focus:ring-0 cursor-pointer"
+              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] cursor-pointer"
             />
           </div>
 
@@ -192,7 +192,7 @@ export function PlatformConfigView() {
               onChange={(e) =>
                 handleChange("allowDirectOwnerContact", e.target.checked)
               }
-              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] focus:ring-0 cursor-pointer"
+              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] cursor-pointer"
             />
           </div>
 
@@ -264,7 +264,7 @@ export function PlatformConfigView() {
               onChange={(e) =>
                 handleChange("emailNotifications", e.target.checked)
               }
-              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] focus:ring-0 cursor-pointer"
+              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] cursor-pointer"
             />
           </div>
 
@@ -281,7 +281,7 @@ export function PlatformConfigView() {
               type="checkbox"
               checked={formData.whatsappAlerts}
               onChange={(e) => handleChange("whatsappAlerts", e.target.checked)}
-              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] focus:ring-0 cursor-pointer"
+              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] cursor-pointer"
             />
           </div>
 
@@ -298,7 +298,7 @@ export function PlatformConfigView() {
               type="checkbox"
               checked={formData.adminDailyDigest}
               onChange={(e) => handleChange("adminDailyDigest", e.target.checked)}
-              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] focus:ring-0 cursor-pointer"
+              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] cursor-pointer"
             />
           </div>
         </div>
@@ -334,7 +334,7 @@ export function PlatformConfigView() {
               type="checkbox"
               checked={formData.enforce2FA}
               onChange={(e) => handleChange("enforce2FA", e.target.checked)}
-              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] focus:ring-0 cursor-pointer"
+              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] cursor-pointer"
             />
           </div>
 
@@ -379,7 +379,7 @@ export function PlatformConfigView() {
               type="checkbox"
               checked={formData.maintenanceMode}
               onChange={(e) => handleChange("maintenanceMode", e.target.checked)}
-              className="h-4 w-4 rounded border-[#cbd5e1] text-[#ef4444] focus:ring-0 cursor-pointer"
+              className="h-4 w-4 rounded border-[#cbd5e1] text-[#ef4444] cursor-pointer"
             />
           </div>
         </div>

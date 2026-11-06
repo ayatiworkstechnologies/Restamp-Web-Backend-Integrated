@@ -13,7 +13,7 @@ const OTP_LENGTH = 6;
 function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get('redirect') || '/admin-dashboard';
+  const redirectUrl = searchParams.get('redirect') || '/admin';
   const { loginWithMobile, isAuthenticated, isLoading } = useAdminAuth();
 
   const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
@@ -168,7 +168,7 @@ function AdminLoginForm() {
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Registered admin mobile
               </label>
-              <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm focus-within:border-[#087ed9] focus-within:ring-2 focus-within:ring-[#087ed9]/20 transition shadow-2xs">
+              <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm focus-within:border-[#087ed9] transition shadow-2xs">
                 <Smartphone size={16} className="text-slate-400 shrink-0" />
                 <span className="text-slate-600 font-semibold">+91</span>
                 <input
@@ -187,7 +187,7 @@ function AdminLoginForm() {
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99]"
+              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] h-[53px] text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99]"
             >
               <span>Get Security OTP</span>
               <ArrowRight size={16} />
@@ -222,7 +222,7 @@ function AdminLoginForm() {
                   value={digit}
                   onChange={(e) => changeOtp(i, e.target.value)}
                   onKeyDown={(e) => otpKeyDown(i, e)}
-                  className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-center text-lg font-bold text-slate-900 outline-none focus:border-[#087ed9] focus:bg-white focus:ring-2 focus:ring-[#087ed9]/20 transition"
+                  className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-center text-lg font-bold text-slate-900 outline-none focus:border-[#087ed9] focus:bg-white transition"
                 />
               ))}
             </div>
@@ -232,7 +232,7 @@ function AdminLoginForm() {
             <button
               type="submit"
               disabled={otp.join('').length < OTP_LENGTH || isVerifying}
-              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shadow-sm"
+              className="inline-flex items-center justify-center w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] h-[53px] text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shadow-sm"
             >
               {isVerifying ? 'Authenticating...' : 'Verify & Open Console'}
             </button>

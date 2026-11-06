@@ -19,7 +19,7 @@ export interface AgentPartner {
   reviewCount: number;
   phone: string;
   verifiedSince: string;
-  badge: 'Top Channel Partner' | 'RERA Certified Broker' | 'Commercial Specialist' | 'Luxury Mandate Lead';
+  badge: 'Top Agent' | 'RERA Certified Agent' | 'Commercial Specialist' | 'Luxury Mandate Lead';
 }
 
 export interface LocalityAgentMetric {
@@ -83,7 +83,7 @@ export const topAgentPartners: AgentPartner[] = [
     reviewCount: 86,
     phone: '+91 97909 11223',
     verifiedSince: 'Mar 2023',
-    badge: 'Top Channel Partner',
+    badge: 'Top Agent',
   },
   {
     id: 'AGT-02',
@@ -134,7 +134,7 @@ export const topAgentPartners: AgentPartner[] = [
     reviewCount: 41,
     phone: '+91 99401 22334',
     verifiedSince: 'Feb 2024',
-    badge: 'RERA Certified Broker',
+    badge: 'RERA Certified Agent',
   },
   {
     id: 'AGT-05',
@@ -151,7 +151,7 @@ export const topAgentPartners: AgentPartner[] = [
     reviewCount: 188,
     phone: '+91 98414 77889',
     verifiedSince: 'Jun 2021',
-    badge: 'Top Channel Partner',
+    badge: 'Top Agent',
   },
 ];
 

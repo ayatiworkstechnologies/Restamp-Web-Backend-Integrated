@@ -38,7 +38,7 @@ export default function AgentPackagesPage() {
   // Wizard sub-step: 1 = Choose Package Tier, 2 = Choose Micro-Markets
   const [step, setStep] = useState<1 | 2>(1);
 
-  // Selected package (default: Growth Partner 10 locations)
+  // Selected package (default: Growth Agent 10 locations)
   const [selectedPkgId, setSelectedPkgId] = useState<'loc-5' | 'loc-10' | 'loc-15'>('loc-5');
   const currentPackage = useMemo(
     () => locationPackages.find((p) => p.id === selectedPkgId) || locationPackages[0],
@@ -174,7 +174,7 @@ export default function AgentPackagesPage() {
     // Check login
     const profile = getProfile();
     if (!profile) {
-      router.push('/agent/login?next=/agent/payment');
+      router.push('/login?role=agent&next=/agent/payment');
       return;
     }
 
@@ -405,15 +405,15 @@ export default function AgentPackagesPage() {
               </div>
 
               {/* Bottom Sticky Action Bar for Step 1 */}
-              <div className="bg-slate-900 text-white rounded-3xl p-5 sm:p-6 shadow-xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 bg-slate-900 rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
-                  <span className="text-[11px] font-bold text-sky-400 uppercase tracking-wider block">
+                  <span className="text-[11px] font-bold text-sky-600 uppercase tracking-wider block">
                     Selected Package
                   </span>
-                  <p className="text-lg font-black text-white">
+                  <p className="text-lg font-black text-slate-900">
                     {currentPackage.name} ({currentPackage.badge}) • ₹{currentPackage.price.toLocaleString('en-IN')}
                   </p>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     Covers {currentPackage.locationLimit} exclusive operational micro-markets
                   </p>
                 </div>
@@ -421,7 +421,7 @@ export default function AgentPackagesPage() {
                 <button
                   type="button"
                   onClick={() => handleSelectPackageAndProceed(selectedPkgId)}
-                  className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-[#087ed9] hover:bg-sky-500 text-white text-sm font-extrabold transition shadow-lg hover:shadow-sky-500/25 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full sm:w-auto px-7 h-[53px] rounded-2xl bg-[#087ed9] hover:bg-sky-500 text-white text-sm font-extrabold transition shadow-lg hover:shadow-sky-500/25 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>Continue to Step 2: Choose {currentPackage.locationLimit} Micro-Markets</span>
                   <ArrowRight size={16} />

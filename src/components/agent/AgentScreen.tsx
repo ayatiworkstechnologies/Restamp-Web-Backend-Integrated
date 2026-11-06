@@ -25,7 +25,6 @@ import {
   Maximize2,
   CheckCircle2,
   Tag,
-  UploadCloud,
   ShieldCheck,
   MapPin,
 } from 'lucide-react';
@@ -123,15 +122,15 @@ const howItWorksAgent = [
   {
     step: '01',
     title: 'RERA Verification & Onboarding',
-    description: 'Verify your broker RERA registration number and unlock direct syndicate partner status within 15 minutes.',
+    description: 'Verify your agent RERA registration number and unlock verified agent status within 15 minutes.',
     icon: ShieldCheck,
     numberColor: 'text-[#087ed9]',
   },
   {
     step: '02',
-    title: 'Syndicate Mandates & Inventory',
-    description: 'Post builder floors, luxury resale, and commercial units to reach 500,000+ verified active home seekers.',
-    icon: UploadCloud,
+    title: 'Browse Owner Properties',
+    description: 'Access verified owner-posted properties in your chosen localities and match them with your active buyer leads.',
+    icon: Building2,
     numberColor: 'text-[#087ed9]',
   },
   {
@@ -275,16 +274,16 @@ export default function AgentScreen() {
       a: 'No. Restamp operates on a strict 0% platform commission policy for verified agent partners. You keep 100% of the brokerage earned from your property buyers and sellers.',
     },
     {
-      q: 'How does Restamp protect me from broker collision and lead poaching?',
-      a: 'When you list an exclusive mandate or receive a verified buyer inquiry, the buyer contact is encrypted and tied to your partner console. We guarantee zero co-broking hijacking on your exclusive listings.',
+      q: 'How does Restamp protect me from agent collision and lead poaching?',
+      a: 'When you receive a verified buyer inquiry, the buyer contact is encrypted and tied to your agent console. We guarantee zero lead poaching on your assigned enquiries.',
     },
     {
-      q: 'What is required to become a RERA-Verified Channel Partner?',
-      a: 'You simply provide your State RERA Broker Certificate (e.g. TN/AGENT/XXXX/YYYY) and PAN details. Our compliance desk checks the regulatory portal and activates your Verified Partner badge within 24 hours.',
+      q: 'What is required to become a RERA-Verified Agent?',
+      a: 'You simply provide your State RERA Agent Certificate (e.g. TN/AGENT/XXXX/YYYY) and PAN details. Our compliance desk checks the regulatory portal and activates your Verified Partner badge within 24 hours.',
     },
     {
-      q: 'Can I upload inventory in bulk via CSV or API?',
-      a: 'Yes. Pro and Agency plan subscribers have access to our bulk Excel/CSV importer and automated XML syndication feeds to synchronize large property portfolios in seconds.',
+      q: 'Can agents post properties on Restamp?',
+      a: 'No. Properties are posted only by owners. As an agent you get access to owner-posted properties in your subscribed localities, plus buyer enquiries, site visits and deal tracking in your dashboard.',
     },
     {
       q: 'How do buyer inquiries reach me?',
@@ -292,7 +291,7 @@ export default function AgentScreen() {
     },
     {
       q: 'Can I co-broke with other Restamp verified agents?',
-      a: 'Yes. Restamp has a trusted Co-Broking Syndicate where brokers can post client requirements or inventory with pre-agreed 50:50 commission split escrow terms.',
+      a: 'Yes. Restamp has a trusted Agent Network where agents can share client requirements with pre-agreed 50:50 commission split escrow terms.',
     },
   ];
 
@@ -331,7 +330,7 @@ export default function AgentScreen() {
 
             {/* Subtitle */}
             <p className="text-sm sm:text-base md:text-lg text-white/80 leading-relaxed font-light drop-shadow-xs max-w-xl">
-              Direct access to high-intent property buyers, exclusive developer mandates, zero broker collision, and real-time deal closing analytics across prime Indian micro-markets.
+              Direct access to high-intent property buyers, verified owner properties, zero agent collision, and real-time deal closing analytics across prime Indian micro-markets.
             </p>
 
             {/* Pill CTA Button (Matching Reference Design) */}
@@ -385,14 +384,14 @@ export default function AgentScreen() {
                 <p className="text-2xl sm:text-3xl md:text-4xl font-light tracking-tight text-white">
                   <CountUp end={summary.totalAgentsCount} duration={1800} suffix="+" />
                 </p>
-                <p className="text-xs sm:text-sm text-white/65 mt-1 font-light">Verified brokers</p>
+                <p className="text-xs sm:text-sm text-white/65 mt-1 font-light">Verified agents</p>
               </div>
 
               <div>
                 <p className="text-2xl sm:text-3xl md:text-4xl font-light tracking-tight text-white">
                   <CountUp end={summary.activeMandatesCount} duration={2000} suffix="+" />
                 </p>
-                <p className="text-xs sm:text-sm text-white/65 mt-1 font-light">Exclusive mandates</p>
+                <p className="text-xs sm:text-sm text-white/65 mt-1 font-light">Owner properties</p>
               </div>
 
               <div>
@@ -425,10 +424,10 @@ export default function AgentScreen() {
       <section id="restamp-broker-advantage" className="py-20 bg-[#eceef2] border-b border-slate-200/70 scroll-mt-20">
         <div className="container-site">
           <div className="max-w-xl mb-12">
-            <p className="eyebrow text-[#087ed9]">The Restamp Broker Advantage</p>
+            <p className="eyebrow text-[#087ed9]">The Restamp Agent Advantage</p>
             <h2 className="section-title mt-1.5 text-slate-900">Built exclusively for real estate closers</h2>
             <p className="mt-2 text-sm text-slate-500">
-              An institutional-grade deal engine engineered to help verified brokers and channel partners close mandates faster.
+              An institutional-grade deal engine engineered to help verified agents close mandates faster.
             </p>
           </div>
 
@@ -437,13 +436,13 @@ export default function AgentScreen() {
             {/* Card 1: 0% Platform Commission Guarantee */}
             <div className="rounded-[28px] sm:rounded-[32px] bg-white p-7 sm:p-8 shadow-[0_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_36px_rgba(0,0,0,0.07)] transition duration-300 flex flex-col justify-between group">
               <div className="h-48 sm:h-52 rounded-2xl bg-[#fafbfe] border border-slate-100/90 flex items-center justify-center overflow-hidden mb-7 relative p-5">
-                <div className="relative z-10 rounded-2xl bg-[#0c111d] text-white px-4 py-3.5 shadow-xl border border-slate-800 flex items-center gap-3.5 max-w-[270px] w-full transform group-hover:scale-[1.03] transition duration-300">
+                <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 relative z-10 rounded-2xl px-4 py-3.5 shadow-xl flex items-center gap-3.5 max-w-[270px] w-full transform group-hover:scale-[1.03] transition duration-300">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#087ed9]/25 text-[#38bdf8]">
                     <Tag size={16} strokeWidth={2.5} />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-white tracking-wide truncate">Zero Platform Commission</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5 leading-snug truncate">
+                    <p className="text-xs font-bold text-slate-900 tracking-wide truncate">Zero Platform Commission</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 leading-snug truncate">
                       Keep 100% of your brokerage fees
                     </p>
                   </div>
@@ -460,21 +459,21 @@ export default function AgentScreen() {
             {/* Card 2: Zero Mandate Collision & Locking */}
             <div className="rounded-[28px] sm:rounded-[32px] bg-white p-7 sm:p-8 shadow-[0_4px_24px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_36px_rgba(0,0,0,0.07)] transition duration-300 flex flex-col justify-between group">
               <div className="h-48 sm:h-52 rounded-2xl bg-[#fafbfe] border border-slate-100/90 flex items-center justify-center overflow-hidden mb-7 relative p-5">
-                <div className="relative z-10 rounded-2xl bg-[#0c111d] text-white p-4 shadow-xl border border-slate-800 max-w-[210px] w-full transform -rotate-2 group-hover:rotate-0 transition duration-300">
+                <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 relative z-10 rounded-2xl p-4 shadow-xl max-w-[210px] w-full transform -rotate-2 group-hover:rotate-0 transition duration-300">
                   <div className="flex items-center gap-2 mb-2">
-                    <Lock size={14} className="text-[#38bdf8]" />
-                    <p className="text-[11px] font-bold text-white tracking-wide">Mandate Locked</p>
+                    <Lock size={14} className="text-[#087ed9]" />
+                    <p className="text-[11px] font-bold text-slate-900 tracking-wide">Mandate Locked</p>
                   </div>
                   <div className="space-y-1.5">
                     <div className="h-2 bg-gradient-to-r from-[#087ed9] to-[#38bdf8] rounded-full w-5/6" />
-                    <div className="h-2 bg-slate-700 rounded-full w-3/5" />
+                    <div className="h-2 bg-slate-200 rounded-full w-3/5" />
                   </div>
                 </div>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900 tracking-tight">Zero Broker Collision</h3>
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight">Zero Agent Collision</h3>
                 <p className="mt-2 text-xs sm:text-[13px] text-slate-500 leading-relaxed">
-                  Your client leads and exclusive seller mandates are locked to your agent console. No duplicate listing hijacking.
+                  Your client leads are locked to your agent console. No duplicate lead hijacking.
                 </p>
               </div>
             </div>
@@ -514,14 +513,14 @@ export default function AgentScreen() {
           <div className="max-w-xl mb-12">
             <p className="eyebrow text-[#087ed9]">Three Step Syndicate Workflow</p>
             <h2 className="section-title mt-1.5 text-slate-900">How to close with Restamp</h2>
-            <p className="mt-2 text-sm text-slate-500">Fast onboarding designed specifically for certified brokers.</p>
+            <p className="mt-2 text-sm text-slate-500">Fast onboarding designed specifically for certified agents.</p>
           </div>
 
           <HowItWorksSteps />
         </div>
       </section>
 
-      {/* Agent Partner Plans & Pricing — Location Packages (Matching Mockup Architecture) */}
+      {/* Agent Plans & Pricing — Location Packages (Matching Mockup Architecture) */}
       <section id="plans" className="py-24 bg-[#f4f4f6] border-b border-slate-200/70 scroll-mt-20">
         <div className="container-site">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-14">
@@ -669,7 +668,7 @@ export default function AgentScreen() {
         <div className="container-site max-w-4xl">
           <div className="text-center max-w-lg mx-auto mb-12">
             <p className="eyebrow text-[#087ed9]">Frequently Asked Questions</p>
-            <h2 className="section-title mt-1.5 text-slate-900">Partner &amp; Broker Q&amp;A</h2>
+            <h2 className="section-title mt-1.5 text-slate-900">Agent Q&amp;A</h2>
           </div>
 
           <div className="space-y-4">
@@ -704,30 +703,30 @@ export default function AgentScreen() {
 
       {/* Bottom CTA Banner */}
       <section className="container-site py-12 sm:py-16">
-        <div className="rounded-[32px] bg-gradient-to-r from-slate-900 via-[#071322] to-[#087ed9] p-8 sm:p-12 text-white flex flex-col md:flex-row items-center justify-between gap-8 shadow-xl">
+        <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 rounded-[32px] p-8 sm:p-12 flex flex-col md:flex-row items-center justify-between gap-8 shadow-sm">
           <div className="max-w-xl text-center md:text-left">
-            <span className="inline-block px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 text-xs font-bold uppercase tracking-wider mb-2">
+            <span className="inline-block px-3 py-1 rounded-full bg-sky-500/20 text-sky-600 text-xs font-bold uppercase tracking-wider mb-2">
               Ready to Expand?
             </span>
             <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               Join 140+ Top Real Estate Closers on Restamp
             </h3>
-            <p className="text-xs sm:text-sm text-white/80 mt-2 leading-relaxed">
-              Activate your broker profile today, verify your RERA certificate, and access real-time pre-approved buyer inquiries.
+            <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed">
+              Activate your agent profile today, verify your RERA certificate, and access real-time pre-approved buyer inquiries.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
             <Link
               href="/agent/dashboard"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs sm:text-sm px-6 py-3.5 shadow-md transition"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#087ed9] text-white hover:bg-[#0670c2] font-bold text-xs sm:text-sm px-6 py-3.5 shadow-md shadow-[#087ed9]/25 transition"
             >
               Open Agent Dashboard <ArrowRight size={15} />
             </Link>
             <Link
-              href="/sell"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/15 hover:bg-white/25 border border-white/25 text-white font-bold text-xs sm:text-sm px-6 py-3.5 transition"
+              href="/agent/dashboard/properties"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white hover:border-[#087ed9] hover:text-[#087ed9] border border-slate-200 text-slate-900 font-bold text-xs sm:text-sm px-6 py-3.5 transition"
             >
-              Post Mandate Free
+              Browse Owner Properties
             </Link>
           </div>
         </div>

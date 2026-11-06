@@ -130,7 +130,7 @@ export function PropertyFiltersBar({
             value={filters.search}
             onChange={(e) => onFilterChange({ search: e.target.value })}
             placeholder="Search by title, location, owner name, ID..."
-            className="w-full rounded-xl border border-[#e2e8f2] bg-[#fbfcfe] pl-9 pr-8 py-2 text-xs font-medium text-[#22324d] outline-none transition-all placeholder:text-[#a1adc0] focus:border-[#2854cb] focus:bg-white focus:ring-2 focus:ring-[#2854cb]/10"
+            className="w-full rounded-xl border border-[#e2e8f2] bg-[#fbfcfe] pl-9 pr-8 py-2 text-xs font-medium text-[#22324d] outline-none transition-all placeholder:text-[#a1adc0] focus:border-[#2854cb] focus:bg-white"
           />
           {filters.search && (
             <button

@@ -107,7 +107,7 @@ export function UserTable({
                   type="checkbox"
                   checked={users.length > 0 && selectedIds.length === users.length}
                   onChange={handleSelectAll}
-                  className="rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
+                  className="rounded border-gray-300 text-[#2854cb]"
                 />
               </th>
               <th className="px-4 py-3.5">User Profile</th>
@@ -140,7 +140,7 @@ export function UserTable({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleSelect(user.id)}
-                        className="rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
+                        className="rounded border-gray-300 text-[#2854cb]"
                       />
                     </td>
 

@@ -216,10 +216,10 @@ function Field({
 }
 
 const inputClass = (error?: string) =>
-  `w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-2 ${
+  `w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 ${
     error
-      ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
-      : 'border-slate-200 focus:border-[#087ed9] focus:ring-[#087ed9]/20'
+      ? 'border-red-300 focus:border-red-400'
+      : 'border-slate-200 focus:border-[#087ed9]'
   }`;
 
 function TextInput({
@@ -234,7 +234,7 @@ function TextInput({
 >) {
   if (prefix) {
     return (
-      <div className={`flex items-center gap-2 ${inputClass(error)} focus-within:ring-2`}>
+      <div className={`flex items-center gap-2 ${inputClass(error)}`}>
         <span className="text-slate-500">{prefix}</span>
         <input {...rest} value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-transparent outline-none" />
       </div>
@@ -499,7 +499,7 @@ export default function PostPropertyWizard({
           >
             Add another property
           </button>
-          <Link href={doneHref} className="rounded-lg bg-[#087ed9] px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-600 transition">
+          <Link href={doneHref} className="inline-flex items-center justify-center rounded-lg bg-[#087ed9] px-5 h-[53px] text-sm font-semibold text-white hover:bg-sky-600 transition">
             {doneLabel}
           </Link>
         </div>
@@ -1093,7 +1093,7 @@ export default function PostPropertyWizard({
               <button
                 type="button"
                 onClick={next}
-                className="flex items-center gap-1 rounded-lg bg-[#087ed9] px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-600 transition cursor-pointer"
+                className="flex items-center gap-1 rounded-lg bg-[#087ed9] px-6 h-[53px] text-sm font-semibold text-white hover:bg-sky-600 transition cursor-pointer"
               >
                 {step === steps.length - 2 ? 'Review' : 'Next'} <ChevronRight size={16} />
               </button>
@@ -1101,7 +1101,7 @@ export default function PostPropertyWizard({
               <button
                 type="button"
                 onClick={onPublish}
-                className="rounded-lg bg-[#087ed9] px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-600 transition cursor-pointer"
+                className="inline-flex items-center justify-center rounded-lg bg-[#087ed9] px-6 h-[53px] text-sm font-semibold text-white hover:bg-sky-600 transition cursor-pointer"
               >
                 Publish Property
               </button>

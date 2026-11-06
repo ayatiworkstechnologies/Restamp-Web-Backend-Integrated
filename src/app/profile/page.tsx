@@ -165,7 +165,7 @@ export default function ProfilePage() {
               <div className="mt-8 flex items-center gap-4">
                 <button
                   type="submit"
-                  className="rounded-lg bg-[#087ed9] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#0670c2] transition cursor-pointer"
+                  className="inline-flex items-center justify-center rounded-lg bg-[#087ed9] px-6 h-[53px] text-sm font-semibold text-white hover:bg-[#0670c2] transition cursor-pointer"
                 >
                   Save changes
                 </button>
@@ -201,7 +201,7 @@ function Field({
   return (
     <label className="block">
       <span className="text-sm font-medium text-slate-700">{label}</span>
-      <span className="mt-1.5 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus-within:border-[#087ed9] focus-within:ring-2 focus-within:ring-[#087ed9]/20">
+      <span className="mt-1.5 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus-within:border-[#087ed9]">
         <Icon size={16} className="text-slate-400" />
         {children}
       </span>
@@ -224,7 +224,7 @@ function OwnerPlanCard({ subscription, payments }: { subscription: OwnerSubscrip
         </div>
         <Link
           href="/owner/plans"
-          className="rounded-lg bg-[#087ed9] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0670c2] transition"
+          className="inline-flex items-center justify-center rounded-lg bg-[#087ed9] px-5 h-[53px] text-sm font-semibold text-white hover:bg-[#0670c2] transition"
         >
           {!subscription ? 'Choose a plan' : expired ? 'Renew Plan' : 'Upgrade Plan'}
         </Link>

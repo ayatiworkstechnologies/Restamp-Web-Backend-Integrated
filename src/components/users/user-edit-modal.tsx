@@ -124,7 +124,7 @@ export function UserEditModal({ user, isOpen, onClose, onSave }: UserEditModalPr
                   className="w-full rounded-xl border border-[#dce3ee] bg-[#fafbfd] px-3 py-2 text-xs font-semibold text-[#20314b] outline-none focus:border-[#2854cb]"
                 >
                   <option value="Individual Owner">Individual Owner</option>
-                  <option value="Agent / Broker">Agent / Broker</option>
+                  <option value="Agent / Broker">Agent</option>
                   <option value="Builder / Developer">Builder / Developer</option>
                 </select>
               </div>

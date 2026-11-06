@@ -104,7 +104,7 @@ export default function SavedPage() {
               </p>
               <Link
                 href="/buy"
-                className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#087ed9] px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-600 transition"
+                className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#087ed9] px-6 h-[53px] text-sm font-semibold text-white hover:bg-sky-600 transition"
               >
                 <Search size={16} /> Explore properties
               </Link>

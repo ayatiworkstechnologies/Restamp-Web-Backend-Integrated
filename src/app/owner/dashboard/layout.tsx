@@ -6,14 +6,17 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearProfile, getProfile, type Profile } from '@/lib/profile';
 import { getSubscription, type OwnerSubscription } from '@/lib/ownerPlan';
-import { Building2, CreditCard, Crown, LayoutDashboard, LogOut, Menu, PlusCircle, UserRound, X, type LucideIcon } from 'lucide-react';
+import { Building2, CalendarCheck, CreditCard, MessageSquareText, Crown, Headset, LayoutDashboard, LogOut, Menu, PlusCircle, UserRound, X, type LucideIcon } from 'lucide-react';
 
 const nav: { label: string; href: string; icon: LucideIcon }[] = [
   { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
   { label: 'My Properties', href: '/owner/dashboard/properties', icon: Building2 },
   { label: 'Add Property', href: '/owner/dashboard/add-property', icon: PlusCircle },
+  { label: 'Leads', href: '/owner/dashboard/leads', icon: MessageSquareText },
+  { label: 'Site Visits', href: '/owner/dashboard/visits', icon: CalendarCheck },
   { label: 'Plan & Payments', href: '/owner/dashboard/payments', icon: CreditCard },
   { label: 'Profile', href: '/owner/dashboard/profile', icon: UserRound },
+  { label: 'Contact Us', href: '/owner/dashboard/contact', icon: Headset },
 ];
 
 export default function OwnerDashboardLayout({ children }: { children: React.ReactNode }) {
@@ -73,11 +76,11 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
           );
         })}
       </nav>
-      <div className="m-3 rounded-xl bg-[#070e17] p-4 text-white">
-        <div className="flex items-center gap-2 text-xs font-semibold text-sky-400">
+      <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 m-3 rounded-xl p-4">
+        <div className="flex items-center gap-2 text-xs font-semibold text-sky-600">
           <Crown size={14} /> {sub.planName}
         </div>
-        <p className="mt-1 text-[11px] text-slate-400">
+        <p className="mt-1 text-[11px] text-slate-500">
           {sub.expiresAt
             ? `Valid till ${new Date(sub.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
             : 'Valid until deal closed'}

@@ -44,9 +44,9 @@ export default function FeaturedHomesSection() {
       {/* Section Header */}
       <div className="flex items-center justify-between mb-7">
         <div>
-          <p className="eyebrow text-slate-500">FEATURED RESALE PROPERTIES</p>
+          <p className="eyebrow text-slate-500">HANDPICKED FOR YOU</p>
           <h2 className="text-2xl sm:text-3xl md:text-[32px] font-bold text-slate-900 tracking-tight mt-1.5">
-            Discover Homes Worth Owning.
+            Recommended Projects
           </h2>
         </div>
 
@@ -55,14 +55,14 @@ export default function FeaturedHomesSection() {
           <button
             onClick={() => scroll('left')}
             aria-label="Previous properties"
-            className="p-2 text-[#087ed9] hover:bg-sky-100/70 hover:scale-110 border border-transparent hover:border-sky-200/80 rounded-full transition-all duration-200 active:scale-90 cursor-pointer shadow-2xs"
+            className="p-2 text-[#087ed9] hover:bg-sky-100/70 hover:scale-110 border border-transparent hover:border-sky-200/80 rounded-full transition duration-200 active:scale-[0.97] cursor-pointer shadow-2xs"
           >
             <ArrowLeft size={22} strokeWidth={2.2} />
           </button>
           <button
             onClick={() => scroll('right')}
             aria-label="Next properties"
-            className="p-2 text-[#087ed9] hover:bg-sky-100/70 hover:scale-110 border border-transparent hover:border-sky-200/80 rounded-full transition-all duration-200 active:scale-90 cursor-pointer shadow-2xs"
+            className="p-2 text-[#087ed9] hover:bg-sky-100/70 hover:scale-110 border border-transparent hover:border-sky-200/80 rounded-full transition duration-200 active:scale-[0.97] cursor-pointer shadow-2xs"
           >
             <ArrowRight size={22} strokeWidth={2.2} />
           </button>
@@ -129,7 +129,7 @@ export default function FeaturedHomesSection() {
                       placeholder="e.g. Arun Kumar"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9]"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9]"
                     />
                   </div>
 
@@ -144,7 +144,7 @@ export default function FeaturedHomesSection() {
                         placeholder="+91 98765 43210"
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9]"
+                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9]"
                       />
                     </div>
                     <div>
@@ -156,7 +156,7 @@ export default function FeaturedHomesSection() {
                         placeholder="you@example.com"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9]"
+                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9]"
                       />
                     </div>
                   </div>
@@ -169,7 +169,7 @@ export default function FeaturedHomesSection() {
                       rows={3}
                       value={formData.message}
                       onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9] resize-none"
+                      className="w-full px-3.5 py-2 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] resize-none"
                     />
                   </div>
 
@@ -183,7 +183,7 @@ export default function FeaturedHomesSection() {
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2.5 text-xs font-semibold text-white bg-[#087ed9] hover:bg-sky-600 rounded-lg transition shadow-sm"
+                      className="inline-flex items-center justify-center px-5 h-[53px] text-xs font-semibold text-white bg-[#087ed9] hover:bg-sky-600 rounded-lg transition shadow-sm"
                     >
                       Send Enquiry
                     </button>

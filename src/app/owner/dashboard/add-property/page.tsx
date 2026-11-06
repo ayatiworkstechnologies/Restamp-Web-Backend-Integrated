@@ -28,7 +28,7 @@ export default function OwnerAddPropertyPage() {
         <div className={`${card} py-14 text-center`}>
           <p className="font-semibold text-slate-900">You&apos;ve reached your plan&apos;s listing limit.</p>
           <p className="mt-1 text-sm text-slate-500">Upgrade your plan to list more properties.</p>
-          <Link href="/owner/plans" className="mt-5 inline-block rounded-xl bg-[#087ed9] px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-600 transition">
+          <Link href="/owner/plans" className="inline-flex items-center justify-center mt-5 rounded-xl bg-[#087ed9] px-5 h-[53px] text-sm font-semibold text-white hover:bg-sky-600 transition">
             Upgrade plan
           </Link>
         </div>

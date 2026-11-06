@@ -245,7 +245,7 @@ export function PropertyEditModal({
                 type="checkbox"
                 checked={!!formData.featured}
                 onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-                className="rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
+                className="rounded border-gray-300 text-[#2854cb]"
               />
               <span>Featured Listing</span>
             </label>
@@ -255,7 +255,7 @@ export function PropertyEditModal({
                 type="checkbox"
                 checked={!!formData.verifiedBadge}
                 onChange={(e) => setFormData({ ...formData, verifiedBadge: e.target.checked })}
-                className="rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
+                className="rounded border-gray-300 text-[#2854cb]"
               />
               <span>RESTAMP Verified Badge</span>
             </label>

@@ -166,7 +166,7 @@ export default function PropertyCard({
             if (!showNumber) logActivity('call', property.id, contactFor(property));
             setShowNumber(!showNumber);
           }}
-          className="flex-1 py-2.5 px-3 border border-[#087ed9] text-[#087ed9] hover:bg-sky-50 font-semibold text-xs rounded-md transition text-center truncate flex items-center justify-center gap-1.5 cursor-pointer bg-white"
+          className="flex-1 h-[53px] px-3 border border-[#087ed9] text-[#087ed9] hover:bg-sky-50 font-semibold text-xs rounded-md transition text-center truncate flex items-center justify-center gap-1.5 cursor-pointer bg-white"
         >
           {showNumber && <HugeIcon icon={CallIcon} size={14} color="#087ed9" />}
           <span>
@@ -189,7 +189,7 @@ export default function PropertyCard({
             });
             onContact?.(property);
           }}
-          className="flex-1 py-2.5 px-3 bg-[#087ed9] hover:bg-sky-600 text-white font-semibold text-xs rounded-md transition text-center shadow-xs cursor-pointer"
+          className="inline-flex items-center justify-center flex-1 h-[53px] px-3 bg-[#087ed9] hover:bg-sky-600 text-white font-semibold text-xs rounded-md transition text-center shadow-xs cursor-pointer"
         >
           Contact
         </button>

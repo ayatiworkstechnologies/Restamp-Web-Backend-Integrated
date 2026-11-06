@@ -169,13 +169,58 @@ export default function PropertyDetailsView({ property }: PropertyDetailsViewPro
     });
   };
 
+  const isClickingTabRef = useRef(false);
+
+  // Scroll spy: Update active tab as user scrolls and sections meet the top
+  useEffect(() => {
+    const sectionIds = ['overview', 'highlights', 'details', 'amenities', 'location', 'dealer'];
+
+    const handleScroll = () => {
+      if (isClickingTabRef.current) return;
+
+      // When near bottom of the document, activate the last tab ('dealer')
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 70) {
+        setActiveTab('dealer');
+        return;
+      }
+
+      for (let i = sectionIds.length - 1; i >= 0; i--) {
+        const el = document.getElementById(sectionIds[i]);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          // Header (72px) + Nav (~48px) = 120px; section meets top at ~130px
+          if (rect.top <= 135) {
+            setActiveTab(sectionIds[i]);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Ensure active tab stays visible in horizontally scrollable nav bar
+  useEffect(() => {
+    const tabEl = document.getElementById(`tab-${activeTab}`);
+    if (tabEl) {
+      tabEl.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+    }
+  }, [activeTab]);
+
   const scrollToSection = (id: string) => {
     setActiveTab(id);
+    isClickingTabRef.current = true;
     const element = document.getElementById(id);
     if (element) {
-      const yOffset = -120;
+      // 72px Header + 48px sticky nav + 5px breathing buffer = 125px
+      const yOffset = -125;
       const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
       window.scrollTo({ top: y, behavior: 'smooth' });
+      setTimeout(() => {
+        isClickingTabRef.current = false;
+      }, 700);
     }
   };
 
@@ -270,7 +315,7 @@ export default function PropertyDetailsView({ property }: PropertyDetailsViewPro
         </section>
 
         {/* Sticky Secondary Tab Navigation */}
-        <nav className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-2xs">
+        <nav className="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-[72px] z-40 shadow-xs">
           <div className="container-site flex items-center gap-6 sm:gap-9 text-xs sm:text-sm font-semibold overflow-x-auto [&::-webkit-scrollbar]:hidden">
             {[
               { id: 'overview', label: 'Overview' },
@@ -284,6 +329,7 @@ export default function PropertyDetailsView({ property }: PropertyDetailsViewPro
               return (
                 <button
                   key={tab.id}
+                  id={`tab-${tab.id}`}
                   onClick={() => scrollToSection(tab.id)}
                   className={`py-3.5 transition whitespace-nowrap border-b-2 cursor-pointer ${
                     isActive
@@ -407,7 +453,7 @@ export default function PropertyDetailsView({ property }: PropertyDetailsViewPro
                     if (!showNumber) logActivity('call', property.id, contactFor(property));
                     setShowNumber(!showNumber);
                   }}
-                  className="px-6 py-2.5 bg-[#087ed9] hover:bg-sky-600 text-white font-semibold text-xs sm:text-sm rounded-lg transition text-center shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="px-6 h-[53px] bg-[#087ed9] hover:bg-sky-600 text-white font-semibold text-xs sm:text-sm rounded-lg transition text-center shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
                   {showNumber && <Phone size={14} />}
                   <span>
@@ -681,7 +727,7 @@ export default function PropertyDetailsView({ property }: PropertyDetailsViewPro
                 />
                 <button
                   type="submit"
-                  className="bg-[#087ed9] hover:bg-sky-600 text-white font-semibold text-xs sm:text-sm px-6 py-3 rounded-xl transition shadow-xs cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                  className="bg-[#087ed9] hover:bg-sky-600 text-white font-semibold text-xs sm:text-sm px-6 h-[53px] rounded-xl transition shadow-xs cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
                 >
                   <Search size={15} />
                   <span>Search</span>
@@ -845,7 +891,7 @@ export default function PropertyDetailsView({ property }: PropertyDetailsViewPro
                       placeholder="e.g. Arun Kumar"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9]"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9]"
                     />
                   </div>
 
@@ -860,7 +906,7 @@ export default function PropertyDetailsView({ property }: PropertyDetailsViewPro
                         placeholder="+91 98765 43210"
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9]"
+                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9]"
                       />
                     </div>
                     <div>
@@ -872,7 +918,7 @@ export default function PropertyDetailsView({ property }: PropertyDetailsViewPro
                         placeholder="you@example.com"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9]"
+                        className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9]"
                       />
                     </div>
                   </div>
@@ -885,7 +931,7 @@ export default function PropertyDetailsView({ property }: PropertyDetailsViewPro
                       rows={3}
                       value={formData.message}
                       onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9] resize-none"
+                      className="w-full px-3.5 py-2 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] resize-none"
                     />
                   </div>
 
@@ -899,7 +945,7 @@ export default function PropertyDetailsView({ property }: PropertyDetailsViewPro
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2.5 text-xs font-semibold text-white bg-[#087ed9] hover:bg-sky-600 rounded-lg transition shadow-sm cursor-pointer"
+                      className="inline-flex items-center justify-center px-5 h-[53px] text-xs font-semibold text-white bg-[#087ed9] hover:bg-sky-600 rounded-lg transition shadow-sm cursor-pointer"
                     >
                       Send Enquiry
                     </button>
@@ -1007,7 +1053,7 @@ export default function PropertyDetailsView({ property }: PropertyDetailsViewPro
             <div className="pt-3 border-t border-slate-100 flex justify-end">
               <button
                 onClick={() => setSpecsModalOpen(false)}
-                className="px-5 py-2 bg-[#087ed9] text-white text-xs font-semibold rounded-lg hover:bg-sky-600 transition cursor-pointer"
+                className="inline-flex items-center justify-center px-5 h-[53px] bg-[#087ed9] text-white text-xs font-semibold rounded-lg hover:bg-sky-600 transition cursor-pointer"
               >
                 Done
               </button>

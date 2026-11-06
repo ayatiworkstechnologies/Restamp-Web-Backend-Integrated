@@ -139,7 +139,7 @@ export function EnquiryTable({ enquiries, onInspect }: EnquiryTableProps) {
                     }
                     onChange={handleSelectAll}
                     aria-label="Select all enquiries"
-                    className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] focus:ring-0 cursor-pointer"
+                    className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] cursor-pointer"
                   />
                 </th>
                 <th className="py-3.5 px-3">Lead ID & Date</th>
@@ -177,7 +177,7 @@ export function EnquiryTable({ enquiries, onInspect }: EnquiryTableProps) {
                           checked={isSelected}
                           onChange={() => handleSelectOne(enquiry.id)}
                           aria-label={`Select enquiry ${enquiry.id}`}
-                          className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] focus:ring-0 cursor-pointer"
+                          className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] cursor-pointer"
                         />
                       </td>
 
