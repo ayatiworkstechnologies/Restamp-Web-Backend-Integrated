@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ensureRole, signOut } from '@/lib/api/auth';
 import { errorMessage } from '@/lib/api/client';
 import { isPlaceholderName, loginHref, useSession } from '@/lib/api/session';
+import { getInitials } from '@/lib/initials';
 import { Building2, CreditCard, Crown, LayoutDashboard, LogOut, Menu, PlusCircle, UserRound, X, type LucideIcon } from 'lucide-react';
 
 const nav: { label: string; href: string; icon: LucideIcon }[] = [
@@ -127,7 +128,7 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
             Welcome back, <span className="font-semibold text-slate-900">{me.name || 'Owner'}</span>
           </p>
           <Link href="/owner/dashboard/profile" className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sm font-bold text-[#087ed9]">
-            {(me.name || 'O').charAt(0).toUpperCase()}
+            {getInitials(me.name) || <UserRound size={18} />}
           </Link>
         </header>
         <main className="px-4 py-6 sm:px-8 sm:py-8">{children}</main>

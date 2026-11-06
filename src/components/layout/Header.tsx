@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useWishlist } from '@/lib/wishlist';
 import { signOut } from '@/lib/api/auth';
 import { isPlaceholderName, useSession } from '@/lib/api/session';
+import { getInitials } from '@/lib/initials';
 import {
   Menu,
   X,
@@ -466,7 +467,7 @@ export default function Header() {
                 aria-label="User Account"
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#087ed9] text-xs font-bold text-white shadow-xs">
-                  {(profile.name || 'U').charAt(0).toUpperCase()}
+                  {getInitials(profile.name) || <User size={16} />}
                 </span>
               </button>
             ) : (
@@ -1157,7 +1158,7 @@ export default function Header() {
                 className="flex items-center gap-3 text-slate-800 hover:text-[#087ed9] transition"
               >
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-[#087ed9] border border-sky-100 font-bold text-sm">
-                  {profile ? (profile.name || 'U').charAt(0).toUpperCase() : <CircleUserRound size={22} />}
+                  {(profile && getInitials(profile.name)) || <CircleUserRound size={22} />}
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900">

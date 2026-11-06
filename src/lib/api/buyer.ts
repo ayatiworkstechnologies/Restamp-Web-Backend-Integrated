@@ -8,7 +8,7 @@
  * are the buyer mode, like the mobile app's buyer tabs. Background calls
  * (recording a view, loading heart state) use auth.inRole and never switch.
  */
-import { apiDelete, apiGet, apiPatch, apiPost, apiRequest, Page } from './client';
+import { apiDelete, apiGet, apiPatch, apiPost, apiRequest, errorMessage, isApiError, Page } from './client';
 import { inRole, withRole } from './auth';
 
 export type ListingCard = {
@@ -155,6 +155,21 @@ export async function listVisits(page = 1, pageSize = 50) {
 /** Buyer moves allowed by the backend: cancel any open visit; accept or decline an owner-proposed time. */
 export async function updateVisitStatus(visitId: number, status: 'CANCELLED' | 'CONFIRMED' | 'DECLINED'): Promise<Visit> {
   return withRole('BUYER', () => apiPatch<Visit>(`/buyer/visits/${visitId}`, { status }));
+}
+
+/**
+ * Error text for a failed visit request or change. When the owner has
+ * closed the buyer's enquiry the backend refuses with 422 "Lead is closed"
+ * (closing also cancels the enquiry's open visits), so say that plainly;
+ * everything else uses the shared wording.
+ */
+export function visitErrorMessage(e: unknown, fallback: string, kind: 'change' | 'request' = 'change'): string {
+  if (isApiError(e) && e.status === 422 && e.detail === 'Lead is closed') {
+    return kind === 'request'
+      ? 'The owner closed your enquiry on this property. Send a new enquiry to arrange a visit.'
+      : "The owner closed your enquiry on this property, so this visit was cancelled and can't be changed. Refresh to see it.";
+  }
+  return errorMessage(e, fallback);
 }
 
 export async function recordView(listingId: number): Promise<void> {

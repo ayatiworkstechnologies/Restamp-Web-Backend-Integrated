@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Phone, CheckCircle, ShieldCheck, CalendarClock, Loader2 } from 'lucide-react';
 import type { Property } from '@/data/properties';
-import { requestVisit, sendEnquiry } from '@/lib/api/buyer';
+import { requestVisit, sendEnquiry, visitErrorMessage } from '@/lib/api/buyer';
 import { errorMessage, isApiError } from '@/lib/api/client';
 import { loginHref, useSession } from '@/lib/api/session';
+import { parseApiDate } from '@/lib/datetime';
 import { formatIndianPhone, useOwnerContact } from '@/lib/useOwnerContact';
 
 interface DealerEnquirySectionProps {
@@ -87,9 +88,9 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
     setVisitSending(true);
     try {
       const visit = await requestVisit(property.id, when, visitNote);
-      setVisitDone(new Date(visit.scheduled_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }));
+      setVisitDone(parseApiDate(visit.scheduled_at)?.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) ?? 'the requested time');
     } catch (err) {
-      setVisitError(errorMessage(err, 'Your visit request could not be sent. Please try again.'));
+      setVisitError(visitErrorMessage(err, 'Your visit request could not be sent. Please try again.', 'request'));
     } finally {
       setVisitSending(false);
     }

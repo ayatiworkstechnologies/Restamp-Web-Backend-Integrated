@@ -14,13 +14,16 @@ import {
   listViewed,
   listVisits,
   updateVisitStatus,
+  visitErrorMessage,
   ViewedProperty,
   Visit,
 } from '@/lib/api/buyer';
 import { errorMessage } from '@/lib/api/client';
 import { cardToProperty, cleanImageUrl, typeLabel } from '@/lib/api/mappers';
 import { isPlaceholderName, loginHref, useSession } from '@/lib/api/session';
-import { Phone, MessageSquare, CalendarClock, Eye, Pencil, ChevronRight, ImageOff, Loader2 } from 'lucide-react';
+import { parseApiDate } from '@/lib/datetime';
+import { getInitials } from '@/lib/initials';
+import { Phone, MessageSquare, CalendarClock, Eye, Pencil, ChevronRight, ImageOff, Loader2, UserRound } from 'lucide-react';
 
 type TabKey = 'calls' | 'messages' | 'visits' | 'viewed';
 
@@ -63,8 +66,9 @@ const tabs: {
 
 type Lists = { calls: CallEvent[]; messages: BuyerEnquiry[]; visits: Visit[]; viewed: ViewedProperty[] };
 
+// Backend times are UTC; zone-less values (visit scheduled_at) are read as UTC, shown in local time.
 const formatTime = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  parseApiDate(iso)?.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) ?? '';
 
 const ENQUIRY_STATUS: Record<string, string> = { NEW: 'Sent', CONTACTED: 'Owner responded', CLOSED: 'Closed' };
 const VISIT_STATUS: Record<string, string> = {
@@ -129,7 +133,7 @@ export default function ActivityPage() {
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative shrink-0">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#087ed9] text-lg font-bold text-white">
-                  {displayName.charAt(0).toUpperCase()}
+                  {getInitials(displayName) || <UserRound size={22} />}
                 </div>
                 {session && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green-500" />}
               </div>
@@ -386,7 +390,7 @@ function VisitRow({ visit, onChanged }: { visit: Visit; onChanged: (v: Visit) =>
     try {
       onChanged(await updateVisitStatus(visit.id, status));
     } catch (e) {
-      setError(errorMessage(e, 'Could not update this visit.'));
+      setError(visitErrorMessage(e, 'Could not update this visit.'));
     } finally {
       setBusy(false);
     }

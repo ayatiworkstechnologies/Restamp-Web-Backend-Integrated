@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ensureRole, refreshMe, updateDisplayName } from '@/lib/api/auth';
 import { errorMessage } from '@/lib/api/client';
 import { isPlaceholderName, useSession } from '@/lib/api/session';
+import { getInitials } from '@/lib/initials';
 import { card } from '../ui';
 import {
   User,
@@ -74,7 +75,7 @@ export default function OwnerProfilePage() {
   };
 
   const displayName = isPlaceholderName(session.displayName) ? '' : session.displayName;
-  const initial = (displayName || 'O').charAt(0).toUpperCase();
+  const initials = getInitials(displayName);
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -91,7 +92,7 @@ export default function OwnerProfilePage() {
           {/* Avatar & Info Card */}
           <div className={`${card} p-6 text-center`}>
             <div className="relative mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-sky-50 text-3xl font-bold text-[#087ed9] border-2 border-sky-100 shadow-inner">
-              {initial}
+              {initials || <User size={32} />}
               <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-[#087ed9] text-white shadow-xs">
                 <ShieldCheck size={14} />
               </span>
