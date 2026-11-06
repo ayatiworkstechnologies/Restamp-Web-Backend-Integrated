@@ -17,7 +17,8 @@ import { OTP_LENGTH, useOtpLogin } from '@/lib/useOtpLogin';
 function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = safeInternalPath(searchParams.get('redirect')) || '/admin-dashboard';
+  // Same-site paths only; the default is the short /admin URL (it forwards to /admin-dashboard).
+  const redirectUrl = safeInternalPath(searchParams.get('redirect')) || '/admin';
   const { isAuthenticated, isLoading, accessError, refresh } = useAdminAuth();
 
   const login = useOtpLogin();
@@ -87,17 +88,7 @@ function AdminLoginForm() {
         {/* Brand Logo & Back to Site */}
         <div className="mb-5 flex items-center justify-between">
           <Link href="/" className="inline-flex items-center gap-2">
-            <Image
-              src="/restamplogo.svg"
-              alt="Restamp Logo"
-              width={34}
-              height={34}
-              className="h-8.5 w-8.5 object-contain"
-              priority
-            />
-            <span className="text-slate-900 font-bold text-lg tracking-tight">
-              Re<span className="text-[#087ed9]">stamp</span>
-            </span>
+            <Image src="/restamp-logo.svg" alt="Restamp" width={149} height={40} className="h-10 w-auto" priority />
             <span className="rounded bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
               Admin
             </span>
@@ -125,7 +116,7 @@ function AdminLoginForm() {
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Registered admin mobile
               </label>
-              <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm focus-within:border-[#087ed9] focus-within:ring-2 focus-within:ring-[#087ed9]/20 transition shadow-2xs">
+              <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm focus-within:border-[#087ed9] transition shadow-2xs">
                 <Smartphone size={16} className="text-slate-400 shrink-0" />
                 <span className="text-slate-600 font-semibold">+91</span>
                 <input
@@ -145,7 +136,7 @@ function AdminLoginForm() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
+              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] h-[53px] text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
             >
               {busy && <Loader2 size={16} className="animate-spin" />}
               <span>{busy ? 'Sending…' : 'Get Security OTP'}</span>
@@ -183,7 +174,7 @@ function AdminLoginForm() {
                   value={digit}
                   onChange={(e) => changeOtp(i, e.target.value)}
                   onKeyDown={(e) => otpKeyDown(i, e)}
-                  className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-center text-lg font-bold text-slate-900 outline-none focus:border-[#087ed9] focus:bg-white focus:ring-2 focus:ring-[#087ed9]/20 transition"
+                  className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-center text-lg font-bold text-slate-900 outline-none focus:border-[#087ed9] focus:bg-white transition"
                 />
               ))}
             </div>
@@ -193,7 +184,7 @@ function AdminLoginForm() {
             <button
               type="submit"
               disabled={otp.join('').length < OTP_LENGTH || isVerifying}
-              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shadow-sm"
+              className="inline-flex items-center justify-center w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] h-[53px] text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shadow-sm"
             >
               {isVerifying ? 'Authenticating...' : 'Verify & Open Console'}
             </button>

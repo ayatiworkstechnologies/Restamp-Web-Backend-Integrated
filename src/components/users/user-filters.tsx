@@ -71,7 +71,7 @@ export function UserFiltersBar({
             value={filters.search}
             onChange={(e) => onFilterChange({ search: e.target.value })}
             placeholder="Search by name, email, phone, user ID, city, agency..."
-            className="w-full rounded-xl border border-[#e2e8f2] bg-[#fbfcfe] pl-9 pr-8 py-2 text-xs font-medium text-[#22324d] outline-none transition-all placeholder:text-[#a1adc0] focus:border-[#2854cb] focus:bg-white focus:ring-2 focus:ring-[#2854cb]/10"
+            className="w-full rounded-xl border border-[#e2e8f2] bg-[#fbfcfe] pl-9 pr-8 py-2 text-xs font-medium text-[#22324d] outline-none transition-all placeholder:text-[#a1adc0] focus:border-[#2854cb] focus:bg-white"
           />
           {filters.search && (
             <button
@@ -129,7 +129,7 @@ export function UserFiltersBar({
             >
               <option value="all">All Owner Types</option>
               <option value="Individual Owner">Individual Owner</option>
-              <option value="Agent / Broker">Agent / Broker</option>
+              <option value="Agent / Broker">Agent</option>
               <option value="Builder / Developer">Builder / Developer</option>
             </select>
           </div>

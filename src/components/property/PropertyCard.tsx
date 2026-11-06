@@ -178,7 +178,7 @@ export default function PropertyCard({
               e.stopPropagation();
               contact.onCall();
             }}
-            className="flex-1 py-2.5 px-3 border border-[#087ed9] text-[#087ed9] hover:bg-sky-50 font-semibold text-xs rounded-md transition text-center truncate flex items-center justify-center gap-1.5 cursor-pointer bg-white"
+            className="flex-1 h-[53px] px-3 border border-[#087ed9] text-[#087ed9] hover:bg-sky-50 font-semibold text-xs rounded-md transition text-center truncate flex items-center justify-center gap-1.5 cursor-pointer bg-white"
           >
             <HugeIcon icon={CallIcon} size={14} color="#087ed9" />
             <span>{formatIndianPhone(contact.phone)}</span>
@@ -192,7 +192,7 @@ export default function PropertyCard({
               e.stopPropagation();
               void contact.reveal();
             }}
-            className="flex-1 py-2.5 px-3 border border-[#087ed9] text-[#087ed9] hover:bg-sky-50 disabled:opacity-60 font-semibold text-xs rounded-md transition text-center truncate flex items-center justify-center gap-1.5 cursor-pointer bg-white"
+            className="flex-1 h-[53px] px-3 border border-[#087ed9] text-[#087ed9] hover:bg-sky-50 disabled:opacity-60 font-semibold text-xs rounded-md transition text-center truncate flex items-center justify-center gap-1.5 cursor-pointer bg-white"
           >
             <span>{contact.loading ? 'Loading…' : contact.error ? 'Number unavailable' : 'View Number'}</span>
           </button>
@@ -204,7 +204,7 @@ export default function PropertyCard({
             if (onContact) onContact(property);
             else router.push(propertyUrl);
           }}
-          className="flex-1 py-2.5 px-3 bg-[#087ed9] hover:bg-sky-600 text-white font-semibold text-xs rounded-md transition text-center shadow-xs cursor-pointer"
+          className="inline-flex items-center justify-center flex-1 h-[53px] px-3 bg-[#087ed9] hover:bg-sky-600 text-white font-semibold text-xs rounded-md transition text-center shadow-xs cursor-pointer"
         >
           Contact
         </button>

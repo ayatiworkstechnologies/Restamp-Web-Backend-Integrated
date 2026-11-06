@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Motion tokens (Emil Kowalski curves). Overrides Tailwind's ease-out / ease-in-out
+   utilities and the default timing for every `transition` utility. */
+@theme {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --default-transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  --default-transition-duration: 200ms;
+}
+
 :root {
   --blue: #087ed9;
   font-family: var(--font-manrope), 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -12,7 +21,9 @@ body {
 }
 
 button, a {
-  transition: all 0.2s ease;
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
 }
 
 button {
@@ -184,4 +195,36 @@ button {
 .table-scroll::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 8px;
+}
+/* ── Homepage scroll reveal ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+.reveal .reveal-item {
+  opacity: 0;
+  transform: translateY(12px) scale(0.97);
+  transition: opacity 450ms var(--ease-out), transform 450ms var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal.is-visible .reveal-item {
+  opacity: 1;
+  transform: none;
+}
+/* Reduced motion: keep a gentle fade, drop all movement. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .reveal .reveal-item { transform: none; transition: opacity 300ms ease; transition-delay: 0ms; }
+}
+
+/* Form fields: no focus ring/glow anywhere — the border colour change is the focus cue. */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  box-shadow: none;
 }

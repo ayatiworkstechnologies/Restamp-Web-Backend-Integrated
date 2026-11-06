@@ -50,7 +50,7 @@ export default function SearchPanel() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-[0_12px_45px_-10px_rgba(0,0,0,0.1)] hover:shadow-[0_20px_50px_-10px_rgba(8,126,217,0.14)] transition-shadow duration-300 border border-slate-100 p-4 sm:p-6 md:p-8 max-w-4xl mx-auto -mt-16 relative z-20">
+    <div className={`bg-white rounded-2xl shadow-[0_12px_45px_-10px_rgba(0,0,0,0.1)] hover:shadow-[0_20px_50px_-10px_rgba(8,126,217,0.14)] transition-shadow duration-300 border border-slate-100 p-4 sm:p-6 md:p-8 max-w-4xl mx-auto -mt-16 relative ${isFocused ? 'z-40' : 'z-30'}`}>
       {/* Navigation Tabs */}
       <div className="flex items-center justify-between gap-3 sm:gap-6 mb-4 sm:mb-6 border-b border-slate-100 sm:border-0 pb-1 sm:pb-0">
         <div className="flex items-center gap-5 sm:gap-8 overflow-x-auto no-scrollbar scrollbar-none py-0.5">
@@ -90,7 +90,7 @@ export default function SearchPanel() {
 
       {/* Search Input Container */}
       <form onSubmit={handleSearch} ref={containerRef} className="relative">
-        <div className="flex flex-col sm:flex-row sm:items-center border border-slate-200 rounded-xl p-2 sm:pl-4 bg-white focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100 transition gap-3 sm:gap-0">
+        <div className="flex flex-col sm:flex-row sm:items-center border border-slate-200 rounded-xl p-2 sm:pl-4 bg-white focus-within:border-sky-400 transition gap-3 sm:gap-0">
           {/* Location Pin & Query Input with Hugeicons */}
           <div className="flex items-center flex-1 min-w-0 px-2 sm:px-0">
             <span className="text-slate-400 shrink-0 mr-3 flex items-center justify-center">
@@ -145,7 +145,7 @@ export default function SearchPanel() {
           {/* Search Button with Hugeicons */}
           <button
             type="submit"
-            className="bg-[#0077e6] hover:bg-blue-600 active:scale-95 hover:-translate-y-0.5 text-white rounded-lg px-7 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200 w-full sm:w-auto shrink-0 cursor-pointer shadow-sm hover:shadow-md"
+            className="bg-[#0077e6] hover:bg-blue-600 active:scale-[0.97] hover:-translate-y-0.5 text-white rounded-lg px-7 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition duration-200 w-full sm:w-auto shrink-0 cursor-pointer shadow-sm hover:shadow-md"
           >
             <HugeiconsIcon icon={SearchIcon} size={17} />
             <span>Search</span>
@@ -214,7 +214,7 @@ export default function SearchPanel() {
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-8 h-8 rounded-lg bg-sky-50 text-[#0077e6] flex items-center justify-center shrink-0">
+                        <span className="w-8 h-8 rounded-lg bg-[#087ed9] text-white flex items-center justify-center shrink-0">
                           {item.icon === 'home' && <Home size={15} />}
                           {item.icon === 'building' && <Building2 size={15} />}
                           {item.icon === 'map-pin' && <MapPin size={15} />}

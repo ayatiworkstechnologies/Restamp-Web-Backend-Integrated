@@ -124,23 +124,21 @@ const ownerMegaData = {
   ],
 };
 
-/* 5. Large For Agents & Brokers Mega Menu Data */
+/* 5. Large For Agents Mega Menu Data */
 const agentMegaData = {
   portal: [
-    { label: 'Agent Partner Portal', sub: 'Dedicated partner screen & onboarding', href: '/agent', badge: 'NEW' },
-    { label: 'Broker Deal Console', sub: 'Real-time leads & mandate management', href: '/agent/dashboard', badge: 'CRM' },
-    { label: 'Market & Deal Analytics', sub: 'Analyze live agent transactions & demand', href: '/agent#agent-analytics-hub' },
-    { label: 'Post Commercial Mandate', sub: 'Grade-A tech parks & retail leasing', href: '/sell?purpose=Commercial' },
+    { label: 'Agent Portal', sub: 'Dedicated agent screen & onboarding', href: '/agent', badge: 'NEW' },
+    { label: 'Agent Deal Console', sub: 'Real-time leads & owner properties', href: '/agent/dashboard', badge: 'CRM' },
   ],
   services: [
-    { label: 'RERA Verification Desk', sub: 'Verify your broker certificate', href: '/agent' },
+    { label: 'RERA Verification Desk', sub: 'Verify your agent certificate', href: '/agent' },
     { label: 'Buyer Inquiry Pipeline', sub: 'Pre-approved mortgage buyer alerts', href: '/agent/dashboard#leads' },
-    { label: 'Active Mandate Portfolio', sub: 'Syndicated prime inventory', href: '/agent/dashboard#mandates' },
-    { label: 'Agent Login / Register', sub: 'Dedicated partner authentication', href: '/agent/login' },
+    { label: 'Owner Properties', sub: 'Verified owner-posted listings', href: '/agent/dashboard/properties' },
+    { label: 'Agent Login / Register', sub: 'Dedicated agent authentication', href: '/login?role=agent' },
   ],
   plans: [
     { label: '5 Locations Hub (₹2,999)', sub: 'Coverage in 5 chosen micro-markets', href: '/agent/packages' },
-    { label: '10 Locations Partner (₹4,999)', sub: 'Top 10% search placement & co-broking', href: '/agent/packages' },
+    { label: '10 Locations Agent (₹4,999)', sub: 'Top 10% search placement & agent collaboration', href: '/agent/packages' },
     { label: '15 Locations Syndicate (₹7,999)', sub: 'Metro-wide dominance & key account manager', href: '/agent/packages' },
   ],
 };
@@ -250,7 +248,6 @@ export default function Header() {
       links: [
         { label: 'Owner Portal / Post Free', href: '/owner' },
         { label: 'Post Property to Sell', href: '/sell?purpose=Sell' },
-        { label: 'Rent Out Property', href: '/sell?purpose=Rent' },
         { label: 'Owner Dashboard', href: '/owner/dashboard' },
         { label: 'Owner Plans & Pricing', href: '/owner/plans' },
         { label: 'Owner Login', href: '/login?role=owner' },
@@ -259,18 +256,18 @@ export default function Header() {
     {
       label: 'For Agents',
       links: [
-        { label: 'Agent Partner Portal', href: '/agent' },
-        { label: 'Agent Deal Analytics', href: '/agent#agent-analytics-hub' },
-        { label: 'Broker Console Dashboard', href: '/agent/dashboard' },
-        { label: 'Agent Partner Plans', href: '/agent#plans' },
+        { label: 'Agent Portal', href: '/agent' },
+        { label: 'Agent Console Dashboard', href: '/agent/dashboard' },
+        { label: 'Agent Plans', href: '/agent#plans' },
         { label: 'Agent Login', href: '/login?role=agent' },
-        { label: 'Post Commercial Unit', href: '/sell?purpose=Commercial' },
       ],
     },
     {
       label: 'For Admin',
+      // Hidden from the menu; admin pages stay reachable at /admin-login and /admin-dashboard.
+      hidden: true,
       links: [
-        { label: 'Admin Login', href: '/admin/login' },
+        { label: 'Admin Login', href: '/admin-login' },
         { label: 'Admin Dashboard', href: '/admin-dashboard' },
       ],
     },
@@ -287,17 +284,7 @@ export default function Header() {
           href="/"
           className="flex items-center gap-2 text-[#087ed9] font-extrabold text-xl tracking-tight shrink-0"
         >
-          <Image
-            src="/restamplogo.svg"
-            alt="Restamp Logo"
-            width={30}
-            height={30}
-            className="h-7.5 w-7.5 object-contain"
-            priority
-          />
-          <span className="text-slate-900 font-bold">
-            Re<span className="text-[#087ed9]">stamp</span>
-          </span>
+          <Image src="/restamp-logo.svg" alt="Restamp" width={149} height={40} className="h-10 w-auto" priority />
         </Link>
 
         {/* Desktop Navigation Links */}
@@ -661,15 +648,15 @@ export default function Header() {
                   </div>
 
                   {/* Col 4: Featured Promo Card (3 cols) */}
-                  <div className="md:col-span-3 rounded-2xl bg-gradient-to-br from-[#0c1829] to-slate-900 text-white p-6 flex flex-col justify-between shadow-md relative overflow-hidden">
+                  <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 md:col-span-3 rounded-2xl p-6 flex flex-col justify-between shadow-md relative overflow-hidden">
                     <div className="relative z-10">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-[#087ed9]/30 border border-[#38bdf8]/40 px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide text-[#38bdf8] uppercase">
                         Zero Brokerage Assurance
                       </span>
-                      <h4 className="text-base font-extrabold text-white mt-3 leading-tight">
+                      <h4 className="text-base font-extrabold text-slate-900 mt-3 leading-tight">
                         Direct From Verified Owners
                       </h4>
-                      <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                      <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                         Skip middleman commissions completely. Connect with genuine home sellers in Chennai directly.
                       </p>
                     </div>
@@ -678,14 +665,14 @@ export default function Header() {
                       <Link
                         href="/buy?owner=true"
                         onClick={() => setActiveDropdown(null)}
-                        className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#087ed9] py-2.5 text-xs font-bold text-white hover:bg-[#0070c9] shadow-sm transition"
+                        className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#087ed9] h-[53px] text-xs font-bold text-white hover:bg-[#0070c9] shadow-sm transition"
                       >
                         Explore Owner Homes <ArrowRight size={13} />
                       </Link>
                       <Link
                         href="/sell"
                         onClick={() => setActiveDropdown(null)}
-                        className="block text-center text-[11px] font-medium text-slate-400 hover:text-white transition"
+                        className="block text-center text-[11px] font-medium text-slate-500 hover:text-[#087ed9] transition"
                       >
                         Selling your property? List Free →
                       </Link>
@@ -787,7 +774,7 @@ export default function Header() {
                       <Link
                         href="/rent"
                         onClick={() => setActiveDropdown(null)}
-                        className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#087ed9] py-2.5 text-xs font-bold text-white hover:bg-[#0070c9] shadow-sm transition"
+                        className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#087ed9] h-[53px] text-xs font-bold text-white hover:bg-[#0070c9] shadow-sm transition"
                       >
                         Browse Rentals <ArrowRight size={13} />
                       </Link>
@@ -879,15 +866,15 @@ export default function Header() {
                   </div>
 
                   {/* Col 4: Featured Promo Card (3 cols) */}
-                  <div className="md:col-span-3 rounded-2xl bg-gradient-to-br from-[#0c1829] to-slate-900 text-white p-6 flex flex-col justify-between shadow-md">
+                  <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 md:col-span-3 rounded-2xl p-6 flex flex-col justify-between shadow-md">
                     <div>
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-[#087ed9]/30 border border-[#38bdf8]/40 px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide text-[#38bdf8] uppercase">
                         VIP Concierge
                       </span>
-                      <h4 className="text-base font-extrabold text-white mt-3 leading-tight">
+                      <h4 className="text-base font-extrabold text-slate-900 mt-3 leading-tight">
                         Free Site Visit &amp; Advisory
                       </h4>
-                      <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                      <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                         Complimentary cab visits, floor plans, RERA clearance verification &amp; negotiated builder pricing.
                       </p>
                     </div>
@@ -896,7 +883,7 @@ export default function Header() {
                       <Link
                         href="/projects"
                         onClick={() => setActiveDropdown(null)}
-                        className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#087ed9] py-2.5 text-xs font-bold text-white hover:bg-[#0070c9] shadow-sm transition"
+                        className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#087ed9] h-[53px] text-xs font-bold text-white hover:bg-[#0070c9] shadow-sm transition"
                       >
                         Explore All Projects <ArrowRight size={13} />
                       </Link>
@@ -1005,7 +992,7 @@ export default function Header() {
                       <Link
                         href="/sell"
                         onClick={() => setActiveDropdown(null)}
-                        className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#087ed9] py-2.5 text-xs font-bold text-white hover:bg-[#0070c9] shadow-sm transition"
+                        className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#087ed9] h-[53px] text-xs font-bold text-white hover:bg-[#0070c9] shadow-sm transition"
                       >
                         Post Free Property <ArrowRight size={13} />
                       </Link>
@@ -1027,7 +1014,7 @@ export default function Header() {
                   {/* Col 1: Portal & Tools (3 cols) */}
                   <div className="md:col-span-3">
                     <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mb-4">
-                      Partner Hub &amp; Tools
+                      Agent Hub &amp; Tools
                     </p>
                     <div className="space-y-3">
                       {agentMegaData.portal.map((item) => (
@@ -1082,7 +1069,7 @@ export default function Header() {
                   {/* Col 3: Plans & Tiers (3 cols) */}
                   <div className="md:col-span-3 rounded-2xl bg-slate-50/70 p-5 border border-slate-100">
                     <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mb-3.5">
-                      Partner Tiers (0% Cut)
+                      Agent Plans (0% Cut)
                     </p>
                     <div className="space-y-3">
                       {agentMegaData.plans.map((item) => (
@@ -1104,15 +1091,15 @@ export default function Header() {
                   </div>
 
                   {/* Col 4: Featured Promo Card (3 cols) */}
-                  <div className="md:col-span-3 rounded-2xl bg-gradient-to-br from-slate-900 to-[#070e17] text-white p-6 flex flex-col justify-between shadow-xs border border-slate-800">
+                  <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 md:col-span-3 rounded-2xl p-6 flex flex-col justify-between shadow-xs">
                     <div>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide text-emerald-300 uppercase">
-                        140+ Partner Brokers
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide text-emerald-600 uppercase">
+                        140+ Verified Agents
                       </span>
-                      <h4 className="text-base font-extrabold text-white mt-3 leading-tight">
+                      <h4 className="text-base font-extrabold text-slate-900 mt-3 leading-tight">
                         Scale Brokerage Revenue
                       </h4>
-                      <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                      <p className="text-xs text-slate-500 mt-2 leading-relaxed">
                         Direct verified buyer leads, mandate protection, and real-time deal flow analytics.
                       </p>
                     </div>
@@ -1121,16 +1108,16 @@ export default function Header() {
                       <Link
                         href="/agent/dashboard"
                         onClick={() => setActiveDropdown(null)}
-                        className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#087ed9] py-2.5 text-xs font-bold text-white hover:bg-sky-500 shadow-sm transition"
+                        className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#087ed9] h-[53px] text-xs font-bold text-white hover:bg-sky-500 shadow-sm transition"
                       >
                         Open Agent Console <ArrowRight size={13} />
                       </Link>
                       <Link
                         href="/agent"
                         onClick={() => setActiveDropdown(null)}
-                        className="block text-center text-[11px] font-medium text-slate-400 hover:text-white transition"
+                        className="block text-center text-[11px] font-medium text-slate-500 hover:text-[#087ed9] transition"
                       >
-                        Explore Partner Network →
+                        Explore Agent Network →
                       </Link>
                     </div>
                   </div>
@@ -1184,7 +1171,7 @@ export default function Header() {
               <Link
                 href="/sell"
                 onClick={closeMenu}
-                className="flex items-center justify-between rounded-xl bg-[#087ed9] px-4 py-3 text-xs font-bold text-white shadow-sm hover:bg-[#0070c9] transition"
+                className="flex items-center justify-between rounded-xl bg-[#087ed9] px-4 h-[53px] text-xs font-bold text-white shadow-sm hover:bg-[#0070c9] transition"
               >
                 <span className="flex items-center gap-2">
                   <Home size={16} />
@@ -1196,66 +1183,13 @@ export default function Header() {
               </Link>
             </div>
 
-            {/* Main Navigation Items */}
-            <div className="px-3 py-2 border-b border-slate-100">
-              <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Explore Properties
-              </p>
-              <div className="space-y-0.5">
-                <Link
-                  href="/buy"
-                  onClick={closeMenu}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-[#087ed9] transition"
-                >
-                  <span>Buy Homes &amp; Plots</span>
-                  <ChevronRight size={14} className="text-slate-400" />
-                </Link>
-                <Link
-                  href="/rent"
-                  onClick={closeMenu}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-[#087ed9] transition"
-                >
-                  <span>Rent Residential &amp; Commercial</span>
-                  <ChevronRight size={14} className="text-slate-400" />
-                </Link>
-                <Link
-                  href="/projects"
-                  onClick={closeMenu}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-[#087ed9] transition"
-                >
-                  <span>New Residential Projects</span>
-                  <ChevronRight size={14} className="text-slate-400" />
-                </Link>
-                <Link
-                  href="/owner"
-                  onClick={closeMenu}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-[#087ed9] transition"
-                >
-                  <span>For Property Owners</span>
-                  <span className="rounded bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-[#087ed9]">
-                    Owner Hub
-                  </span>
-                </Link>
-                <Link
-                  href="/agent"
-                  onClick={closeMenu}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-[#087ed9] transition"
-                >
-                  <span>For Agents &amp; Brokers</span>
-                  <span className="rounded bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-[#087ed9]">
-                    Agent Hub
-                  </span>
-                </Link>
-              </div>
-            </div>
-
             {/* Role Portals & Services Accordions */}
             <div className="flex-1 px-3 py-2">
               <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Portals &amp; Workspaces
               </p>
               <div className="space-y-1">
-                {roleMenus.map((menu) => {
+                {roleMenus.filter((menu) => !('hidden' in menu && menu.hidden)).map((menu) => {
                   const isOpen = expanded === menu.label;
                   return (
                     <div key={menu.label} className="rounded-xl overflow-hidden border border-slate-100">
@@ -1291,6 +1225,14 @@ export default function Header() {
                   );
                 })}
               </div>
+              <Link
+                href="/contact"
+                onClick={closeMenu}
+                className="mt-1 flex items-center justify-between rounded-xl border border-slate-100 px-3.5 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 hover:text-[#087ed9] transition"
+              >
+                <span>Contact Us</span>
+                <ChevronRight size={16} className="text-slate-400" />
+              </Link>
             </div>
 
             {/* Drawer Footer */}

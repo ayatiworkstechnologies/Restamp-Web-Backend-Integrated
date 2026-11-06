@@ -27,17 +27,17 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/admin-dashboard/login',
-        destination: '/admin/login',
+        destination: '/admin-login',
         permanent: false,
       },
       {
         source: '/adminlogin',
-        destination: '/admin/login',
+        destination: '/admin-login',
         permanent: false,
       },
       {
-        source: '/admin-login',
-        destination: '/admin/login',
+        source: '/admin/login',
+        destination: '/admin-login',
         permanent: false,
       },
     ];

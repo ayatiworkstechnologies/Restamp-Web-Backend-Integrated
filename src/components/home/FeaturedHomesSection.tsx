@@ -48,9 +48,9 @@ export default function FeaturedHomesSection() {
       {/* Section Header */}
       <div className="flex items-center justify-between mb-7">
         <div>
-          <p className="eyebrow text-slate-500">FEATURED RESALE PROPERTIES</p>
+          <p className="eyebrow text-slate-500">HANDPICKED FOR YOU</p>
           <h2 className="text-2xl sm:text-3xl md:text-[32px] font-bold text-slate-900 tracking-tight mt-1.5">
-            Discover Homes Worth Owning.
+            Recommended Projects
           </h2>
         </div>
 
@@ -59,14 +59,14 @@ export default function FeaturedHomesSection() {
           <button
             onClick={() => scroll('left')}
             aria-label="Previous properties"
-            className="p-2 text-[#087ed9] hover:bg-sky-100/70 hover:scale-110 border border-transparent hover:border-sky-200/80 rounded-full transition-all duration-200 active:scale-90 cursor-pointer shadow-2xs"
+            className="p-2 text-[#087ed9] hover:bg-sky-100/70 hover:scale-110 border border-transparent hover:border-sky-200/80 rounded-full transition duration-200 active:scale-[0.97] cursor-pointer shadow-2xs"
           >
             <ArrowLeft size={22} strokeWidth={2.2} />
           </button>
           <button
             onClick={() => scroll('right')}
             aria-label="Next properties"
-            className="p-2 text-[#087ed9] hover:bg-sky-100/70 hover:scale-110 border border-transparent hover:border-sky-200/80 rounded-full transition-all duration-200 active:scale-90 cursor-pointer shadow-2xs"
+            className="p-2 text-[#087ed9] hover:bg-sky-100/70 hover:scale-110 border border-transparent hover:border-sky-200/80 rounded-full transition duration-200 active:scale-[0.97] cursor-pointer shadow-2xs"
           >
             <ArrowRight size={22} strokeWidth={2.2} />
           </button>

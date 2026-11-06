@@ -691,7 +691,7 @@ export default function BuyerSearchPage() {
         </section>
 
         {/* Filter Toolbar Bar */}
-        <section className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-xs">
+        <section className="bg-white border-b border-slate-200 sticky top-[72px] z-40 shadow-xs">
           <div className="container-site py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               {/* Left Filters */}
@@ -1009,7 +1009,7 @@ export default function BuyerSearchPage() {
               </p>
               <button
                 onClick={handleReset}
-                className="mt-5 inline-flex items-center gap-1.5 bg-[#087ed9] hover:bg-sky-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition cursor-pointer"
+                className="mt-5 inline-flex items-center gap-1.5 bg-[#087ed9] hover:bg-sky-600 text-white text-xs font-semibold px-4 h-[53px] rounded-lg transition cursor-pointer"
               >
                 <RotateCcw size={14} />
                 <span>Reset all filters</span>

@@ -116,7 +116,7 @@ export function useSession(): { session: Session | null; ready: boolean } {
 }
 
 /** Login URL that returns to `next` after signing in. */
-export function loginHref(next?: string, role?: 'buyer' | 'owner'): string {
+export function loginHref(next?: string, role?: 'buyer' | 'owner' | 'agent'): string {
   const params = new URLSearchParams();
   if (role) params.set('role', role);
   if (next) params.set('next', next);

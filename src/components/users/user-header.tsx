@@ -123,11 +123,11 @@ export function UserHeader({ totalCount }: UserHeaderProps) {
           </div>
         </div>
 
-        {/* Property Owners & Brokers */}
+        {/* Property Owners & Agents */}
         <div className="rounded-[16px] border border-[#e8ecf4] bg-white p-4 shadow-sm transition-all hover:border-[#d4dded]">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#9aa7bb]">
-              Owners & Brokers
+              Owners & Agents
             </span>
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#f5f3ff] text-[#7c3aed]">
               <Building size={16} />

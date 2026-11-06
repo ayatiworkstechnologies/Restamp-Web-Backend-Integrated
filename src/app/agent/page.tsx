@@ -4,9 +4,9 @@ import Footer from '@/components/layout/Footer';
 import AgentScreen from '@/components/agent/AgentScreen';
 
 export const metadata = {
-  title: 'Restamp Agent Portal | Channel Partner Network & Deal Analytics',
+  title: 'Restamp Agent Portal | Agent Network',
   description:
-    'Dedicated Agent & Broker Portal for verified RERA channel partners. Access direct pre-approved buyer inquiries, analyze live market deal data, and close mandates with 0% platform commission.',
+    'Dedicated Agent Portal for verified RERA agents. Access direct pre-approved buyer inquiries, analyze live market deal data, and close mandates with 0% platform commission.',
 };
 
 export default function AgentPortalPage() {

@@ -204,7 +204,7 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
                       onChange={(e) => setMessage(e.target.value)}
                       rows={3}
                       aria-label="Message to the owner"
-                      className="w-full min-h-[92px] bg-white border border-slate-200 rounded-lg p-3 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9] resize-none transition"
+                      className="w-full min-h-[92px] bg-white border border-slate-200 rounded-lg p-3 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#087ed9] resize-none transition"
                     />
                     <div className="flex justify-between text-[11px] text-slate-400 mt-1 font-medium">
                       <span>Sent from your Restamp account{session.displayName ? ` (${session.displayName})` : ''}</span>
@@ -235,7 +235,7 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="bg-[#087ed9] hover:bg-[#076ec0] text-white font-bold text-xs sm:text-sm px-6 py-2.5 rounded-lg transition duration-200 shadow-xs cursor-pointer active:scale-98 disabled:opacity-60 inline-flex items-center gap-2"
+                      className="bg-[#087ed9] hover:bg-[#076ec0] text-white font-bold text-xs sm:text-sm px-6 h-[53px] rounded-lg transition duration-200 shadow-xs cursor-pointer active:scale-98 disabled:opacity-60 inline-flex items-center gap-2"
                     >
                       {isSubmitting && <Loader2 size={14} className="animate-spin" />}
                       <span>{isSubmitting ? 'Sending...' : 'Send Enquiry'}</span>
@@ -269,7 +269,7 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
                     min={localInputValue(1)}
                     onChange={(e) => setVisitAt(e.target.value)}
                     aria-label="Preferred visit date and time"
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9]"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#087ed9]"
                   />
                   <input
                     type="text"
@@ -277,14 +277,14 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
                     maxLength={300}
                     onChange={(e) => setVisitNote(e.target.value)}
                     placeholder="Note for the owner (optional)"
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9]"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#087ed9]"
                   />
                   {visitError && <p className="sm:col-span-2 text-xs text-red-500 font-medium" role="alert">{visitError}</p>}
                   <div className="sm:col-span-2">
                     <button
                       type="submit"
                       disabled={visitSending}
-                      className="border border-[#087ed9] text-[#087ed9] hover:bg-sky-50 font-bold text-xs sm:text-sm px-6 py-2.5 rounded-lg transition disabled:opacity-60 inline-flex items-center gap-2 cursor-pointer"
+                      className="border border-[#087ed9] text-[#087ed9] hover:bg-sky-50 font-bold text-xs sm:text-sm px-6 h-[53px] rounded-lg transition disabled:opacity-60 inline-flex items-center gap-2 cursor-pointer"
                     >
                       {visitSending && <Loader2 size={14} className="animate-spin" />}
                       <span>{visitSending ? 'Sending...' : 'Request Visit'}</span>

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { getProfile } from '@/lib/profile';
+import { getSession, isPlaceholderName, loginHref } from '@/lib/api/session';
 import {
   locationPackages,
   getDraftPackage,
@@ -42,7 +42,7 @@ export default function AgentPaymentPage() {
   const router = useRouter();
 
   // Authentication check
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<{ name: string; mobile?: string } | null>(null);
 
   // Selected package and locations from draft
   const [pkg, setPkg] = useState<LocationPackage>(locationPackages[1]); // default: 10
@@ -84,12 +84,13 @@ export default function AgentPaymentPage() {
   const idempotencyKeyRef = useRef<string>(`IDEMP_${Date.now()}_${Math.random()}`);
 
   useEffect(() => {
-    const me = getProfile();
-    if (!me) {
-      router.replace('/agent/login?next=/agent/payment');
+    // Signed-in Restamp account (real session); no phone number is exposed by the backend profile.
+    const session = getSession();
+    if (!session) {
+      router.replace(loginHref('/agent/payment', 'agent'));
       return;
     }
-    setProfile(me);
+    setProfile({ name: isPlaceholderName(session.displayName) ? '' : session.displayName });
 
     // Retrieve draft selection
     const draft = getDraftPackage();
@@ -160,7 +161,7 @@ export default function AgentPaymentPage() {
     // Validate based on payment method
     if (method === 'upi') {
       if (upiId && !/^[\w.-]{2,}@[a-zA-Z]{2,}$/.test(upiId.trim())) {
-        setErrorMessage('Please enter a valid UPI VPA (e.g. broker@okhdfcbank)');
+        setErrorMessage('Please enter a valid UPI VPA (e.g. agent@okhdfcbank)');
         return;
       }
     } else if (method === 'card') {
@@ -206,7 +207,7 @@ export default function AgentPaymentPage() {
         promoCode: discount ? promoCode.trim().toUpperCase() : undefined,
         method: methodLabel,
         agentMobile: profile?.mobile,
-        agentName: profile?.name || 'Verified Channel Partner',
+        agentName: profile?.name || 'Verified Agent',
         firmName: 'Royal Realty Associates',
         reraNumber: 'TN/AGENT/0491/2023',
       });
@@ -267,7 +268,7 @@ export default function AgentPaymentPage() {
               >
                 4
               </span>
-              <span>4. Partner Portal</span>
+              <span>4. Agent Portal</span>
             </span>
           </div>
 
@@ -321,7 +322,7 @@ export default function AgentPaymentPage() {
 
                     {/* Headline */}
                     <h2 className="text-2xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight leading-snug">
-                      Welcome to Restamp Partner Hub!
+                      Welcome to Restamp Agent Hub!
                     </h2>
 
                     {/* Subtitle / Description */}
@@ -337,7 +338,7 @@ export default function AgentPaymentPage() {
                       href="/agent/dashboard"
                       className="w-full py-3.5 px-6 rounded-2xl bg-[#005f3e] hover:bg-[#004e33] text-white font-bold text-sm tracking-wide transition duration-150 shadow-md shadow-emerald-950/10 flex items-center justify-center gap-2"
                     >
-                      <span>Open Partner Console Now</span>
+                      <span>Open Agent Console Now</span>
                       <ArrowRight size={16} />
                     </Link>
 
@@ -353,7 +354,7 @@ export default function AgentPaymentPage() {
                     <div className="pt-2 text-[11px] sm:text-xs text-slate-500 flex items-center justify-center gap-1.5">
                       <Clock size={13} className="text-emerald-600 animate-spin" />
                       <span>
-                        Redirecting to your Partner Portal in{' '}
+                        Redirecting to your Agent Portal in{' '}
                         <strong className="text-slate-800 font-bold">{redirectCountdown} seconds...</strong>
                       </span>
                     </div>
@@ -384,7 +385,7 @@ export default function AgentPaymentPage() {
                           Subscriber
                         </span>
                         <span className="text-xs sm:text-sm font-semibold text-slate-900 mt-0.5 block">
-                          {profile?.name || 'Verified Channel Partner'}
+                          {profile?.name || 'Verified Agent'}
                         </span>
                       </div>
                       <div>
@@ -564,7 +565,7 @@ export default function AgentPaymentPage() {
                         placeholder="e.g. yourname@okhdfcbank"
                         value={upiId}
                         onChange={(e) => setUpiId(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20 outline-none transition"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] outline-none transition"
                       />
                     </div>
                   </div>
@@ -581,7 +582,7 @@ export default function AgentPaymentPage() {
                         placeholder="4532 •••• •••• 8892"
                         value={cardNumber}
                         onChange={handleCardNumberChange}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-mono font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20 outline-none transition"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-mono font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] outline-none transition"
                       />
                     </div>
 
@@ -592,7 +593,7 @@ export default function AgentPaymentPage() {
                         placeholder="Name as printed on card"
                         value={cardHolder}
                         onChange={(e) => setCardHolder(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20 outline-none transition"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] outline-none transition"
                       />
                     </div>
 
@@ -605,7 +606,7 @@ export default function AgentPaymentPage() {
                           placeholder="MM/YY"
                           value={expiry}
                           onChange={handleExpiryChange}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-mono font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20 outline-none transition"
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-mono font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] outline-none transition"
                         />
                       </div>
 
@@ -617,7 +618,7 @@ export default function AgentPaymentPage() {
                           placeholder="•••"
                           value={cvv}
                           onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-mono font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20 outline-none transition"
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-mono font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] outline-none transition"
                         />
                       </div>
                     </div>
@@ -664,7 +665,7 @@ export default function AgentPaymentPage() {
                   type="button"
                   onClick={handleProcessPayment}
                   disabled={paymentState === 'processing'}
-                  className="w-full py-4 rounded-2xl bg-[#087ed9] hover:bg-sky-600 disabled:opacity-50 text-white font-extrabold text-sm transition shadow-lg hover:shadow-sky-500/25 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full h-[53px] rounded-2xl bg-[#087ed9] hover:bg-sky-600 disabled:opacity-50 text-white font-extrabold text-sm transition shadow-lg hover:shadow-sky-500/25 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {paymentState === 'processing' ? (
                     <div className="flex items-center gap-2">
@@ -699,7 +700,7 @@ export default function AgentPaymentPage() {
                   <div>
                     <h4 className="text-xl font-black text-slate-900">{pkg.name}</h4>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {pkg.validityDays} Days Validity • Up to {pkg.mandateLimit} Active Mandates
+                      {pkg.validityDays} Days Validity • Up to {pkg.mandateLimit} Property Unlocks
                     </p>
                   </div>
 
@@ -802,7 +803,7 @@ export default function AgentPaymentPage() {
                     <span>Instant Syndicate Activation</span>
                   </p>
                   <p className="text-[11px] text-sky-800 leading-relaxed">
-                    Once payment confirmation is received, your verified RERA partner credentials and 100% commission deal rights unlock immediately.
+                    Once payment confirmation is received, your verified RERA agent credentials and 100% commission deal rights unlock immediately.
                   </p>
                 </div>
               </div>

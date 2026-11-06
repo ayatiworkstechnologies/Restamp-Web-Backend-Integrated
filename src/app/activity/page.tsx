@@ -165,7 +165,7 @@ export default function ActivityPage() {
               </p>
               <Link
                 href={loginHref('/activity')}
-                className="mt-5 inline-flex items-center gap-1 rounded-full bg-[#087ed9] px-5 py-2 text-sm font-semibold text-white hover:bg-sky-600 transition"
+                className="mt-5 inline-flex items-center gap-1 rounded-full bg-[#087ed9] px-5 h-[53px] text-sm font-semibold text-white hover:bg-sky-600 transition"
               >
                 Log in <ChevronRight size={16} />
               </Link>
@@ -224,7 +224,7 @@ export default function ActivityPage() {
                     <p className="mx-auto mt-1.5 max-w-md text-sm text-slate-500">{current.emptyText}</p>
                     <Link
                       href="/buy"
-                      className="mt-5 inline-flex items-center gap-1 rounded-full bg-[#087ed9] px-5 py-2 text-sm font-semibold text-white hover:bg-sky-600 transition"
+                      className="mt-5 inline-flex items-center gap-1 rounded-full bg-[#087ed9] px-5 h-[53px] text-sm font-semibold text-white hover:bg-sky-600 transition"
                     >
                       Explore Properties <ChevronRight size={16} />
                     </Link>

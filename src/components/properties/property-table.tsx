@@ -68,7 +68,7 @@ export function PropertyTable({ properties, onInspect, onApprove, onReject }: Pr
                     disabled={selectable.length === 0}
                     checked={selectable.length > 0 && selectedIds.length === selectable.length}
                     onChange={handleSelectAll}
-                    className="rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
+                    className="rounded border-gray-300 text-[#2854cb]"
                   />
                 )}
               </th>
@@ -100,7 +100,7 @@ export function PropertyTable({ properties, onInspect, onApprove, onReject }: Pr
                           aria-label={`Select listing ${property.id}`}
                           checked={isSelected}
                           onChange={() => handleToggleSelect(property.listingId)}
-                          className="rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
+                          className="rounded border-gray-300 text-[#2854cb]"
                         />
                       )}
                     </td>

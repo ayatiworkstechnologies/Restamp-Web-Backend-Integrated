@@ -750,7 +750,7 @@ export default function FullFiltersModal({
           <button
             type="button"
             onClick={handleApplyClick}
-            className="bg-[#087ed9] hover:bg-[#076ec0] text-white font-bold text-xs sm:text-sm px-6 py-3 rounded-xl transition shadow-xs cursor-pointer active:scale-98 flex items-center gap-2"
+            className="bg-[#087ed9] hover:bg-[#076ec0] text-white font-bold text-xs sm:text-sm px-6 h-[53px] rounded-xl transition shadow-xs cursor-pointer active:scale-98 flex items-center gap-2"
           >
             <span>Apply Filters</span>
             <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs font-extrabold">

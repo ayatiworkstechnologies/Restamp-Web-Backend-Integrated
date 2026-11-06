@@ -108,7 +108,7 @@ export default function EnquiryModal({
                     maxLength={MAX_MESSAGE}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] focus:ring-1 focus:ring-[#087ed9] resize-none"
+                    className="w-full px-3.5 py-2 rounded-lg border border-slate-200 text-sm focus:outline-hidden focus:border-[#087ed9] resize-none"
                   />
                   <p className="text-[11px] text-slate-400 mt-1">
                     Sent from your Restamp account{session.displayName ? ` (${session.displayName})` : ''}.
@@ -128,7 +128,7 @@ export default function EnquiryModal({
                   <button
                     type="submit"
                     disabled={sending}
-                    className="px-5 py-2.5 text-xs font-semibold text-white bg-[#087ed9] hover:bg-sky-600 disabled:opacity-60 rounded-lg transition shadow-sm cursor-pointer flex items-center gap-1.5"
+                    className="inline-flex items-center justify-center px-5 h-[53px] text-xs font-semibold text-white bg-[#087ed9] hover:bg-sky-600 disabled:opacity-60 rounded-lg transition shadow-sm cursor-pointer gap-1.5"
                   >
                     {sending && <Loader2 size={14} className="animate-spin" />}
                     {sending ? 'Sending…' : 'Send Enquiry'}

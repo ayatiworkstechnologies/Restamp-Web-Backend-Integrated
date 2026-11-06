@@ -8,14 +8,17 @@ import { ensureRole, signOut } from '@/lib/api/auth';
 import { errorMessage } from '@/lib/api/client';
 import { isPlaceholderName, loginHref, useSession } from '@/lib/api/session';
 import { getInitials } from '@/lib/initials';
-import { Building2, CreditCard, Crown, LayoutDashboard, LogOut, Menu, PlusCircle, UserRound, X, type LucideIcon } from 'lucide-react';
+import { Building2, CalendarCheck, CreditCard, MessageSquareText, Crown, Headset, LayoutDashboard, LogOut, Menu, PlusCircle, UserRound, X, type LucideIcon } from 'lucide-react';
 
 const nav: { label: string; href: string; icon: LucideIcon }[] = [
   { label: 'Dashboard', href: '/owner/dashboard', icon: LayoutDashboard },
   { label: 'My Properties', href: '/owner/dashboard/properties', icon: Building2 },
   { label: 'Add Property', href: '/owner/dashboard/add-property', icon: PlusCircle },
+  { label: 'Leads', href: '/owner/dashboard/leads', icon: MessageSquareText },
+  { label: 'Site Visits', href: '/owner/dashboard/visits', icon: CalendarCheck },
   { label: 'Plan & Payments', href: '/owner/dashboard/payments', icon: CreditCard },
   { label: 'Profile', href: '/owner/dashboard/profile', icon: UserRound },
+  { label: 'Contact Us', href: '/owner/dashboard/contact', icon: Headset },
 ];
 
 export default function OwnerDashboardLayout({ children }: { children: React.ReactNode }) {
@@ -68,10 +71,7 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
   const sidebar = (
     <aside className="flex h-full w-64 flex-col border-r border-slate-100 bg-white">
       <Link href="/" className="flex items-center gap-2 px-6 py-5">
-        <Image src="/restamplogo.svg" alt="Restamp Logo" width={32} height={32} className="h-8 w-8 object-contain" />
-        <span className="text-lg font-bold tracking-tight text-slate-900">
-          Re<span className="text-[#087ed9]">stamp</span>
-        </span>
+        <Image src="/restamp-logo.svg" alt="Restamp" width={149} height={40} className="h-10 w-auto" />
       </Link>
       <p className="px-6 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Owner Studio</p>
       <nav className="flex-1 space-y-1 px-3">
@@ -91,11 +91,11 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
           );
         })}
       </nav>
-      <div className="m-3 rounded-xl bg-[#070e17] p-4 text-white">
-        <div className="flex items-center gap-2 text-xs font-semibold text-sky-400">
+      <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 m-3 rounded-xl p-4">
+        <div className="flex items-center gap-2 text-xs font-semibold text-sky-600">
           <Crown size={14} /> Owner plans
         </div>
-        <p className="mt-1 text-[11px] text-slate-400">Plan purchases and payments are not available online yet.</p>
+        <p className="mt-1 text-[11px] text-slate-500">Plan purchases and payments are not available online yet.</p>
         <Link href="/owner/plans" className="mt-3 block rounded-lg bg-[#087ed9] py-1.5 text-center text-xs font-semibold hover:bg-sky-600 transition">
           View plans
         </Link>

@@ -1,7 +1,7 @@
 export type AgentPlan = {
   id: string;
   name: string;
-  category: 'Solo Broker' | 'Agency Team';
+  category: 'Solo Agent' | 'Agency Team';
   highlight?: string;
   price: number;
   priceSub1: string;
@@ -17,8 +17,8 @@ export const agentPlans: Record<'Broker' | 'Agency', AgentPlan[]> = {
   Broker: [
     {
       id: 'agent-starter',
-      name: 'Starter Broker',
-      category: 'Solo Broker',
+      name: 'Starter Agent',
+      category: 'Solo Agent',
       price: 0,
       priceSub1: 'free forever',
       priceSub2: 'pay per verified token',
@@ -35,8 +35,8 @@ export const agentPlans: Record<'Broker' | 'Agency', AgentPlan[]> = {
     },
     {
       id: 'agent-pro',
-      name: 'Pro Channel Partner',
-      category: 'Solo Broker',
+      name: 'Pro Agent',
+      category: 'Solo Agent',
       highlight: 'Most Popular',
       price: 4999,
       priceSub1: 'for 90 days access',
@@ -49,15 +49,15 @@ export const agentPlans: Record<'Broker' | 'Agency', AgentPlan[]> = {
         'Up to 15 active high-priority mandates',
         'Instant WhatsApp buyer lead notifications',
         'Direct phone number unmasking',
-        'Verified RERA Partner badge ⭐',
+        'Verified RERA Agent badge ⭐',
         'Top 10% search boost in your local micro-market',
         'Access to Restamp co-broking syndicate',
       ],
     },
     {
       id: 'agent-elite',
-      name: 'Elite Broker VIP',
-      category: 'Solo Broker',
+      name: 'Elite Agent VIP',
+      category: 'Solo Agent',
       highlight: 'VIP Mandate',
       price: 9999,
       priceSub1: 'for 180 days access',
@@ -139,7 +139,7 @@ export const locationPackages: LocationPackage[] = [
   {
     id: 'loc-5',
     name: '5 Micro-Markets',
-    tagline: 'Ideal for neighborhood specialists & boutique brokers',
+    tagline: 'Ideal for neighborhood specialists & boutique agents',
     badge: 'Starter Hub',
     locationLimit: 5,
     price: 2999,
@@ -151,7 +151,7 @@ export const locationPackages: LocationPackage[] = [
       'Coverage across 5 chosen high-intent micro-markets',
       'Post up to 10 active exclusive mandates',
       'Direct buyer WhatsApp & push lead notifications',
-      'Verified RERA Partner badge on all listings',
+      'Verified RERA Agent badge on all listings',
       'Standard search ranking in your 5 zones',
       'Retain 100% of your buyer & seller brokerage',
     ],
@@ -159,8 +159,8 @@ export const locationPackages: LocationPackage[] = [
   {
     id: 'loc-10',
     name: '10 Micro-Markets',
-    tagline: 'Best for active full-time channel partners & mid-size teams',
-    badge: 'Growth Partner',
+    tagline: 'Best for active full-time agents & mid-size teams',
+    badge: 'Growth Agent',
     locationLimit: 10,
     price: 4999,
     monthlyEquivalent: 1666,
@@ -669,7 +669,7 @@ export function activateAgentPackage(
     planId: pkg.id,
     planName: pkg.name,
     badge: pkg.badge,
-    category: 'Channel Partner',
+    category: 'Agent',
     locationLimit: pkg.locationLimit,
     selectedLocations,
     listingLimit: pkg.mandateLimit,
@@ -696,14 +696,14 @@ export function activateAgentPackage(
 
 /**
  * Seed an active subscription for existing verified partner accounts (e.g. Royal Realty Associates)
- * so existing paid brokers can be tested seamlessly without being forced to pay again.
+ * so existing paid agents can be tested seamlessly without being forced to pay again.
  */
 export function seedExistingPartnerSubscription(mobile = '9840123456') {
   const sub: AgentSubscription = {
     planId: 'loc-10',
     planName: '10 Micro-Markets',
-    badge: 'Growth Partner',
-    category: 'Channel Partner',
+    badge: 'Growth Agent',
+    category: 'Agent',
     locationLimit: 10,
     selectedLocations: [
       'OMR IT Corridor',

@@ -6,11 +6,17 @@ import {
   ShieldCheck,
   HeartHandshake,
   Sparkles,
+  Compass,
+  KeyRound,
+  Building2,
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import SearchPanel from '@/components/home/SearchPanel';
 import FeaturedHomesSection from '@/components/home/FeaturedHomesSection';
+import ExploreLinksSection from '@/components/home/ExploreLinksSection';
+import HomeAnimations from '@/components/home/HomeAnimations';
+import RecentlyAddedSection, { VerifiedPropertiesSection } from '@/components/home/RecentlyAddedSection';
 
 const categories = [
   { name: 'Buy a home', url: '/buy', img: '/images/cat-buy.jpg' },
@@ -58,13 +64,12 @@ export default function HomePage() {
   return (
     <>
       <Header />
-      <main>
+      <main className="bg-slate-50">
         {/* Hero Section */}
         <section
-          className="h-[460px] md:h-[500px] bg-cover bg-center flex items-start justify-center text-center pt-20 md:pt-24 relative overflow-hidden"
+          className="h-[600px] bg-cover bg-center flex items-start justify-center text-center pt-16 md:pt-20 relative overflow-hidden"
           style={{
-            backgroundImage:
-              'linear-gradient(180deg, rgba(15, 23, 42, 0.72) 0%, rgba(15, 23, 42, 0.48) 100%), url(/images/hero-bg.jpg)',
+            backgroundImage: 'url(/images/hero-bg.jpg)',
           }}
         >
           {/* Luminous Animated Radial Ambient Orbs */}
@@ -73,25 +78,25 @@ export default function HomePage() {
 
 
           <div className="text-white px-5 z-10 max-w-3xl mx-auto">
-            <div className="animate-hero-fade-up inline-flex items-center gap-2 bg-white/12 hover:bg-white/20 backdrop-blur-md border border-white/25 text-sky-200 text-[11px] sm:text-xs font-bold tracking-[0.22em] px-3.5 py-1.5 rounded-full mb-4 shadow-sm transition">
+            <div className="animate-hero-fade-up inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 text-white text-[11px] sm:text-xs font-bold tracking-[0.22em] px-3.5 py-1.5 rounded-full mb-4 shadow-sm transition">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-glow" />
               WELCOME TO RESTAMP
             </div>
-            <h1 className="text-4xl md:text-5xl lg:text-[54px] font-extrabold leading-[1.12] drop-shadow-md tracking-tight animate-hero-fade-up delay-150">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-[54px] font-extrabold leading-[1.15] sm:leading-[1.12] tracking-tight text-white animate-hero-fade-up delay-150">
               Find your next home.
               <br />
               <span className="bg-gradient-to-r from-white via-sky-100 to-sky-200 bg-clip-text text-transparent">
                 Make it your own.
               </span>
             </h1>
-            <p className="mt-3.5 sm:mt-4 text-sm sm:text-base text-white/90 drop-shadow max-w-lg mx-auto font-normal leading-relaxed animate-hero-fade-up delay-300">
+            <p className="mt-3.5 sm:mt-4 text-sm sm:text-base text-white/95 max-w-lg mx-auto font-medium leading-relaxed animate-hero-fade-up delay-300">
               A place to live. A space to grow. A home to love.
             </p>
           </div>
         </section>
 
         {/* Search Panel */}
-        <div className="container-site animate-hero-fade-up delay-450">
+        <div className="container-site animate-hero-fade-up delay-450 relative z-30">
           <SearchPanel />
           <p className="text-center text-[11px] text-slate-400 mt-5 font-medium tracking-wide">
             Buy · Rent · Resale · New projects · Commercial
@@ -106,9 +111,9 @@ export default function HomePage() {
               <Link
                 href={cat.url}
                 key={cat.name}
-                className="text-center group block hover-lift transition-all duration-300"
+                className="text-center group block hover-lift transition duration-300"
               >
-                <div className="overflow-hidden rounded-2xl bg-slate-100 aspect-[4/3] shadow-sm group-hover:shadow-xl group-hover:shadow-sky-500/15 transition-all duration-300 relative border border-slate-100">
+                <div className="overflow-hidden rounded-2xl bg-slate-100 aspect-[4/3] shadow-sm group-hover:shadow-xl group-hover:shadow-sky-500/15 transition duration-300 relative border border-slate-100">
                   <img
                     src={cat.img}
                     alt={cat.name}
@@ -139,7 +144,7 @@ export default function HomePage() {
           <div className="relative w-full rounded-[24px] sm:rounded-[32px] overflow-hidden bg-[#0074ce] shadow-xl text-white min-h-[440px] sm:min-h-[400px] md:min-h-[380px] lg:min-h-[420px] group">
             {/* High-resolution 2x background graphic with building cutout and blueprint grid */}
             <div
-              className="absolute inset-0 w-full h-full bg-no-repeat bg-right bg-cover pointer-events-none group-hover:scale-[1.01] transition-transform duration-700 ease-out"
+              className="absolute inset-0 w-full h-full bg-no-repeat bg-right bg-cover pointer-events-none group-hover:scale-[1.01] transition-transform duration-500 ease-out"
               style={{
                 backgroundImage: `url('/images/your-home-journey@2x.png')`,
               }}
@@ -149,7 +154,7 @@ export default function HomePage() {
             <Link
               href="/sell"
               aria-label="Post property for free"
-              className="absolute top-4 sm:top-6 lg:top-7 right-4 sm:right-7 lg:right-9 z-20 inline-flex items-center gap-1.5 sm:gap-2 bg-white hover:bg-slate-50 text-slate-900 text-xs sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-xl shadow-md hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
+              className="absolute top-4 sm:top-6 lg:top-7 right-4 sm:right-7 lg:right-9 z-20 inline-flex items-center gap-1.5 sm:gap-2 bg-white hover:bg-slate-50 text-slate-900 text-xs sm:text-sm font-semibold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-xl shadow-md hover:shadow-xl hover:scale-105 active:scale-[0.97] transition duration-200"
             >
               <span>Post property</span>
               <span className="bg-[#00a862] text-white text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded tracking-wide animate-pulse">
@@ -184,7 +189,7 @@ export default function HomePage() {
               <div className="mt-5 sm:mt-8">
                 <Link
                   href="/buy"
-                  className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-[#0074ce] hover:text-[#005fa8] text-xs sm:text-sm md:text-[15px] font-bold px-5 sm:px-7 py-3 sm:py-3.5 rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 group/btn"
+                  className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-[#0074ce] hover:text-[#005fa8] text-xs sm:text-sm md:text-[15px] font-bold px-5 sm:px-7 py-3 sm:py-3.5 rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-0.5 active:translate-y-0 transition duration-200 group/btn"
                 >
                   <span>Explore homes to buy</span>
                   <ArrowRight size={16} className="group-hover/btn:translate-x-1.5 transition-transform duration-200" />
@@ -194,36 +199,52 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Featured Resale Properties Spotlight */}
+        {/* Recommended Projects */}
         <FeaturedHomesSection />
 
         {/* Quick Links Banner */}
-        <section className="bg-[#dff5ff]/80 py-8 border-y border-sky-100">
-          <div className="container-site grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-7">
+        <section className="container-site py-12">
+          <div className="mb-7 max-w-2xl">
+            <p className="eyebrow">Start your journey</p>
+            <h2 className="section-title mt-2">Whatever you're looking for, start here</h2>
+            <p className="text-sm text-slate-600 mt-3 leading-relaxed">
+              Buy your first home, find a rental that fits or discover brand-new projects — pick a path and we'll take it from there.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              ['What does your next move look like?', 'Start exploring'],
-              ['A home of your own', 'Explore homes'],
-              ['A fresh new start', 'Explore rentals'],
-              ['Something brand new', 'Explore projects'],
-            ].map(([a, b], i) => (
+              { icon: Compass, title: 'What does your next move look like?', cta: 'Start exploring', href: '/buy' },
+              { icon: House, title: 'A home of your own', cta: 'Explore homes', href: '/buy' },
+              { icon: KeyRound, title: 'A fresh new start', cta: 'Explore rentals', href: '/rent' },
+              { icon: Building2, title: 'Something brand new', cta: 'Explore projects', href: '/projects' },
+            ].map(({ icon: I, title, cta, href }) => (
               <Link
-                href={i === 2 ? '/rent' : i === 3 ? '/projects' : '/buy'}
-                key={a}
-                className="group border-r border-sky-200/80 last:border-0 pr-4 p-2.5 rounded-xl transition-all duration-200 hover:bg-white/70 hover:shadow-xs hover:-translate-y-0.5"
+                href={href}
+                key={title}
+                className="group flex flex-col justify-between gap-6 rounded-[16px] bg-white border border-slate-100 p-5 sm:p-6 min-h-[180px] transition duration-300 hover:-translate-y-1 hover:border-sky-100 hover:shadow-xl hover:shadow-slate-200/60"
               >
-                <div className="w-8 h-8 rounded-lg bg-sky-100/90 flex items-center justify-center text-[#087ed9] group-hover:scale-110 group-hover:bg-[#087ed9] group-hover:text-white transition-all duration-200">
-                  <House size={18} />
+                <div>
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#087ed9] text-white shadow-sm shadow-[#087ed9]/25 transition-transform duration-300 group-hover:scale-110">
+                    <I size={22} strokeWidth={2} />
+                  </span>
+                  <h3 className="mt-4 text-base font-semibold leading-snug text-slate-900">{title}</h3>
                 </div>
-                <h3 className="text-sm font-semibold mt-3 text-slate-800 group-hover:text-slate-900 transition-colors">
-                  {a}
-                </h3>
-                <p className="text-xs text-[#087ed9] font-semibold mt-2 inline-flex items-center gap-1 group-hover:translate-x-1 transition-transform duration-200">
-                  {b} →
-                </p>
+                <span className="flex items-center justify-between text-sm font-semibold text-[#087ed9]">
+                  {cta}
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 transition duration-300 group-hover:bg-[#087ed9] group-hover:text-white">
+                    <ArrowRight size={16} className="transition-transform duration-300 group-hover:translate-x-0.5" />
+                  </span>
+                </span>
               </Link>
             ))}
           </div>
         </section>
+
+        {/* Recently Added */}
+        <RecentlyAddedSection />
+
+        {/* Verified Properties */}
+        <VerifiedPropertiesSection />
 
         {/* New Projects & Communities */}
         <section className="container-site py-20">
@@ -233,7 +254,7 @@ export default function HomePage() {
             <img
               src="/images/apartments.jpg"
               alt="New residential development"
-              className="h-80 md:h-96 w-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+              className="h-80 md:h-96 w-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent flex items-end p-8 md:p-12">
               <div className="text-white max-w-lg">
@@ -255,34 +276,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-10 items-center mt-14">
-            <div className="overflow-hidden rounded-2xl shadow-sm group">
-              <img
-                src="/images/community.jpg"
-                className="h-72 w-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-                alt="Residential community"
-              />
-            </div>
-            <div>
-              <p className="eyebrow">Rent a place</p>
-              <h3 className="section-title mt-3">
-                A new city.
-                <br />
-                The same feeling of home.
-              </h3>
-              <p className="text-sm text-slate-500 leading-7 mt-4">
-                Close to work, close to your people, or just close to what matters.
-                Your next rental is waiting to feel like home.
-              </p>
-              <Link
-                href="/rent"
-                className="inline-flex gap-2 items-center bg-[#087ed9] hover:bg-sky-600 text-white rounded-md px-5 py-3 mt-5 text-xs font-semibold transition-all duration-200 shadow-sm hover:shadow-lg hover:shadow-sky-500/20 hover:-translate-y-0.5 active:translate-y-0 group"
-              >
-                <span>Find a rental home</span>
-                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform duration-200" />
-              </Link>
-            </div>
-          </div>
         </section>
 
         {/* Explore Chennai Localities */}
@@ -294,7 +287,7 @@ export default function HomePage() {
               <Link
                 href={'/buy?city=Chennai&locality=' + encodeURIComponent(loc.name)}
                 key={loc.name}
-                className="flex items-center gap-4 border border-[#f0f0f0] rounded-2xl p-4 sm:p-5 hover:border-sky-300 hover:shadow-xl hover:shadow-sky-500/10 hover:-translate-y-1.5 transition-all duration-300 bg-white group min-h-[86px]"
+                className="flex items-center gap-4 border border-[#f0f0f0] rounded-2xl p-4 sm:p-5 hover:border-sky-300 hover:shadow-xl hover:shadow-sky-500/10 hover:-translate-y-1.5 transition duration-300 bg-white group min-h-[86px]"
               >
                 <div className="overflow-hidden rounded-xl h-16 w-16 sm:h-17 sm:w-17 shrink-0">
                   <img
@@ -313,101 +306,54 @@ export default function HomePage() {
                 </div>
                 <ArrowRight
                   size={17}
-                  className="text-slate-400 group-hover:text-[#087ed9] group-hover:translate-x-1.5 transition-all duration-200 shrink-0"
+                  className="text-slate-400 group-hover:text-[#087ed9] group-hover:translate-x-1.5 transition duration-200 shrink-0"
                 />
               </Link>
             ))}
           </div>
         </section>
 
-        {/* Sell / Rent CTA */}
-        <section className="container-site pb-20">
-          <div className="grid md:grid-cols-2 rounded-2xl overflow-hidden bg-[#e8f7ee] border border-emerald-100 group">
-            <div className="overflow-hidden h-72 w-full">
-              <img
-                src="/images/cat-sell.jpg"
-                className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-                alt="Handing over keys to new home"
-              />
-            </div>
-            <div className="p-8 md:p-12 self-center">
-              <p className="eyebrow text-emerald-800">Your property journey</p>
-              <h2 className="section-title mt-3 text-slate-900">
-                Your space.
-                <br />
-                Someone’s next chapter.
-              </h2>
-              <p className="text-sm text-slate-600 mt-4 leading-relaxed">
-                Put your property in the spotlight. Sell or rent with Restamp.
-              </p>
-              <Link
-                href="/sell"
-                className="inline-flex gap-2 items-center bg-[#087ed9] hover:bg-sky-600 text-white rounded-md px-5 py-3 mt-6 text-xs font-semibold transition-all duration-200 shadow-sm hover:shadow-lg hover:shadow-sky-500/20 hover:-translate-y-0.5 active:translate-y-0 group/btn"
-              >
-                <span>Post your property for free</span>
-                <ArrowRight size={14} className="group-hover/btn:translate-x-1 transition-transform duration-200" />
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* Commercial Section */}
-        <section className="container-site pb-20">
-          <h2 className="section-title text-center mb-7">Room for your business to grow</h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            {[
-              ['Own your next opportunity', '/images/commercial-1.jpg'],
-              ['A space that works for you', '/images/commercial-2.jpg'],
-            ].map(([title, img]) => (
-              <Link href="/buy" key={title} className="group block hover-lift transition-all duration-300">
-                <div className="overflow-hidden rounded-2xl shadow-sm border border-slate-100">
-                  <img
-                    src={img}
-                    alt={title}
-                    className="h-60 w-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-                  />
-                </div>
-                <h3 className="font-semibold mt-3 text-slate-800 group-hover:text-[#087ed9] group-hover:translate-x-1 transition-all duration-200 inline-flex items-center gap-1">
-                  <span>{title}</span>
-                  <span className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5">↗</span>
-                </h3>
-              </Link>
-            ))}
-          </div>
-        </section>
 
         {/* Trust & Confidence Section */}
-        <section className="container-site text-center pb-20">
-          <p className="eyebrow">More than a property search</p>
-          <h2 className="section-title mt-3">
-            A little more confidence.
-            <br />
-            Every step of the way.
-          </h2>
-          <div className="grid md:grid-cols-3 gap-8 sm:gap-10 mt-10">
-            {[
-              [MapPin, 'Find what feels right'],
-              [ShieldCheck, 'The details that matter'],
-              [HeartHandshake, 'Your next move, simplified'],
-            ].map(([Icon, label], i) => {
-              const I = Icon as typeof MapPin;
-              return (
-                <div
-                  key={i}
-                  className="group p-5 rounded-2xl hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 hover:-translate-y-1.5 transition-all duration-300 border border-transparent hover:border-slate-100"
-                >
-                  <span className="inline-flex p-4 rounded-full bg-sky-100 text-[#087ed9] group-hover:bg-[#087ed9] group-hover:text-white group-hover:scale-110 transition-all duration-300 shadow-xs">
-                    <I size={22} />
-                  </span>
-                  <h3 className="text-sm font-semibold mt-4 text-slate-800 group-hover:text-[#087ed9] transition-colors">
-                    {label as string}
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-2">
-                    Explore your options with confidence and clarity.
-                  </p>
-                </div>
-              );
-            })}
+        <section className="container-site pb-20">
+          <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-10 lg:gap-16 items-center rounded-[24px] bg-white border border-slate-100 p-6 sm:p-10 lg:p-14">
+            <div>
+              <p className="eyebrow">More than a property search</p>
+              <h2 className="section-title mt-3">
+                A little more confidence.
+                <br />
+                Every step of the way.
+              </h2>
+              <p className="text-sm text-slate-600 mt-4 leading-relaxed max-w-md">
+                From the first search to the final handshake, Restamp keeps every decision clear, verified and simple.
+              </p>
+            </div>
+            <div className="grid sm:grid-cols-3 lg:grid-cols-1 gap-4">
+              {[
+                [MapPin, 'Find what feels right', 'Search by neighbourhood, budget and lifestyle to shortlist homes that truly fit.'],
+                [ShieldCheck, 'The details that matter', 'Verified listings, transparent pricing and owner details — no surprises later.'],
+                [HeartHandshake, 'Your next move, simplified', 'Connect directly, schedule visits and close the deal with guidance at every step.'],
+              ].map(([Icon, label, desc], i) => {
+                const I = Icon as typeof MapPin;
+                return (
+                  <div
+                    key={i}
+                    className="group flex flex-col lg:flex-row gap-4 lg:items-center p-5 rounded-[16px] bg-slate-50 border border-slate-100 hover:bg-white hover:border-sky-100 hover:shadow-lg hover:shadow-slate-200/60 transition duration-300"
+                  >
+                    <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] bg-sky-100 text-[#087ed9] group-hover:bg-[#087ed9] group-hover:text-white transition-colors duration-300">
+                      <I size={22} />
+                    </span>
+                    <div className="flex-1">
+                      <h3 className="text-base font-semibold text-slate-900">{label as string}</h3>
+                      <p className="text-sm text-slate-500 mt-1 leading-relaxed">{desc as string}</p>
+                    </div>
+                    <span className="hidden lg:block text-2xl font-extrabold text-slate-200 group-hover:text-sky-200 transition-colors">
+                      0{i + 1}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </section>
 
@@ -416,7 +362,7 @@ export default function HomePage() {
           <div className="relative w-full rounded-[24px] sm:rounded-[32px] overflow-hidden bg-[#0074ce] shadow-xl text-white min-h-[380px] sm:min-h-[400px] lg:min-h-[420px] group">
             {/* High-definition smartphone mockup graphic pinned cleanly as background */}
             <div
-              className="absolute inset-0 w-full h-full bg-no-repeat bg-right bg-cover pointer-events-none group-hover:scale-[1.01] transition-transform duration-700 ease-out"
+              className="absolute inset-0 w-full h-full bg-no-repeat bg-right bg-cover pointer-events-none group-hover:scale-[1.01] transition-transform duration-500 ease-out"
               style={{
                 backgroundImage: `url('/images/mobile-app@2x.webp')`,
                 imageRendering: '-webkit-optimize-contrast',
@@ -452,7 +398,7 @@ export default function HomePage() {
                 <a
                   href="#download-ios"
                   aria-label="Download on the App Store"
-                  className="inline-flex items-center gap-2 sm:gap-2.5 bg-white/12 hover:bg-white/22 active:scale-95 backdrop-blur-md border border-white/25 hover:border-white/40 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-white transition-all duration-200 shadow-sm hover:shadow-lg shrink-0 group hover:scale-105"
+                  className="inline-flex items-center gap-2 sm:gap-2.5 bg-white/12 hover:bg-white/22 active:scale-[0.97] backdrop-blur-md border border-white/25 hover:border-white/40 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-white transition duration-200 shadow-sm hover:shadow-lg shrink-0 group hover:scale-105"
                 >
                   <svg
                     className="w-4.5 h-5.5 sm:w-5 sm:h-6 shrink-0 drop-shadow-xs"
@@ -483,7 +429,7 @@ export default function HomePage() {
                 <a
                   href="#download-android"
                   aria-label="Download on Google Play"
-                  className="inline-flex items-center gap-2 sm:gap-2.5 bg-white/12 hover:bg-white/22 active:scale-95 backdrop-blur-md border border-white/25 hover:border-white/40 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-white transition-all duration-200 shadow-sm hover:shadow-lg shrink-0 group hover:scale-105"
+                  className="inline-flex items-center gap-2 sm:gap-2.5 bg-white/12 hover:bg-white/22 active:scale-[0.97] backdrop-blur-md border border-white/25 hover:border-white/40 rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 text-white transition duration-200 shadow-sm hover:shadow-lg shrink-0 group hover:scale-105"
                 >
                   <svg
                     className="w-4.5 h-5.5 sm:w-5 sm:h-6 shrink-0 drop-shadow-xs"
@@ -522,26 +468,46 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* Explore Links */}
+        <ExploreLinksSection />
+
         {/* Bottom Banner */}
-        <section className="border-t border-slate-200">
-          <div className="container-site py-8 flex flex-col sm:flex-row justify-between gap-4 sm:gap-5 items-start sm:items-center">
-            <div>
-              <h2 className="font-semibold text-slate-900 text-base sm:text-lg">
-                The right address changes everything.
+        <section className="container-site pb-20">
+          <div className="grid overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-[0_4px_24px_rgba(0,0,0,0.05)] md:grid-cols-[1.15fr_1fr]">
+            <div className="flex flex-col justify-center p-7 sm:p-10 lg:p-14">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#087ed9] text-white shadow-sm shadow-[#087ed9]/25">
+                <House size={22} strokeWidth={2} />
+              </span>
+              <h2 className="mt-6 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">
+                The right address <span className="text-[#087ed9]">changes everything.</span>
               </h2>
-              <p className="text-xs text-slate-500 mt-1 sm:mt-2">
-                Your next chapter starts with Restamp.
+              <p className="mt-3 text-sm text-slate-500 sm:text-base">
+                Your next chapter starts with Restamp — verified owner homes, zero brokerage hassle.
               </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/buy"
+                  className="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#087ed9] px-6 py-3.5 text-sm font-bold text-white shadow-md shadow-[#087ed9]/25 transition hover:bg-[#0670c2]"
+                >
+                  Let’s find your home
+                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+                </Link>
+                <Link
+                  href="/rent"
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-bold text-slate-700 transition hover:border-[#087ed9] hover:text-[#087ed9]"
+                >
+                  Explore rentals
+                </Link>
+              </div>
             </div>
-            <Link
-              href="/buy"
-              className="border border-slate-300 hover:border-slate-400 rounded-md px-5 py-3 text-xs font-semibold text-slate-700 whitespace-nowrap transition"
-            >
-              Let’s find your home →
-            </Link>
+            <div className="relative min-h-[220px] md:min-h-full">
+              <img src="/images/interior.jpg" alt="Bright modern living room" className="absolute inset-0 h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-r from-white/30 via-transparent to-transparent md:from-white/60" />
+            </div>
           </div>
         </section>
       </main>
+      <HomeAnimations />
       <Footer />
     </>
   );

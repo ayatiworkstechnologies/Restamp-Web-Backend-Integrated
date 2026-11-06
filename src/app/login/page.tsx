@@ -20,13 +20,19 @@ const roleLabels: Record<string, string> = {
 
 /**
  * Where to go after signing in. Owners get the backend OWNER role and the
- * owner dashboard (access is decided by role, not by a plan purchase);
- * everyone else returns to where they came from, or their profile.
+ * owner dashboard; agents (the separate agent sign-in page was removed) get
+ * the backend BROKER role and the agent dashboard. Access is decided by role,
+ * not by a plan purchase. Everyone else returns to where they came from, or
+ * their profile.
  */
 async function afterLogin(role: string, next: string | null): Promise<string> {
   if (role === 'owner') {
     await ensureRole('OWNER');
     return next || '/owner/dashboard';
+  }
+  if (role === 'agent') {
+    await ensureRole('BROKER');
+    return next || '/agent/dashboard';
   }
   return next || '/profile';
 }
@@ -40,10 +46,7 @@ function LoginForm() {
 
   useEffect(() => {
     if (role === 'admin') {
-      router.replace('/admin/login');
-    } else if (role === 'agent') {
-      // The agent area keeps its own sign-in page (not connected to the backend yet).
-      router.replace('/agent/login');
+      router.replace('/admin-login');
     }
   }, [role, router]);
 
@@ -101,16 +104,16 @@ function LoginForm() {
   return (
     <div className="w-full max-w-4xl bg-white rounded-[32px] p-4 sm:p-6 md:p-8 shadow-2xl shadow-black/40 flex flex-col md:flex-row gap-6 md:gap-10 items-stretch border border-slate-800/20">
       {/* Left Column: Visual Brand Card in Website Navy with Cyan/Blue Glow */}
-      <div className="relative w-full md:w-[46%] rounded-[24px] bg-[#070e17] overflow-hidden p-8 sm:p-10 flex flex-col justify-between min-h-[340px] md:min-h-[520px] select-none border border-slate-800">
+      <div className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 text-slate-900 relative w-full md:w-[46%] rounded-[24px] overflow-hidden p-8 sm:p-10 flex flex-col justify-between min-h-[340px] md:min-h-[520px] select-none">
         {/* Top Typography */}
         <div className="relative z-10">
-          <span className="inline-block rounded-full bg-sky-500/15 border border-sky-400/20 px-3 py-1 text-[11px] font-semibold text-sky-400 tracking-wider uppercase backdrop-blur-xs mb-4">
+          <span className="inline-block rounded-full bg-sky-500/15 border border-sky-400/20 px-3 py-1 text-[11px] font-semibold text-sky-600 tracking-wider uppercase backdrop-blur-xs mb-4">
             Restamp Marketplace
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-[32px] font-extrabold text-white leading-[1.2] tracking-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-[32px] font-extrabold text-slate-900 leading-[1.2] tracking-tight">
             Convert your ideas into successful business.
           </h2>
-          <p className="mt-3.5 text-xs sm:text-sm text-slate-400 leading-relaxed max-w-xs">
+          <p className="mt-3.5 text-xs sm:text-sm text-slate-500 leading-relaxed max-w-xs">
             Discover verified properties, transparent agreements, and seamless transactions on Restamp.
           </p>
         </div>
@@ -124,11 +127,11 @@ function LoginForm() {
         </div>
 
         {/* Bottom Tag */}
-        <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400">
-          <span className="font-semibold tracking-wider uppercase text-slate-300">
+        <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-500">
+          <span className="font-semibold tracking-wider uppercase text-slate-600">
             Verified Portal
           </span>
-          <span className="text-sky-400 font-mono">v1.0</span>
+          <span className="text-sky-600 font-mono">v1.0</span>
         </div>
       </div>
 
@@ -137,17 +140,7 @@ function LoginForm() {
         {/* Brand Logo & Back to Home */}
         <div className="mb-5 flex items-center justify-between">
           <Link href="/" className="inline-flex items-center gap-2">
-            <Image
-              src="/restamplogo.svg"
-              alt="Restamp Logo"
-              width={34}
-              height={34}
-              className="h-8.5 w-8.5 object-contain"
-              priority
-            />
-            <span className="text-slate-900 font-bold text-lg tracking-tight">
-              Re<span className="text-[#087ed9]">stamp</span>
-            </span>
+            <Image src="/restamp-logo.svg" alt="Restamp" width={149} height={40} className="h-10 w-auto" priority />
           </Link>
           <Link
             href="/"
@@ -172,7 +165,7 @@ function LoginForm() {
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Your mobile
               </label>
-              <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm focus-within:border-[#087ed9] focus-within:ring-2 focus-within:ring-[#087ed9]/20 transition shadow-2xs">
+              <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm focus-within:border-[#087ed9] transition shadow-2xs">
                 <Smartphone size={16} className="text-slate-400 shrink-0" />
                 <span className="text-slate-600 font-semibold">+91</span>
                 <input
@@ -192,7 +185,7 @@ function LoginForm() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
+              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] h-[53px] text-sm font-semibold text-white transition shadow-sm hover:shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
             >
               {busy ? <Loader2 size={16} className="animate-spin" /> : null}
               <span>{busy ? 'Sending…' : 'Get OTP'}</span>
@@ -260,7 +253,7 @@ function LoginForm() {
               placeholder="Your full name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none focus:border-[#087ed9] focus:ring-2 focus:ring-[#087ed9]/20"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none focus:border-[#087ed9] transition"
             />
             {error && <p className="text-xs text-red-500 font-medium" role="alert">{error}</p>}
             <button
@@ -303,7 +296,7 @@ function LoginForm() {
                   value={digit}
                   onChange={(e) => changeOtp(i, e.target.value)}
                   onKeyDown={(e) => otpKeyDown(i, e)}
-                  className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-center text-lg font-bold text-slate-900 outline-none focus:border-[#087ed9] focus:bg-white focus:ring-2 focus:ring-[#087ed9]/20 transition"
+                  className="h-12 w-12 rounded-xl border border-slate-200 bg-slate-50 text-center text-lg font-bold text-slate-900 outline-none focus:border-[#087ed9] focus:bg-white transition"
                 />
               ))}
             </div>
@@ -313,7 +306,7 @@ function LoginForm() {
             <button
               type="submit"
               disabled={busy || finishing || otp.join('').length < OTP_LENGTH}
-              className="w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] py-3 text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
+              className="inline-flex items-center justify-center gap-2 w-full rounded-xl bg-[#087ed9] hover:bg-[#0070c9] h-[53px] text-sm font-semibold text-white transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shadow-sm"
             >
               {(busy || finishing) && <Loader2 size={16} className="animate-spin" />}
               Verify &amp; Login
@@ -342,7 +335,7 @@ function LoginForm() {
         {/* Link to Administrator Console */}
         <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-center text-xs text-slate-400">
           <Link
-            href="/admin/login"
+            href="/admin-login"
             className="hover:text-slate-800 hover:underline inline-flex items-center gap-1.5 font-medium transition"
           >
             <ShieldCheck size={14} className="text-[#087ed9]" />

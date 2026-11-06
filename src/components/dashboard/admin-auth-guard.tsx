@@ -10,11 +10,13 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const isLoginPage = pathname === '/admin-dashboard/login' || pathname === '/admin/login';
+  const isLoginPage = pathname === '/admin-dashboard/login' || pathname === '/admin/login' || pathname === '/admin-login';
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !accessError && !isLoginPage) {
-      router.replace(`/admin/login?redirect=${encodeURIComponent(pathname)}`);
+      // Short public URL for the dashboard root: /admin (it forwards to /admin-dashboard).
+      const target = pathname === '/admin-dashboard' ? '/admin' : pathname;
+      router.replace(`/admin-login?redirect=${encodeURIComponent(target)}`);
     }
   }, [isLoading, isAuthenticated, accessError, isLoginPage, pathname, router]);
 

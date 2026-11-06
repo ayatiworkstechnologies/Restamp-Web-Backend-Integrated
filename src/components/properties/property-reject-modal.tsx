@@ -121,10 +121,10 @@ export function PropertyRejectModal({
                 if (error) setError("");
               }}
               placeholder="e.g. The uploaded parent sale deed is missing pages 3-4 and the stamp duty seal is not visible. Please upload the clear original registered deed scan."
-              className={`w-full rounded-xl border p-2.5 text-xs text-[#20314b] outline-none transition-all placeholder:text-[#a0acbe] focus:bg-white focus:ring-2 ${
+              className={`w-full rounded-xl border p-2.5 text-xs text-[#20314b] outline-none transition-all placeholder:text-[#a0acbe] focus:bg-white ${
                 error
-                  ? "border-[#ef4444] bg-[#fef2f2] focus:ring-[#ef4444]/10"
-                  : "border-[#dce3ee] bg-[#fafbfd] focus:border-[#ef4444] focus:ring-[#ef4444]/10"
+                  ? "border-[#ef4444] bg-[#fef2f2]"
+                  : "border-[#dce3ee] bg-[#fafbfd] focus:border-[#ef4444]"
               }`}
             />
             {error && <p className="mt-1 text-[11px] font-semibold text-[#ef4444]">{error}</p>}

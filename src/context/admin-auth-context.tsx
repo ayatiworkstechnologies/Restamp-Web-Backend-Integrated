@@ -68,7 +68,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     signOut();
     setAdmin(null);
-    router.push('/admin/login');
+    router.push('/admin-login');
   }, [router]);
 
   return (

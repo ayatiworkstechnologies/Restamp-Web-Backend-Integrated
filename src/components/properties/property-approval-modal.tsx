@@ -91,7 +91,7 @@ export function PropertyApprovalModal({
               type="checkbox"
               checked={false}
               disabled
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#2854cb]"
             />
             <div className="text-xs">
               <span className="font-bold text-[#23334e] flex items-center gap-1.5">
@@ -108,7 +108,7 @@ export function PropertyApprovalModal({
               type="checkbox"
               checked={false}
               disabled
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#2854cb] focus:ring-[#2854cb]"
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#2854cb]"
             />
             <div className="text-xs">
               <span className="font-bold text-[#23334e] flex items-center gap-1.5">
@@ -130,7 +130,7 @@ export function PropertyApprovalModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Legal papers verified, clear title deed confirmed on 28 Oct..."
-              className="w-full rounded-xl border border-[#dce3ee] bg-[#fafbfd] p-2.5 text-xs text-[#20314b] outline-none transition-all placeholder:text-[#a0acbe] focus:border-[#2854cb] focus:bg-white focus:ring-2 focus:ring-[#2854cb]/10"
+              className="w-full rounded-xl border border-[#dce3ee] bg-[#fafbfd] p-2.5 text-xs text-[#20314b] outline-none transition-all placeholder:text-[#a0acbe] focus:border-[#2854cb] focus:bg-white"
             />
           </div>
         </div>
