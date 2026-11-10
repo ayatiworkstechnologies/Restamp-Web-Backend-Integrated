@@ -1,13 +1,46 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BadgeCheck, Bath, BedDouble, Heart, MapPin, Phone, Ruler } from 'lucide-react';
-import { properties, Property } from '@/data/properties';
+import type { Property } from '@/data/properties';
+import { searchListings } from '@/lib/api/buyer';
+import { errorMessage } from '@/lib/api/client';
+import { cardToProperty } from '@/lib/api/mappers';
+import { formatIndianPhone, useOwnerContact } from '@/lib/useOwnerContact';
 import { toggleWishlist, useWishlist } from '@/lib/wishlist';
 
+// Both home sections show real listings from GET /buyer/listings (newest
+// first; every buyer-visible listing is verified). View Number is the same
+// authorized, audited reveal as the property cards: signed-in users only.
+function useListings(page: number, pageSize: number) {
+  const [items, setItems] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    searchListings({ sort: 'relevance' }, page, pageSize, controller.signal)
+      .then((res) => setItems(res.items.map(cardToProperty)))
+      .catch((e) => {
+        if (!controller.signal.aborted) setError(errorMessage(e, 'Could not load properties.'));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [page, pageSize]);
+  return { items, loading, error };
+}
+
+function SectionStatus({ loading, error, empty }: { loading: boolean; error: string; empty: boolean }) {
+  if (loading) return <p className="py-10 text-center text-sm text-slate-500">Loading properties…</p>;
+  if (error) return <p className="py-10 text-center text-sm text-red-600" role="alert">{error}</p>;
+  if (empty) return <p className="py-10 text-center text-sm text-slate-500">No properties listed yet.</p>;
+  return null;
+}
+
 function RecentCard({ p, liked, verified }: { p: Property; liked: boolean; verified?: boolean }) {
-  const [show, setShow] = useState(false);
+  const contact = useOwnerContact(p.id);
   const title = [p.bhk, p.propertyType || p.propertyCategory].filter(Boolean).join(' ') || p.name;
   const location = p.address || [p.locality || p.area, p.city].filter(Boolean).join(', ');
 
@@ -17,7 +50,11 @@ function RecentCard({ p, liked, verified }: { p: Property; liked: boolean; verif
     <article className="group flex flex-col rounded-[24px] bg-white p-3 shadow-[0_8px_30px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
       <Link href={`/properties/${p.id}`} className="block">
         <div className="relative aspect-[4/3] overflow-hidden rounded-[18px]">
-          <img src={p.image} alt={title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          {p.image ? (
+            <img src={p.image} alt={title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs text-slate-400">No photo</div>
+          )}
           {verified && (
             <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm">
               <BadgeCheck size={14} className="fill-emerald-100" /> Verified
@@ -53,14 +90,27 @@ function RecentCard({ p, liked, verified }: { p: Property; liked: boolean; verif
       </Link>
       <div className="mx-3 mt-5 border-t border-slate-100" />
       <div className="px-3 pb-2 pt-4">
-        <button
-          type="button"
-          onClick={() => setShow((s) => !s)}
-          className="inline-flex w-full h-[53px] cursor-pointer items-center justify-center gap-2 rounded-[16px] bg-slate-100 px-5 text-sm font-semibold text-slate-900 transition hover:bg-slate-200"
-        >
-          <Phone size={16} />
-          {show ? p.phoneNumber || '+91 98402 11234' : 'View Number'}
-        </button>
+        {contact.phone ? (
+          <a
+            href={`tel:${contact.phone}`}
+            onClick={contact.onCall}
+            className="inline-flex w-full h-[53px] cursor-pointer items-center justify-center gap-2 rounded-[16px] bg-slate-100 px-5 text-sm font-semibold text-slate-900 transition hover:bg-slate-200"
+          >
+            <Phone size={16} />
+            {formatIndianPhone(contact.phone)}
+          </a>
+        ) : (
+          <button
+            type="button"
+            title={contact.error || undefined}
+            disabled={contact.loading}
+            onClick={() => void contact.reveal()}
+            className="inline-flex w-full h-[53px] cursor-pointer items-center justify-center gap-2 rounded-[16px] bg-slate-100 px-5 text-sm font-semibold text-slate-900 transition hover:bg-slate-200 disabled:opacity-60"
+          >
+            <Phone size={16} />
+            {contact.loading ? 'Loading…' : contact.error ? 'Number unavailable' : 'View Number'}
+          </button>
+        )}
       </div>
     </article>
   );
@@ -73,9 +123,11 @@ type SectionProps = {
   items: Property[];
   href?: string;
   verified?: boolean;
+  loading?: boolean;
+  error?: string;
 };
 
-export function PropertyCardSection({ eyebrow, title, description, items, href = '/buy', verified }: SectionProps) {
+export function PropertyCardSection({ eyebrow, title, description, items, href = '/buy', verified, loading = false, error = '' }: SectionProps) {
   const wish = useWishlist();
   return (
     <section className="container-site pb-16">
@@ -89,6 +141,7 @@ export function PropertyCardSection({ eyebrow, title, description, items, href =
           View all →
         </Link>
       </div>
+      <SectionStatus loading={loading} error={error} empty={items.length === 0} />
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {items.map((p) => (
           <RecentCard key={p.id} p={p} liked={wish.includes(p.id)} verified={verified} />
@@ -99,12 +152,15 @@ export function PropertyCardSection({ eyebrow, title, description, items, href =
 }
 
 export default function RecentlyAddedSection() {
+  const { items, loading, error } = useListings(1, 4);
   return (
     <PropertyCardSection
       eyebrow="Fresh on Restamp"
       title="Recently added properties"
       description="The newest homes, villas and apartments just listed — be the first to explore them before they're gone."
-      items={[...properties].sort((a, b) => b.id - a.id).slice(0, 4)}
+      items={items}
+      loading={loading}
+      error={error}
     />
   );
 }
@@ -124,7 +180,11 @@ function VerifiedCard({ p, liked }: { p: Property; liked: boolean }) {
       className="group flex flex-col overflow-hidden rounded-[16px] bg-white shadow-[0_6px_24px_rgba(15,23,42,0.07)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_14px_36px_rgba(15,23,42,0.12)]"
     >
       <div className="relative aspect-[16/10] overflow-hidden">
-        <img src={p.image} alt={p.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        {p.image ? (
+          <img src={p.image} alt={p.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs text-slate-400">No photo</div>
+        )}
         <span
           className={`absolute left-3 top-3 rounded-md px-2.5 py-1 text-xs font-semibold ${
             isRent ? 'bg-indigo-500 text-white' : 'bg-emerald-100 text-emerald-800'
@@ -177,8 +237,8 @@ function VerifiedCard({ p, liked }: { p: Property; liked: boolean }) {
 
 export function VerifiedPropertiesSection() {
   const wish = useWishlist();
-  const verified = properties.filter((p) => /verified/i.test(p.postedBy || ''));
-  const items = (verified.length >= 4 ? verified : [...verified, ...properties.filter((p) => !verified.includes(p))]).slice(0, 4);
+  // The next four listings after "Recently added" (all buyer-visible listings are verified).
+  const { items, loading, error } = useListings(2, 4);
   return (
     <section className="container-site pb-16">
       <div className="mb-7 flex items-end justify-between gap-4">
@@ -193,6 +253,7 @@ export function VerifiedPropertiesSection() {
           View all →
         </Link>
       </div>
+      <SectionStatus loading={loading} error={error} empty={items.length === 0} />
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {items.map((p) => (
           <VerifiedCard key={p.id} p={p} liked={wish.includes(p.id)} />

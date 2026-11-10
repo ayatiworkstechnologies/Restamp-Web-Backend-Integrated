@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Clock, Mail, MessageCircle, Phone, Send } from 'lucide-react';
-import { getProfile } from '@/lib/profile';
+import { Clock, Mail, MessageCircle, Phone, Send } from 'lucide-react';
+import { getSession, isPlaceholderName } from '@/lib/api/session';
 
-// TODO: replace with Restamp's real support details.
+// Restamp's support details come from public build settings (see
+// .env.example). A channel that is not configured is not shown: no
+// placeholder number or address is ever displayed as if it were real.
 const SUPPORT = {
-  phone: '+91 98400 00000',
-  email: 'support@restamp.in',
-  whatsapp: 'https://wa.me/919840000000',
+  phone: (process.env.NEXT_PUBLIC_SUPPORT_PHONE || '').trim(),
+  email: (process.env.NEXT_PUBLIC_SUPPORT_EMAIL || '').trim(),
+  whatsapp: (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '').trim(),
   hours: 'Mon – Sat, 9:30 AM – 6:30 PM',
 };
 
@@ -22,38 +24,26 @@ export default function ContactUs({ role, topics }: { role: 'agent' | 'owner' | 
   const [topic, setTopic] = useState(topics[0]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    const p = getProfile();
-    if (p) {
-      setName(p.name ?? '');
-      setMobile(p.mobile ?? '');
-    }
+    // The signed-in account's chosen name (the backend profile has no phone number).
+    const name = getSession()?.displayName;
+    if (name && !isPlaceholderName(name)) setName(name);
   }, []);
 
+  // The RESTAMP backend has no support/contact endpoint yet, so a message
+  // cannot be delivered from here. Nothing is stored and no "sent" message is
+  // shown; the form explains this and points to the configured channels.
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !/^\d{10}$/.test(mobile) || message.trim().length < 10) {
-      setError('Please enter your name, a 10-digit mobile number and a message of at least 10 characters.');
-      return;
-    }
-    setError('');
-    // No backend yet: keep a local copy so the request isn't lost in the demo.
-    try {
-      const key = 'restamp_support_requests';
-      const list = JSON.parse(localStorage.getItem(key) || '[]');
-      list.unshift({ role, name, mobile, topic, message, createdAt: new Date().toISOString() });
-      localStorage.setItem(key, JSON.stringify(list));
-    } catch {}
-    setSent(true);
+    setError(`Messages can't be sent from the website yet (${role} support). Please use the contact options on this page.`);
   };
 
   const channels = [
-    { icon: Phone, label: 'Call us', value: SUPPORT.phone, href: `tel:${SUPPORT.phone.replace(/\s/g, '')}` },
-    { icon: Mail, label: 'Email', value: SUPPORT.email, href: `mailto:${SUPPORT.email}` },
-    { icon: MessageCircle, label: 'WhatsApp', value: 'Chat with support', href: SUPPORT.whatsapp },
-  ];
+    SUPPORT.phone && { icon: Phone, label: 'Call us', value: SUPPORT.phone, href: `tel:${SUPPORT.phone.replace(/\s/g, '')}` },
+    SUPPORT.email && { icon: Mail, label: 'Email', value: SUPPORT.email, href: `mailto:${SUPPORT.email}` },
+    SUPPORT.whatsapp && { icon: MessageCircle, label: 'WhatsApp', value: 'Chat with support', href: SUPPORT.whatsapp },
+  ].filter(Boolean) as { icon: typeof Phone; label: string; value: string; href: string }[];
 
   return (
     <div className="space-y-6">
@@ -64,24 +54,6 @@ export default function ContactUs({ role, topics }: { role: 'agent' | 'owner' | 
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <section className={`${card} p-6`}>
-          {sent ? (
-            <div className="flex flex-col items-center py-10 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-50 text-green-600">
-                <CheckCircle2 size={28} />
-              </span>
-              <h2 className="mt-4 text-lg font-bold text-slate-900">Message sent</h2>
-              <p className="mt-1 max-w-sm text-sm text-slate-500">
-                Thanks, {name.split(' ')[0]}. Our support team will call you on {mobile} within one working day.
-              </p>
-              <button
-                type="button"
-                onClick={() => { setSent(false); setMessage(''); }}
-                className="mt-6 rounded-xl border border-[#087ed9] px-4 py-2.5 text-sm font-semibold text-[#087ed9] hover:bg-sky-50"
-              >
-                Send another message
-              </button>
-            </div>
-          ) : (
             <form onSubmit={submit} className="space-y-4">
               <h2 className="font-bold text-slate-900">Send us a message</h2>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -110,18 +82,23 @@ export default function ContactUs({ role, topics }: { role: 'agent' | 'owner' | 
                   onChange={(e) => setMessage(e.target.value)}
                 />
               </label>
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
+              <p className="text-xs text-slate-500">Sending messages from the website is not available yet.</p>
               <button
                 type="submit"
-                className="inline-flex h-[53px] items-center gap-2 rounded-xl bg-[#087ed9] px-6 text-sm font-semibold text-white hover:bg-sky-600 active:scale-[0.97]"
+                disabled
+                title="Sending messages from the website is not available yet"
+                className="inline-flex h-[53px] items-center gap-2 rounded-xl bg-[#087ed9] px-6 text-sm font-semibold text-white hover:bg-sky-600 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Send size={16} /> Send message
               </button>
             </form>
-          )}
         </section>
 
         <aside className="space-y-4">
+          {channels.length === 0 && (
+            <div className={`${card} p-4 text-sm text-slate-500`}>Support contact details will be published here soon.</div>
+          )}
           {channels.map(({ icon: Icon, label, value, href }) => (
             <a
               key={label}
