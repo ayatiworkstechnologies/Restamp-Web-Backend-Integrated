@@ -2,8 +2,8 @@
  * RESTAMP backend API client for the website.
  *
  * - Base URL comes from NEXT_PUBLIC_API_URL. Unset: local backend in
- *   development, the deployed Render backend in production builds (same rule
- *   as the mobile app). The URL is fixed per page load; requests never switch
+ *   development, the live RESTAMP API (https://api.restamp.in) in production
+ *   builds (same rule as the mobile app). The URL is fixed per page load; requests never switch
  *   hosts after a failure.
  * - Every failure is an ApiError with a `kind` the UI branches on:
  *   login (401) | denied (403) | missing (404) | validation (400/422) |
@@ -16,7 +16,7 @@
 import { getSessionToken, handleUnauthorized } from './session';
 
 const DEFAULT_LOCAL_API_URL = 'http://127.0.0.1:8000';
-const DEFAULT_PROD_API_URL = 'https://restamp-backend-h3x8.onrender.com';
+const DEFAULT_PROD_API_URL = 'https://api.restamp.in';
 
 function resolveApiBaseUrl(): string {
   const configured = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
