@@ -9,7 +9,6 @@ import { getSession, isPlaceholderName, loginHref } from '@/lib/api/session';
 import {
   locationPackages,
   getDraftPackage,
-  activateAgentPackage,
   hasActiveAgentSubscription,
   AGENT_PROMO_CODES,
   calculateAgentPackageBill,
@@ -153,69 +152,12 @@ export default function AgentPaymentPage() {
     setExpiry(clean);
   };
 
-  // Trigger payment execution
+  // Online payment is not connected to a payment gateway yet, and the
+  // backend's agent plan purchase is a simulation, so nothing is charged,
+  // recorded or activated here: the button is disabled and this only explains
+  // why (never a fake "payment successful").
   const handleProcessPayment = () => {
-    // Prevent duplicate activation / double charges
-    if (isSubmittingRef.current || paymentState === 'processing') return;
-
-    // Validate based on payment method
-    if (method === 'upi') {
-      if (upiId && !/^[\w.-]{2,}@[a-zA-Z]{2,}$/.test(upiId.trim())) {
-        setErrorMessage('Please enter a valid UPI VPA (e.g. agent@okhdfcbank)');
-        return;
-      }
-    } else if (method === 'card') {
-      const cleanDigits = cardNumber.replace(/\D/g, '');
-      if (cleanDigits.length < 15) {
-        setErrorMessage('Please enter a valid 16-digit card number');
-        return;
-      }
-      if (!cardHolder.trim()) {
-        setErrorMessage('Please enter the name printed on the card');
-        return;
-      }
-      if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(expiry)) {
-        setErrorMessage('Please enter expiry date as MM/YY');
-        return;
-      }
-      if (cvv.length < 3) {
-        setErrorMessage('Please enter a valid 3-digit CVV');
-        return;
-      }
-    }
-
-    setErrorMessage('');
-    setPaymentState('processing');
-    isSubmittingRef.current = true;
-
-    // Process payment and activate subscription
-    setTimeout(() => {
-
-      // Success flow: Activate Subscription with verified confirmation
-      const methodLabel =
-        method === 'upi'
-          ? `UPI (${upiId ? upiId.trim() : upiApp})`
-          : method === 'card'
-          ? `Card (•••• ${cardNumber.replace(/\D/g, '').slice(-4)})`
-          : `Net Banking (${selectedBank})`;
-
-      const result = activateAgentPackage(pkg, selectedLocations, {
-        total: bill.total,
-        amount: bill.basePrice,
-        discount: bill.discount,
-        gst: bill.gst,
-        promoCode: discount ? promoCode.trim().toUpperCase() : undefined,
-        method: methodLabel,
-        agentMobile: profile?.mobile,
-        agentName: profile?.name || 'Verified Agent',
-        firmName: 'Royal Realty Associates',
-        reraNumber: 'TN/AGENT/0491/2023',
-      });
-
-      isSubmittingRef.current = false;
-      setPaymentResult(result);
-      setPaymentState('success');
-    }, 1600);
+    setErrorMessage('Online payment is not available yet. No payment was taken and no plan was activated.');
   };
 
   return (
@@ -664,7 +606,8 @@ export default function AgentPaymentPage() {
                 <button
                   type="button"
                   onClick={handleProcessPayment}
-                  disabled={paymentState === 'processing'}
+                  disabled
+                  title="Online payment is not available yet"
                   className="w-full h-[53px] rounded-2xl bg-[#087ed9] hover:bg-sky-600 disabled:opacity-50 text-white font-extrabold text-sm transition shadow-lg hover:shadow-sky-500/25 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {paymentState === 'processing' ? (
@@ -681,7 +624,7 @@ export default function AgentPaymentPage() {
                 </button>
 
                 <p className="text-[11px] text-center text-slate-400">
-                  By clicking Pay, you agree to Restamp RERA compliance terms. Duplicate charges are automatically blocked.
+                  Online payment is not available yet. No payment is taken on this page.
                 </p>
               </div>
 

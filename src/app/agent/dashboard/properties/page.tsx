@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { getAgentSubscription } from '@/lib/agentPlan';
-import { getAgentCatalogProperties, type AgentPropertyItem } from '@/lib/agent-data';
-import { useAgentLeads } from '@/lib/agentLeads';
-import MatchModal from '@/components/agent/MatchModal';
+import { listBrokerListings, listBrokerLocations } from '@/lib/api/broker';
+import type { ListingCard } from '@/lib/api/buyer';
+import { errorMessage } from '@/lib/api/client';
+import { cleanImageUrl, typeLabel } from '@/lib/api/mappers';
 import { agentCard } from '../ui';
-import { BadgeCheck, BedDouble, MapPin, Ruler, Search, Users } from 'lucide-react';
+import { BedDouble, Loader2, MapPin, Ruler, Search } from 'lucide-react';
 
 const PURPOSES = ['All', 'Buy', 'Rent', 'Lease'] as const;
 const TYPES = ['All Types', 'Apartment', 'Villa', 'House', 'Commercial', 'Plot'];
@@ -15,35 +15,56 @@ const BHKS = ['All BHK', '1', '2', '3', '4+'];
 
 const select = 'h-[53px] cursor-pointer rounded-[16px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none';
 
+const purposeOf = (l: ListingCard) => (l.transaction_type === 'RENT' ? 'Rent' : l.transaction_type === 'LEASE' ? 'Lease' : 'Buy');
+
+// Owner listings inside the agent's covered areas, from GET /broker/listings:
+// the backend decides the coverage, so nothing outside it is ever loaded.
 export default function AgentPropertiesPage() {
-  const [all, setAll] = useState<AgentPropertyItem[]>([]);
+  const [all, setAll] = useState<ListingCard[]>([]);
+  const [total, setTotal] = useState(0);
   const [coverage, setCoverage] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   const [purpose, setPurpose] = useState<(typeof PURPOSES)[number]>('All');
   const [type, setType] = useState('All Types');
   const [bhk, setBhk] = useState('All BHK');
   const [loc, setLoc] = useState('All Locations');
   const [query, setQuery] = useState('');
-  const [matching, setMatching] = useState<AgentPropertyItem | null>(null);
-  const [toast, setToast] = useState('');
-  const { leads } = useAgentLeads();
 
   useEffect(() => {
-    setAll(getAgentCatalogProperties());
-    setCoverage(getAgentSubscription()?.selectedLocations || []);
-  }, []);
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    Promise.all([listBrokerListings({}, 1, 100), listBrokerLocations()])
+      .then(([listings, locations]) => {
+        if (cancelled) return;
+        setAll(listings.items);
+        setTotal(listings.total);
+        setCoverage([...new Set(locations.map((l) => l.locality).filter(Boolean))].sort());
+      })
+      .catch((e) => {
+        if (!cancelled) setError(errorMessage(e, 'Could not load properties in your covered areas.'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return all.filter((p) => {
-      const purposeOf = p.purpose === 'Rent' ? 'Rent' : 'Buy';
-      if (purpose !== 'All' && !(purpose === 'Lease' ? p.purpose === 'Commercial' : purposeOf === purpose)) return false;
-      if (type !== 'All Types' && !p.type.toLowerCase().includes(type.toLowerCase())) return false;
+      if (purpose !== 'All' && purposeOf(p) !== purpose) return false;
+      if (type !== 'All Types' && !typeLabel(p.property_type).toLowerCase().includes(type.toLowerCase())) return false;
       if (bhk !== 'All BHK') {
-        const n = parseInt(p.bhk) || 0;
+        const n = p.bedrooms ?? 0;
         if (bhk === '4+' ? n < 4 : n !== parseInt(bhk)) return false;
       }
-      if (loc !== 'All Locations' && !p.locality.toLowerCase().includes(loc.toLowerCase().split(' ')[0])) return false;
-      if (q && ![p.title, p.bhk, p.locality, p.type].join(' ').toLowerCase().includes(q)) return false;
+      if (loc !== 'All Locations' && p.locality.toLowerCase() !== loc.toLowerCase()) return false;
+      if (q && ![p.title, p.locality, p.city, typeLabel(p.property_type), p.bedrooms ? `${p.bedrooms} bhk` : ''].join(' ').toLowerCase().includes(q)) return false;
       return true;
     });
   }, [all, purpose, type, bhk, loc, query]);
@@ -64,7 +85,7 @@ export default function AgentPropertiesPage() {
           <p className="mt-1 text-sm text-slate-500">Owner-listed properties in your covered locations.</p>
         </div>
         <p className="text-sm text-slate-500">
-          Coverage: <span className="font-semibold text-slate-900">{coverage.length} Localities</span>
+          Coverage: <span className="font-semibold text-slate-900">{loading ? '…' : coverage.length} Localities</span>
         </p>
       </div>
 
@@ -110,75 +131,71 @@ export default function AgentPropertiesPage() {
               </button>
             ))}
           </div>
-          <p className="text-sm text-slate-500">Showing {shown.length} properties</p>
+          <p className="text-sm text-slate-500">
+            Showing {shown.length} {total > all.length ? `of the newest ${all.length} (${total} in total)` : ''} properties
+          </p>
         </div>
       </div>
 
-      {shown.length === 0 ? (
+      {loading ? (
+        <div className={`${agentCard} flex items-center justify-center gap-2 py-16 text-sm text-slate-500`}>
+          <Loader2 size={16} className="animate-spin text-[#087ed9]" /> Loading properties in your areas…
+        </div>
+      ) : error ? (
+        <div className={`${agentCard} py-12 text-center text-sm text-red-700`} role="alert">
+          <p>{error}</p>
+          <button type="button" onClick={() => setAttempt((a) => a + 1)} className="mt-3 font-semibold underline cursor-pointer">
+            Try again
+          </button>
+        </div>
+      ) : shown.length === 0 ? (
         <div className={`${agentCard} py-16 text-center`}>
           <p className="font-semibold text-slate-900">No properties available in your selected locations.</p>
-          <p className="mt-1 text-sm text-slate-500">Try clearing your filters or select a different locality from your covered areas.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {coverage.length === 0
+              ? 'You have no covered locations yet. Properties appear here once your agent plan covers an area.'
+              : 'Try clearing your filters or select a different locality from your covered areas.'}
+          </p>
           <button type="button" onClick={reset} className="mt-5 inline-flex h-[53px] cursor-pointer items-center rounded-[16px] bg-[#087ed9] px-6 text-sm font-semibold text-white hover:bg-sky-600">
             Reset Filters
           </button>
         </div>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {shown.map((p) => (
-            <article key={p.id} className={`${agentCard} flex flex-col overflow-hidden`}>
-              <div className="relative aspect-[16/10] bg-slate-100">
-                <img src={p.image} alt={p.title} className="h-full w-full object-cover" />
-                <span className="absolute left-3 top-3 rounded-md bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-                  {p.purpose === 'Rent' ? 'Available for Rent' : p.purpose === 'Commercial' ? 'Available for Lease' : 'Available for Buy'}
-                </span>
-                {p.verified && (
-                  <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-md bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-[#087ed9]">
-                    <BadgeCheck size={13} /> Owner Verified
+          {shown.map((p) => {
+            const cover = cleanImageUrl(p.cover_image_url);
+            return (
+              <article key={p.listing_id} className={`${agentCard} flex flex-col overflow-hidden`}>
+                <div className="relative aspect-[16/10] bg-slate-100">
+                  {cover ? (
+                    <img src={cover} alt={p.title} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-xs text-slate-400">No photo</div>
+                  )}
+                  <span className="absolute left-3 top-3 rounded-md bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                    Available for {purposeOf(p)}
                   </span>
-                )}
-              </div>
-              <div className="flex flex-1 flex-col p-5">
-                <p className="text-lg font-bold text-slate-900">{p.price}</p>
-                <h3 className="mt-0.5 truncate text-sm font-semibold text-slate-800">{p.title}</h3>
-                <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-slate-500">
-                  <MapPin size={13} className="shrink-0" /> {p.locality}, {p.city}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-600">
-                  <span className="flex items-center gap-1"><BedDouble size={13} /> {p.bhk}</span>
-                  <span className="flex items-center gap-1"><Ruler size={13} /> {p.sqft}</span>
-                  <span className="flex items-center gap-1"><Users size={13} /> {p.leadCount} leads</span>
                 </div>
-                <div className="mt-auto grid grid-cols-2 gap-3 pt-5">
-                  <Link href={`/properties/${p.id}`} className="inline-flex h-[53px] items-center justify-center rounded-[16px] bg-slate-100 text-sm font-semibold text-slate-900 hover:bg-slate-200">
-                    View Details
-                  </Link>
-                  <button type="button" onClick={() => setMatching(p)} className="inline-flex h-[53px] cursor-pointer items-center justify-center rounded-[16px] bg-[#087ed9] text-sm font-semibold text-white hover:bg-sky-600">
-                    Match Lead
-                  </button>
+                <div className="flex flex-1 flex-col p-5">
+                  <p className="text-lg font-bold text-slate-900">{p.price_display}</p>
+                  <h3 className="mt-0.5 truncate text-sm font-semibold text-slate-800">{p.title}</h3>
+                  <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-slate-500">
+                    <MapPin size={13} className="shrink-0" /> {[p.locality, p.city].filter(Boolean).join(', ')}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-600">
+                    {p.bedrooms != null && <span className="flex items-center gap-1"><BedDouble size={13} /> {p.bedrooms} BHK</span>}
+                    {p.area_value != null && <span className="flex items-center gap-1"><Ruler size={13} /> {p.area_value} {p.area_unit || 'sqft'}</span>}
+                    <span>{typeLabel(p.property_type)}</span>
+                  </div>
+                  <div className="mt-auto pt-5">
+                    <Link href={`/properties/${p.listing_id}`} className="inline-flex h-[53px] w-full items-center justify-center rounded-[16px] bg-slate-100 text-sm font-semibold text-slate-900 hover:bg-slate-200">
+                      View Details
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-
-      {matching && (
-        <MatchModal
-          mode="property-to-lead"
-          property={matching}
-          leads={leads}
-          onClose={() => setMatching(null)}
-          onDone={(msg) => {
-            setMatching(null);
-            setToast(msg);
-            setTimeout(() => setToast(''), 3500);
-          }}
-        />
-      )}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 z-50 w-[calc(100%-32px)] max-w-md -translate-x-1/2 rounded-[16px] bg-slate-900 px-5 py-4 text-sm text-white shadow-xl">
-          <p className="font-semibold">Lead Matched! 🎉</p>
-          <p className="mt-0.5 text-slate-300">{toast}</p>
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

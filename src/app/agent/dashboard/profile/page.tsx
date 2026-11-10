@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getSession, isPlaceholderName } from '@/lib/api/session';
-import { getAgentPayments, getAgentSubscription, type AgentPaymentRecord, type AgentSubscription } from '@/lib/agentPlan';
-import { useAgentLeads } from '@/lib/agentLeads';
+import { isPlaceholderName } from '@/lib/api/session';
+import { getBrokerPlan, getBrokerProfile, planActive, type BrokerPlan, type BrokerProfile } from '@/lib/api/broker';
+import { errorMessage } from '@/lib/api/client';
 import { agentCard } from '../ui';
 import {
-  BadgeCheck,
   Bell,
   Building2,
   ChevronRight,
@@ -15,6 +14,7 @@ import {
   FileText,
   Headphones,
   HelpCircle,
+  Loader2,
   MapPin,
   Search,
   Settings,
@@ -56,43 +56,66 @@ function Row({ icon: Icon, label, detail, href, right }: { icon: LucideIcon; lab
 }
 
 export default function AgentProfilePage() {
-  // The signed-in Restamp account. The backend profile has no phone number or
-  // email, so none is shown (never a sample value).
-  const [me, setMe] = useState<{ name: string; mobile?: string; email?: string } | null>(null);
-  const [sub, setSub] = useState<AgentSubscription | null>(null);
-  const [payments, setPayments] = useState<AgentPaymentRecord[]>([]);
-  const { leads } = useAgentLeads();
+  // The signed-in agent (GET /broker/profile) and plan (GET /broker/plan).
+  // The backend has no phone number, email, firm, RERA or KYC record for
+  // agents, so none is shown or claimed as verified.
+  const [me, setMe] = useState<BrokerProfile | null>(null);
+  const [plan, setPlan] = useState<BrokerPlan | null>(null);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    const session = getSession();
-    setMe(session ? { name: isPlaceholderName(session.displayName) ? '' : session.displayName } : null);
-    setSub(getAgentSubscription());
-    setPayments(getAgentPayments());
-  }, []);
+    let cancelled = false;
+    setError('');
+    Promise.all([getBrokerProfile(), getBrokerPlan()])
+      .then(([profile, p]) => {
+        if (cancelled) return;
+        setMe(profile);
+        setPlan(p);
+      })
+      .catch((e) => !cancelled && setError(errorMessage(e, 'Could not load your agent profile.')));
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
 
-  if (!me || !sub) return null;
-  const expired = !!sub.expiresAt && new Date(sub.expiresAt).getTime() < Date.now();
-  const fmt = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (error) {
+    return (
+      <div className={`${agentCard} py-12 text-center text-sm text-red-700`} role="alert">
+        <p>{error}</p>
+        <button type="button" onClick={() => setAttempt((a) => a + 1)} className="mt-3 font-semibold underline cursor-pointer">
+          Try again
+        </button>
+      </div>
+    );
+  }
+  if (!me || !plan) {
+    return (
+      <div className={`${agentCard} flex items-center justify-center gap-2 py-16 text-sm text-slate-500`}>
+        <Loader2 size={16} className="animate-spin text-[#087ed9]" /> Loading your profile…
+      </div>
+    );
+  }
+
+  const name = isPlaceholderName(me.display_name) ? '' : me.display_name;
+  const active = planActive(plan);
+  const localities = plan.localities || [];
+  const fmt = (iso: string) => {
+    const d = new Date(/[zZ]|[+-]\d\d:\d\d$/.test(iso) ? iso : `${iso}Z`);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className={`${agentCard} flex flex-wrap items-center gap-5 p-6`}>
         <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#087ed9] text-2xl font-bold text-white">
-          {(me.name || 'A').charAt(0).toUpperCase()}
+          {(name || 'A').charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-xl font-bold text-slate-900">
-            {me.name || 'Agent'}
-            <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-[#087ed9]">
-              <BadgeCheck size={13} /> Verified
-            </span>
-          </p>
-          <p className="text-sm text-slate-500">{sub.firmName ? `${sub.firmName} · ` : ''}{sub.planName.replace(/ Plan$/, '')} Agent</p>
-          <p className="mt-1 text-xs text-slate-400">
-            {me.mobile ? `+91 ${me.mobile}` : 'No phone on file'}
-            {me.email && ` · ${me.email}`}
-          </p>
+          <p className="text-xl font-bold text-slate-900">{name || 'Agent'}</p>
+          <p className="text-sm text-slate-500">{plan.has_plan ? `${(plan.plan_name || '').replace(/ Plan$/, '')} Agent` : 'Agent'}</p>
+          <p className="mt-1 text-xs text-slate-400">Agent ID #{me.user_id}</p>
         </div>
         <Link href="/buy" className="inline-flex h-[53px] items-center gap-2 rounded-[16px] bg-slate-100 px-5 text-sm font-semibold text-slate-900 hover:bg-slate-200">
           <Search size={16} /> Switch to Find Property
@@ -102,59 +125,47 @@ export default function AgentProfilePage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
           <Section title="My Plan">
-            <Row
-              icon={CreditCard}
-              label={sub.planName}
-              detail={`${sub.locationLimit} Locations · ${sub.expiresAt ? `Expiry Date: ${fmt(sub.expiresAt)}` : 'No expiry'}`}
-              right={<span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${expired ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'}`}>{expired ? 'Expired' : 'Active'}</span>}
-            />
-            <Row icon={Settings} label="Plan & Payments" detail="Your active plan and payment history" href="/agent/dashboard/payments" />
+            {plan.has_plan ? (
+              <Row
+                icon={CreditCard}
+                label={plan.plan_name || 'Agent plan'}
+                detail={`${plan.locality_limit ?? localities.length} Locations · ${plan.valid_until ? `Expiry Date: ${fmt(plan.valid_until)}` : 'No end date'}`}
+                right={<span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${active ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{active ? 'Active' : 'Expired'}</span>}
+              />
+            ) : (
+              <Row icon={CreditCard} label="No active plan" detail="Online plan purchase is not available yet" />
+            )}
+            <Row icon={Settings} label="Plan & Payments" detail="Your plan details" href="/agent/dashboard/payments" />
           </Section>
 
           <Section title="My Locations">
             <div className="px-5 py-4">
-              <p className="text-xs text-slate-500">Subscription coverage — you receive properties & buyer leads exclusively in these areas:</p>
+              <p className="text-xs text-slate-500">Subscription coverage — you see owner properties in these areas:</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {(sub.selectedLocations || []).map((l) => (
+                {localities.length === 0 && <span className="text-xs text-slate-500">No covered locations yet.</span>}
+                {localities.map((l) => (
                   <span key={l} className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-[#087ed9]">
                     <MapPin size={12} /> {l}
                   </span>
                 ))}
               </div>
             </div>
-            <Row icon={MapPin} label="Manage Locations" detail={`${sub.selectedLocations?.length || 0} of ${sub.locationLimit} used`} href="/agent/packages" />
+            <Row icon={MapPin} label="Covered Locations" detail={`${me.covered_location_count} pincode${me.covered_location_count === 1 ? '' : 's'} covered`} />
           </Section>
 
           <Section title="My Activity">
             <Row icon={Building2} label="Available Properties" detail="Owner listings in your localities" href="/agent/dashboard/properties" />
-            <Row icon={Users} label="My Leads" detail={`${leads.length} customer enquiries`} href="/agent/dashboard/leads" />
+            <Row icon={Users} label="My Leads" detail="Not available yet" href="/agent/dashboard/leads" />
           </Section>
         </div>
 
         <div className="space-y-6">
           <Section title="KYC / Verification">
-            <Row
-              icon={ShieldCheck}
-              label="RERA & Identity Verification"
-              detail={`Agent RERA ID: ${sub.reraNumber || 'Not provided'}`}
-              right={<span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Verified & Active</span>}
-            />
+            <Row icon={ShieldCheck} label="RERA & Identity Verification" detail="Agent verification is not available online yet" />
           </Section>
 
           <Section title="Payments">
-            {payments.length === 0 ? (
-              <Row icon={FileText} label="Payment History" detail="No transactions yet" />
-            ) : (
-              payments.slice(0, 4).map((p) => (
-                <Row
-                  key={p.id}
-                  icon={FileText}
-                  label={`₹${p.total.toLocaleString('en-IN')} · ${p.packageName}`}
-                  detail={`${fmt(p.paidAt)} · ${p.transactionRef}`}
-                  right={<span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${p.status === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{p.status}</span>}
-                />
-              ))
-            )}
+            <Row icon={FileText} label="Payment History" detail="Online payments are not available yet" />
           </Section>
 
           <Section title="Notifications">
@@ -162,8 +173,8 @@ export default function AgentProfilePage() {
           </Section>
 
           <Section title="Help & Support">
-            <Row icon={Headphones} label="Agent Support Desk" detail="Contact your Restamp Agent Relationship Manager" />
-            <Row icon={HelpCircle} label="FAQs & Tutorials" detail="Agent platform rules, lead SLAs & commission guidelines" />
+            <Row icon={Headphones} label="Agent Support Desk" detail="Contact Restamp support" href="/agent/dashboard/contact" />
+            <Row icon={HelpCircle} label="FAQs & Tutorials" detail="Agent platform rules and guidelines" href="/help" />
           </Section>
         </div>
       </div>
