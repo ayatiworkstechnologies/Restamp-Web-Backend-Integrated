@@ -1,112 +1,172 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { withRole } from '@/lib/api/auth';
+import { apiGet, apiPatch, apiPost, errorMessage, type Page } from '@/lib/api/client';
+import { parseApiDate } from '@/lib/datetime';
+import { isPlaceholderName } from '@/lib/api/session';
 
-// Buyer leads & site visits for the owner dashboard (mirrors the Restamp owner app).
-// Stored in localStorage and seeded with sample data on first use.
+// Buyer leads & site visits for the owner dashboard, from the RESTAMP backend
+// (GET/PATCH /owner/leads, GET/POST/PATCH /owner/visits). The backend only
+// returns the caller's own leads and visits and never includes a buyer's
+// phone number, so none is shown. Lead statuses are the backend's three
+// (NEW / CONTACTED / CLOSED + a closing reason); nothing is seeded or stored
+// in the browser.
 
-export type LeadStatus = 'New' | 'Contacted' | 'Visit' | 'Negotiating' | 'Closed';
-export const LEAD_STATUSES: LeadStatus[] = ['New', 'Contacted', 'Visit', 'Negotiating', 'Closed'];
+export type LeadStatus = 'NEW' | 'CONTACTED' | 'CLOSED';
+export const LEAD_STATUSES: LeadStatus[] = ['NEW', 'CONTACTED', 'CLOSED'];
+export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = { NEW: 'New', CONTACTED: 'Contacted', CLOSED: 'Closed' };
+export const CLOSING_REASONS = ['Sold', 'Rented', 'Leased', 'Not Converted'] as const;
+export type ClosingReason = (typeof CLOSING_REASONS)[number];
 
 export type OwnerLead = {
-  id: string;
+  id: number;
+  propertyListingId: number;
+  buyerUserId: number;
   customerName: string;
-  phone: string;
-  email?: string;
   propertyTitle: string;
   locality: string;
   message: string;
   messageCount: number;
   status: LeadStatus;
-  createdAt: string;
+  closingReason: string | null;
+  listingRemoved: boolean;
+  createdAt: string | null;
 };
 
 export type VisitStatus = 'REQUESTED' | 'PROPOSED' | 'CONFIRMED' | 'COMPLETED' | 'DECLINED' | 'CANCELLED';
 
 export type OwnerVisit = {
-  id: string;
-  leadId: string;
+  id: number;
+  propertyListingId: number;
+  buyerUserId: number;
   customerName: string;
-  phone: string;
   propertyTitle: string;
   scheduledAt: string;
   status: VisitStatus;
+  initiator: string;
   note?: string;
 };
 
-const LEADS_KEY = 'restamp_owner_leads';
-const VISITS_KEY = 'restamp_owner_visits';
-export const LEADS_EVENT = 'owner-leads-change';
-
-const hoursAgo = (h: number) => new Date(Date.now() - h * 36e5).toISOString();
-const inDays = (d: number, hour = 11) => {
-  const t = new Date(Date.now() + d * 864e5);
-  t.setHours(hour, 0, 0, 0);
-  return t.toISOString();
+type LeadRow = {
+  id: number;
+  property_listing_id: number;
+  buyer_user_id: number;
+  buyer_display_name?: string | null;
+  listing_removed?: boolean;
+  message?: string | null;
+  message_count?: number;
+  status: string;
+  closing_reason?: string | null;
+  created_at?: string | null;
+  last_message?: string | null;
+  listing?: { title?: string; locality?: string | null; city?: string | null } | null;
 };
 
-const seedLeads = (): OwnerLead[] => [
-  { id: 'L1001', customerName: 'Priya Raman', phone: '+91 98401 22334', email: 'priya.r@gmail.com', propertyTitle: '3 BHK Apartment', locality: 'Velachery, Chennai', message: 'Is the price negotiable? I would like to visit this weekend.', messageCount: 2, status: 'New', createdAt: hoursAgo(2) },
-  { id: 'L1002', customerName: 'Arjun Kumar', phone: '+91 99620 45871', propertyTitle: '3 BHK Apartment', locality: 'Velachery, Chennai', message: 'Please share the floor plan and maintenance details.', messageCount: 1, status: 'Contacted', createdAt: hoursAgo(20) },
-  { id: 'L1003', customerName: 'Meena Subramanian', phone: '+91 90030 77812', propertyTitle: '2 BHK Flat for Rent', locality: 'Adyar, Chennai', message: 'Looking to move in by next month. Is it pet friendly?', messageCount: 3, status: 'Visit', createdAt: hoursAgo(46) },
-  { id: 'L1004', customerName: 'Rahul Venkat', phone: '+91 97890 11290', propertyTitle: '3 BHK Apartment', locality: 'Velachery, Chennai', message: 'Can we close at ₹1.05 Cr?', messageCount: 4, status: 'Negotiating', createdAt: hoursAgo(70) },
-  { id: 'L1005', customerName: 'Sneha Iyer', phone: '', propertyTitle: '2 BHK Flat for Rent', locality: 'Adyar, Chennai', message: '', messageCount: 0, status: 'Closed', createdAt: hoursAgo(160) },
-];
+type VisitRow = {
+  id: number;
+  property_listing_id: number;
+  buyer_user_id: number;
+  buyer_display_name?: string | null;
+  scheduled_at: string;
+  status: string;
+  initiator: string;
+  note?: string | null;
+  listing?: { title?: string } | null;
+};
 
-const seedVisits = (): OwnerVisit[] => [
-  { id: 'V2001', leadId: 'L1001', customerName: 'Priya Raman', phone: '+91 98401 22334', propertyTitle: '3 BHK Apartment', scheduledAt: inDays(2, 11), status: 'REQUESTED' },
-  { id: 'V2002', leadId: 'L1003', customerName: 'Meena Subramanian', phone: '+91 90030 77812', propertyTitle: '2 BHK Flat for Rent', scheduledAt: inDays(1, 17), status: 'CONFIRMED' },
-  { id: 'V2003', leadId: 'L1004', customerName: 'Rahul Venkat', phone: '+91 97890 11290', propertyTitle: '3 BHK Apartment', scheduledAt: inDays(-3, 10), status: 'COMPLETED' },
-];
+const asLeadStatus = (s: string): LeadStatus => (s === 'CONTACTED' || s === 'CLOSED' ? s : 'NEW');
 
-function read<T>(key: string, seed: () => T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) return JSON.parse(raw) as T;
-    const value = seed();
-    localStorage.setItem(key, JSON.stringify(value));
-    return value;
-  } catch {
-    return seed();
+/** A buyer's chosen name, or the honest "Buyer #<id>" fallback (never a phone number, even if one slips through). */
+const buyerLabel = (name: string | null | undefined, id: number) =>
+  name && name.trim() && !isPlaceholderName(name) ? name.trim() : `Buyer #${id}`;
+
+function toLead(r: LeadRow): OwnerLead {
+  return {
+    id: r.id,
+    propertyListingId: r.property_listing_id,
+    buyerUserId: r.buyer_user_id,
+    customerName: buyerLabel(r.buyer_display_name, r.buyer_user_id),
+    propertyTitle: r.listing?.title || (r.listing_removed ? 'Removed listing' : 'Property'),
+    locality: [r.listing?.locality, r.listing?.city].filter(Boolean).join(', '),
+    message: r.last_message || r.message || '',
+    messageCount: r.message_count ?? 0,
+    status: asLeadStatus(r.status),
+    closingReason: r.closing_reason ?? null,
+    listingRemoved: !!r.listing_removed,
+    createdAt: r.created_at ?? null,
+  };
+}
+
+function toVisit(r: VisitRow): OwnerVisit {
+  const at = parseApiDate(r.scheduled_at);
+  return {
+    id: r.id,
+    propertyListingId: r.property_listing_id,
+    buyerUserId: r.buyer_user_id,
+    customerName: buyerLabel(r.buyer_display_name, r.buyer_user_id),
+    propertyTitle: r.listing?.title || 'Property',
+    scheduledAt: at ? at.toISOString() : r.scheduled_at,
+    status: r.status as VisitStatus,
+    initiator: r.initiator,
+    note: r.note || undefined,
+  };
+}
+
+export async function listOwnerLeads(page = 1, pageSize = 100): Promise<OwnerLead[]> {
+  const res = await withRole('OWNER', () => apiGet<Page<LeadRow>>('/owner/leads', { page, page_size: pageSize }));
+  return res.items.map(toLead);
+}
+
+export async function listOwnerVisits(page = 1, pageSize = 100): Promise<OwnerVisit[]> {
+  const res = await withRole('OWNER', () => apiGet<Page<VisitRow>>('/owner/visits', { page, page_size: pageSize }));
+  return res.items.map(toVisit);
+}
+
+/** Persist a lead status (CLOSED needs the reason the backend accepts). */
+export async function updateLeadStatus(id: number, status: LeadStatus, closingReason?: ClosingReason): Promise<OwnerLead> {
+  const body = status === 'CLOSED' ? { status, closing_reason: closingReason ?? null } : { status };
+  return toLead(await withRole('OWNER', () => apiPatch<LeadRow>(`/owner/leads/${id}`, body)));
+}
+
+/**
+ * Propose a visit time to the lead's buyer. An open visit on the same
+ * property is rescheduled instead (the backend decides which moves are
+ * allowed and answers 422 otherwise).
+ */
+export async function proposeVisit(lead: OwnerLead, scheduledAt: string, note: string | undefined, existing?: OwnerVisit) {
+  if (existing) {
+    return toVisit(
+      await withRole('OWNER', () => apiPatch<VisitRow>(`/owner/visits/${existing.id}`, { scheduled_at: scheduledAt, note: note ?? null })),
+    );
   }
+  return toVisit(
+    await withRole('OWNER', () =>
+      apiPost<VisitRow>('/owner/visits', {
+        property_listing_id: lead.propertyListingId,
+        buyer_user_id: lead.buyerUserId,
+        scheduled_at: scheduledAt,
+        note: note ?? null,
+      }),
+    ),
+  );
 }
 
-function write(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-    window.dispatchEvent(new Event(LEADS_EVENT));
-  } catch {
-    /* storage unavailable */
-  }
+export async function updateVisitStatus(id: number, status: Exclude<VisitStatus, 'REQUESTED' | 'PROPOSED'>): Promise<OwnerVisit> {
+  return toVisit(await withRole('OWNER', () => apiPatch<VisitRow>(`/owner/visits/${id}`, { status })));
 }
 
-export const getLeads = () => read<OwnerLead[]>(LEADS_KEY, seedLeads);
-export const getVisits = () => read<OwnerVisit[]>(VISITS_KEY, seedVisits);
+const OPEN_VISIT = ['REQUESTED', 'PROPOSED', 'CONFIRMED'];
 
-export function updateLeadStatus(id: string, status: LeadStatus) {
-  write(LEADS_KEY, getLeads().map((l) => (l.id === id ? { ...l, status } : l)));
-}
-
-export function proposeVisit(lead: OwnerLead, scheduledAt: string, note?: string) {
-  const visits = getVisits();
-  const existing = visits.find((v) => v.leadId === lead.id && !['COMPLETED', 'DECLINED', 'CANCELLED'].includes(v.status));
-  const next: OwnerVisit[] = existing
-    ? visits.map((v) => (v.id === existing.id ? { ...v, scheduledAt, note, status: 'PROPOSED' } : v))
-    : [{ id: `V${Date.now()}`, leadId: lead.id, customerName: lead.customerName, phone: lead.phone, propertyTitle: lead.propertyTitle, scheduledAt, note, status: 'PROPOSED' }, ...visits];
-  write(VISITS_KEY, next);
-  if (lead.status === 'New' || lead.status === 'Contacted') updateLeadStatus(lead.id, 'Visit');
-}
-
-export function updateVisitStatus(id: string, status: VisitStatus) {
-  write(VISITS_KEY, getVisits().map((v) => (v.id === id ? { ...v, status } : v)));
-}
-
-export const activeVisitFor = (leadId: string, visits: OwnerVisit[]) =>
-  visits.find((v) => v.leadId === leadId && !['COMPLETED', 'DECLINED', 'CANCELLED'].includes(v.status));
+/** The open visit for this lead's buyer on the same property, if any. */
+export const activeVisitFor = (lead: OwnerLead, visits: OwnerVisit[]) =>
+  visits.find((v) => v.propertyListingId === lead.propertyListingId && v.buyerUserId === lead.buyerUserId && OPEN_VISIT.includes(v.status));
 
 export const visitBucket = (v: OwnerVisit): 'Awaiting' | 'Upcoming' | 'Completed' =>
   v.status === 'REQUESTED' || v.status === 'PROPOSED' ? 'Awaiting' : v.status === 'CONFIRMED' ? 'Upcoming' : 'Completed';
 
-export const timeAgo = (iso: string) => {
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 6e4);
+export const timeAgo = (iso: string | null) => {
+  const at = parseApiDate(iso);
+  if (!at) return '';
+  const m = Math.floor((Date.now() - at.getTime()) / 6e4);
   if (m < 60) return `${Math.max(1, m)}m ago`;
   if (m < 1440) return `${Math.floor(m / 60)}h ago`;
   return `${Math.floor(m / 1440)}d ago`;
@@ -115,13 +175,40 @@ export const timeAgo = (iso: string) => {
 export const formatVisit = (iso: string) =>
   new Date(iso).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 
+/** Leads + visits for the signed-in owner, with honest loading / error states. */
 export function useOwnerLeads() {
-  const [state, setState] = useState<{ leads: OwnerLead[]; visits: OwnerVisit[] }>({ leads: [], visits: [] });
+  const [leads, setLeads] = useState<OwnerLead[]>([]);
+  const [visits, setVisits] = useState<OwnerVisit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
-    const sync = () => setState({ leads: getLeads(), visits: getVisits() });
-    sync();
-    window.addEventListener(LEADS_EVENT, sync);
-    return () => window.removeEventListener(LEADS_EVENT, sync);
-  }, []);
-  return state;
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    Promise.all([listOwnerLeads(), listOwnerVisits()])
+      .then(([l, v]) => {
+        if (cancelled) return;
+        setLeads(l);
+        setVisits(v);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(errorMessage(e, 'Could not load your leads and visits.'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
+
+  const reload = useCallback(() => setAttempt((a) => a + 1), []);
+  const replaceLead = useCallback((l: OwnerLead) => setLeads((prev) => prev.map((x) => (x.id === l.id ? l : x))), []);
+  const upsertVisit = useCallback(
+    (v: OwnerVisit) => setVisits((prev) => (prev.some((x) => x.id === v.id) ? prev.map((x) => (x.id === v.id ? v : x)) : [v, ...prev])),
+    [],
+  );
+  return { leads, visits, loading, error, reload, replaceLead, upsertVisit };
 }

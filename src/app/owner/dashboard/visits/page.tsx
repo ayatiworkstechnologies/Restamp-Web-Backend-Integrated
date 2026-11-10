@@ -2,8 +2,11 @@
 
 import { useState } from 'react';
 import { formatVisit, updateVisitStatus, useOwnerLeads, visitBucket, type OwnerVisit, type VisitStatus } from '@/lib/ownerLeads';
+import { errorMessage } from '@/lib/api/client';
 import { card } from '../ui';
-import { CalendarCheck, Phone } from 'lucide-react';
+import { CalendarCheck, Loader2 } from 'lucide-react';
+
+type NextStatus = Exclude<VisitStatus, 'REQUESTED' | 'PROPOSED'>;
 
 const TABS = ['Awaiting', 'Upcoming', 'Completed'] as const;
 
@@ -16,7 +19,7 @@ const tone: Record<VisitStatus, string> = {
   CANCELLED: 'bg-red-50 text-red-600',
 };
 
-function actionsFor(v: OwnerVisit): { label: string; next: VisitStatus; confirm: string; primary?: boolean }[] {
+function actionsFor(v: OwnerVisit): { label: string; next: NextStatus; confirm: string; primary?: boolean }[] {
   if (v.status === 'REQUESTED')
     return [
       { label: 'Decline', next: 'DECLINED', confirm: 'Decline this buyer-requested visit? The buyer can request another time.' },
@@ -32,8 +35,25 @@ function actionsFor(v: OwnerVisit): { label: string; next: VisitStatus; confirm:
 }
 
 export default function OwnerVisitsPage() {
-  const { visits } = useOwnerLeads();
+  // Real visits on the owner's properties (GET /owner/visits); actions are
+  // saved with PATCH /owner/visits/{id} and shown only after the backend agrees.
+  const { visits, loading, error, reload, upsertVisit } = useOwnerLeads();
   const [tab, setTab] = useState<(typeof TABS)[number]>('Awaiting');
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<{ id: number; text: string } | null>(null);
+
+  const act = async (v: OwnerVisit, next: NextStatus, question: string) => {
+    if (!confirm(question)) return;
+    setBusyId(v.id);
+    setActionError(null);
+    try {
+      upsertVisit(await updateVisitStatus(v.id, next));
+    } catch (e) {
+      setActionError({ id: v.id, text: errorMessage(e, 'Could not update this visit. Please try again.') });
+    } finally {
+      setBusyId(null);
+    }
+  };
   const list = visits
     .filter((v) => visitBucket(v) === tab)
     .sort((a, b) => (tab === 'Completed' ? b.scheduledAt.localeCompare(a.scheduledAt) : a.scheduledAt.localeCompare(b.scheduledAt)));
@@ -53,12 +73,23 @@ export default function OwnerVisitsPage() {
             onClick={() => setTab(t)}
             className={`cursor-pointer rounded-[12px] px-5 py-2.5 text-sm font-semibold transition ${tab === t ? 'bg-[#087ed9] text-white' : 'text-slate-600 hover:text-slate-900'}`}
           >
-            {t} <span className={tab === t ? 'text-sky-100' : 'text-slate-400'}>{visits.filter((v) => visitBucket(v) === t).length}</span>
+            {t} <span className={tab === t ? 'text-sky-100' : 'text-slate-400'}>{loading ? '…' : visits.filter((v) => visitBucket(v) === t).length}</span>
           </button>
         ))}
       </div>
 
-      {list.length === 0 ? (
+      {loading ? (
+        <div className={`${card} flex items-center justify-center gap-2 py-16 text-sm text-slate-500`}>
+          <Loader2 size={16} className="animate-spin text-[#087ed9]" /> Loading your visits…
+        </div>
+      ) : error ? (
+        <div className={`${card} py-12 text-center text-sm text-red-700`} role="alert">
+          <p>{error}</p>
+          <button type="button" onClick={reload} className="mt-3 font-semibold underline cursor-pointer">
+            Try again
+          </button>
+        </div>
+      ) : list.length === 0 ? (
         <div className={`${card} py-16 text-center`}>
           <CalendarCheck className="mx-auto text-slate-300" size={32} />
           <p className="mt-3 font-semibold text-slate-900">No {tab.toLowerCase()} visits</p>
@@ -79,18 +110,15 @@ export default function OwnerVisitsPage() {
                 <CalendarCheck size={16} className="text-[#087ed9]" /> {formatVisit(v.scheduledAt)}
               </p>
               {v.note && <p className="mt-2 text-sm text-slate-600">{v.note}</p>}
+              {actionError?.id === v.id && <p className="mt-2 text-xs text-red-600" role="alert">{actionError.text}</p>}
               <div className="mt-auto flex flex-wrap gap-3 pt-5">
-                {v.phone && (
-                  <a href={`tel:${v.phone.replace(/\s/g, '')}`} aria-label={`Call ${v.customerName}`} className="inline-flex h-[53px] w-[53px] items-center justify-center rounded-[16px] bg-slate-100 text-slate-900 transition hover:bg-slate-200">
-                    <Phone size={17} />
-                  </a>
-                )}
                 {actionsFor(v).map((a) => (
                   <button
                     key={a.label}
                     type="button"
-                    onClick={() => confirm(a.confirm) && updateVisitStatus(v.id, a.next)}
-                    className={`inline-flex h-[53px] flex-1 cursor-pointer items-center justify-center rounded-[16px] px-4 text-sm font-semibold transition ${
+                    disabled={busyId === v.id}
+                    onClick={() => void act(v, a.next, a.confirm)}
+                    className={`inline-flex h-[53px] flex-1 cursor-pointer items-center justify-center rounded-[16px] px-4 text-sm font-semibold transition disabled:opacity-60 ${
                       a.primary ? 'bg-[#087ed9] text-white hover:bg-sky-600' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
                     }`}
                   >
