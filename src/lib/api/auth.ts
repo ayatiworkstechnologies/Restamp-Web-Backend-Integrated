@@ -2,9 +2,9 @@
  * Authentication and account endpoints.
  *
  * - POST /auth/otp/request {phone} -> {message[, debug_code]}. debug_code is
- *   present ONLY when the backend runs in its local OTP display mode (there is
- *   no SMS provider yet); production never returns it. The login screen shows
- *   it only when the backend actually sent it.
+ *   the backend's fixed testing OTP ("349086"), returned only in local/staging;
+ *   production never returns it. The login screen shows it only when the
+ *   backend actually sent it.
  * - POST /auth/otp/verify {phone, code} -> TokenOut. A first login creates
  *   the account with the BUYER role and the phone as display name.
  * - GET /auth/me, PATCH /users/me {display_name}, POST /users/me/role {role}.

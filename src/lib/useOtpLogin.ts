@@ -21,8 +21,9 @@ function otpErrorMessage(e: unknown, stage: 'request' | 'verify'): string {
 /**
  * Mobile + OTP sign-in against the backend (POST /auth/otp/request and
  * /auth/otp/verify). The code is shown on screen ONLY when the backend
- * itself returned it (its local OTP display mode); otherwise the user must
- * receive it by SMS. No code is ever invented or checked client-side.
+ * itself returned it (its fixed testing OTP, local/staging); otherwise the
+ * user must receive it by SMS. No code is ever invented or checked
+ * client-side.
  */
 export function useOtpLogin() {
   const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
