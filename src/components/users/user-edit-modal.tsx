@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Edit, Save, X } from "lucide-react";
-import { User, UserRole, UserStatus, KycStatus, OwnerType } from "@/types/user";
+import { User, UserRole, UserStatus, OwnerType } from "@/types/user";
 
 interface UserEditModalProps {
   user: User | null;
@@ -26,7 +26,6 @@ export function UserEditModal({ user, isOpen, onClose, onSave }: UserEditModalPr
         city: user.city,
         state: user.state,
         status: user.status,
-        kycStatus: user.kycStatus,
       });
     }
   }, [user]);
@@ -110,10 +109,11 @@ export function UserEditModal({ user, isOpen, onClose, onSave }: UserEditModalPr
               >
                 <option value="buyer">Buyer</option>
                 <option value="owner">Owner / Seller</option>
+                <option value="agent">Agent / Broker</option>
               </select>
             </div>
 
-            {formData.role === "owner" ? (
+            {formData.role !== "buyer" ? (
               <div>
                 <label className="block text-xs font-bold text-[#344560] mb-1">Owner Type</label>
                 <select
@@ -141,7 +141,7 @@ export function UserEditModal({ user, isOpen, onClose, onSave }: UserEditModalPr
             )}
           </div>
 
-          {formData.role === "owner" && (
+          {formData.role !== "buyer" && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-bold text-[#344560] mb-1">
@@ -178,27 +178,11 @@ export function UserEditModal({ user, isOpen, onClose, onSave }: UserEditModalPr
                 className="w-full rounded-xl border border-[#dce3ee] bg-[#fafbfd] px-3 py-2 text-xs font-semibold text-[#20314b] outline-none"
               >
                 <option value="Active">Active</option>
-                <option value="Pending KYC">Pending KYC</option>
                 <option value="Suspended">Suspended</option>
                 <option value="Inactive">Inactive</option>
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-[#344560] mb-1">KYC Status</label>
-              <select
-                value={formData.kycStatus || "Not Submitted"}
-                onChange={(e) =>
-                  setFormData({ ...formData, kycStatus: e.target.value as KycStatus })
-                }
-                className="w-full rounded-xl border border-[#dce3ee] bg-[#fafbfd] px-3 py-2 text-xs font-semibold text-[#20314b] outline-none"
-              >
-                <option value="Verified">Verified</option>
-                <option value="Pending">Pending</option>
-                <option value="Rejected">Rejected</option>
-                <option value="Not Submitted">Not Submitted</option>
-              </select>
-            </div>
           </div>
 
           {/* Footer */}

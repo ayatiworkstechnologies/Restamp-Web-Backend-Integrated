@@ -76,7 +76,7 @@ export const initialRoles: RoleDefinition[] = [
       "Unrestricted platform access, role delegation, financial logs, and system configuration.",
     permissions: {
       properties: { view: true, approve: true, reject: true, edit: true, delete: true },
-      users: { view: true, kyc_verify: true, suspend: true, export: true },
+      users: { view: true, suspend: true, export: true },
       enquiries: { view: true, update_status: true, delete: true, export: true },
       reports: { view: true, export: true },
       settings: { manage_team: true, configure_platform: true, view_audit_logs: true },
@@ -86,10 +86,10 @@ export const initialRoles: RoleDefinition[] = [
     id: "role-ops-manager",
     name: "Operations Manager",
     description:
-      "Manage property approvals, inspect listings, verify user KYC, and export operational reports.",
+      "Manage property approvals, inspect listings, and export operational reports.",
     permissions: {
       properties: { view: true, approve: true, reject: true, edit: true, delete: false },
-      users: { view: true, kyc_verify: true, suspend: true, export: true },
+      users: { view: true, suspend: true, export: true },
       enquiries: { view: true, update_status: true, delete: false, export: true },
       reports: { view: true, export: true },
       settings: { manage_team: false, configure_platform: false, view_audit_logs: true },
@@ -102,7 +102,7 @@ export const initialRoles: RoleDefinition[] = [
       "Dedicated review desk for property title deeds, photos, and compliance verification.",
     permissions: {
       properties: { view: true, approve: true, reject: true, edit: true, delete: false },
-      users: { view: true, kyc_verify: false, suspend: false, export: false },
+      users: { view: true, suspend: false, export: false },
       enquiries: { view: true, update_status: false, delete: false, export: false },
       reports: { view: false, export: false },
       settings: { manage_team: false, configure_platform: false, view_audit_logs: false },
@@ -115,7 +115,7 @@ export const initialRoles: RoleDefinition[] = [
       "Handle customer support tickets, answer buyer inquiries, and update lead status.",
     permissions: {
       properties: { view: true, approve: false, reject: false, edit: false, delete: false },
-      users: { view: true, kyc_verify: false, suspend: false, export: false },
+      users: { view: true, suspend: false, export: false },
       enquiries: { view: true, update_status: true, delete: false, export: false },
       reports: { view: false, export: false },
       settings: { manage_team: false, configure_platform: false, view_audit_logs: false },
@@ -132,7 +132,6 @@ export const initialPlatformSettings: PlatformSettings = {
   timezone: "Asia/Kolkata (IST, UTC+05:30)",
   defaultCity: "Chennai",
 
-  requireOwnerKyc: true,
   requireReraNumber: true,
   maxImagesPerListing: 15,
   autoExpireDays: 90,
@@ -168,12 +167,12 @@ export const initialAuditLogs: SecurityAuditLog[] = [
     actor: "Deepak Manoharan",
     actorEmail: "deepak.m@restamp.in",
     role: "Operations Manager",
-    action: "Verified Owner KYC",
+    action: "Updated Owner Profile",
     category: "User",
     ipAddress: "103.28.246.45",
     timestamp: "28 Oct 2026, 09:50 AM",
     status: "Success",
-    details: "Approved Aadhaar and Electricity Bill documentation for owner Arun Kumar (USR-1001).",
+    details: "Updated contact details for owner Arun Kumar (USR-1001).",
   },
   {
     id: "LOG-903",

@@ -5,7 +5,7 @@ import {
   Users,
   UserCheck,
   Building,
-  Clock,
+  Briefcase,
   ShieldAlert,
   Download,
   RotateCcw,
@@ -15,18 +15,14 @@ import { useUserStore } from "@/context/user-context";
 
 interface UserHeaderProps {
   onAddNew: () => void;
-  onFilterPendingKyc: () => void;
   filteredCount: number;
   totalCount: number;
-  currentKycFilter: string;
 }
 
 export function UserHeader({
   onAddNew,
-  onFilterPendingKyc,
   filteredCount,
   totalCount,
-  currentKycFilter,
 }: UserHeaderProps) {
   const { stats, users, resetToDefaultUsers } = useUserStore();
 
@@ -41,7 +37,6 @@ export function UserHeader({
       "Role",
       "Owner Type",
       "Status",
-      "KYC Status",
       "City",
       "Joined Date",
       "Listings Count",
@@ -56,7 +51,6 @@ export function UserHeader({
       u.role,
       u.ownerType || "N/A",
       u.status,
-      u.kycStatus,
       u.city,
       `"${u.joinedDate}"`,
       u.totalListingsCount ?? 0,
@@ -90,7 +84,7 @@ export function UserHeader({
             </span>
           </div>
           <p className="mt-1 text-[13px] text-[#8696ab]">
-            Manage buyers, property owners, agents, builders, and KYC compliance records.
+            Manage buyers, property owners, agents and builders.
           </p>
         </div>
 
@@ -161,7 +155,7 @@ export function UserHeader({
         <div className="rounded-[16px] border border-[#e8ecf4] bg-white p-4 shadow-sm transition-all hover:border-[#d4dded]">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#9aa7bb]">
-              Owners & Agents
+              Owners
             </span>
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#f5f3ff] text-[#7c3aed]">
               <Building size={16} />
@@ -173,32 +167,18 @@ export function UserHeader({
           </div>
         </div>
 
-        {/* Pending KYC Verifications */}
-        <div
-          onClick={onFilterPendingKyc}
-          className={`cursor-pointer rounded-[16px] border p-4 shadow-sm transition-all ${
-            currentKycFilter === "Pending"
-              ? "border-[#f59e0b] bg-[#fffcf5] ring-2 ring-[#f59e0b]/30"
-              : "border-[#fde68a] bg-[#fffef9] hover:border-[#f59e0b]/60"
-          }`}
-        >
+        {/* Agents */}
+        <div className="rounded-[16px] border border-[#e8ecf4] bg-white p-4 shadow-sm transition-all hover:border-[#d4dded]">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#b45309]">
-              Pending KYC
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#9aa7bb]">
+              Agents
             </span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#fef3c7] text-[#d97706]">
-              <Clock size={16} />
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#ecfeff] text-[#0e7490]">
+              <Briefcase size={16} />
             </span>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-[22px] font-extrabold text-[#92400e]">{stats.pendingKyc}</span>
-            {stats.pendingKyc > 0 && (
-              <span className="rounded-full bg-[#fef3c7] px-2 py-0.5 text-[10px] font-bold text-[#b45309]">
-                Action Needed
-              </span>
-            )}
-          </div>
-          <div className="mt-1 text-[11px] text-[#b45309] font-medium">Click to review queue</div>
+          <div className="mt-2 text-[22px] font-extrabold text-[#1a2942]">{stats.agents}</div>
+          <div className="mt-1 text-[11px] text-[#0e7490] font-semibold">Managing listings</div>
         </div>
 
         {/* Suspended Accounts */}

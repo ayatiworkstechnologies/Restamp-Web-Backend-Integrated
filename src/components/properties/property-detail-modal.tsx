@@ -24,13 +24,13 @@ import {
 } from "lucide-react";
 import { Property } from "@/types/property";
 import { usePropertyStore } from "@/context/property-context";
+import { verifyCountdown } from "@/lib/auto-verify";
+import { useNow } from "@/lib/use-now";
 
 interface PropertyDetailModalProps {
   property: Property | null;
   isOpen: boolean;
   onClose: () => void;
-  onApprove: (property: Property) => void;
-  onReject: (property: Property) => void;
   onEdit: (property: Property) => void;
 }
 
@@ -38,8 +38,6 @@ export function PropertyDetailModal({
   property,
   isOpen,
   onClose,
-  onApprove,
-  onReject,
   onEdit,
 }: PropertyDetailModalProps) {
   const [activeTab, setActiveTab] = useState<
@@ -47,7 +45,8 @@ export function PropertyDetailModal({
   >("overview");
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  const { updateChecklist, toggleFeatured, toggleVerified, showToast } = usePropertyStore();
+  const { updateChecklist, toggleFeatured, toggleVerified, showToast, updateProperty } = usePropertyStore();
+  const now = useNow(1000);
 
   if (!isOpen || !property) return null;
 
@@ -104,26 +103,8 @@ export function PropertyDetailModal({
               {property.status}
             </span>
 
-            {/* If pending, show quick approve & reject */}
             {property.status === "Pending" && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onApprove(property)}
-                  className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-[#10b981] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#059669] transition-all"
-                >
-                  <CheckCircle2 size={14} />
-                  <span>Approve</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onReject(property)}
-                  className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-[#ef4444] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#dc2626] transition-all"
-                >
-                  <XCircle size={14} />
-                  <span>Reject</span>
-                </button>
-              </>
+              <span className="hidden sm:inline text-xs font-semibold text-[#087ed9]">{verifyCountdown(property.submittedAt, now)}</span>
             )}
 
             <button
@@ -165,7 +146,7 @@ export function PropertyDetailModal({
           {[
             { id: "overview", label: "Overview & Specs", icon: Building },
             { id: "documents", label: "Legal & RERA", icon: FileText, count: property.documents?.length },
-            { id: "owner", label: "Owner & KYC", icon: User },
+            { id: "owner", label: "Owner", icon: User },
             { id: "checklist", label: "Verification Checklist", icon: ShieldCheck },
             { id: "audit", label: "Audit Log", icon: History, count: property.auditLog?.length },
           ].map((tab) => {
@@ -458,15 +439,6 @@ export function PropertyDetailModal({
                       <h3 className="text-base font-extrabold text-[#19273f]">
                         {property.owner.name}
                       </h3>
-                      {property.owner.isKycVerified ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#ecfdf5] px-2.5 py-0.5 text-[10px] font-bold text-[#059669]">
-                          <ShieldCheck size={12} /> KYC VERIFIED
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fffbeb] px-2.5 py-0.5 text-[10px] font-bold text-[#d97706]">
-                          KYC PENDING
-                        </span>
-                      )}
                     </div>
                     <div className="mt-1 text-xs text-[#8090a7]">
                       {property.owner.accountType} · Member since {property.owner.joinedDate}
@@ -628,38 +600,21 @@ export function PropertyDetailModal({
           </div>
 
           <div className="flex items-center gap-2.5">
-            {property.status === "Pending" ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onReject(property)}
-                  className="rounded-xl border border-[#fee2e2] bg-[#fef2f2] px-4 py-2 text-xs font-bold text-[#dc2626] hover:bg-[#fee2e2] transition-colors"
-                >
-                  Reject Listing
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onApprove(property)}
-                  className="rounded-xl bg-[#10b981] px-5 py-2 text-xs font-bold text-white shadow-[0_4px_12px_#10b98135] hover:bg-[#059669] transition-all"
-                >
-                  Approve & Activate
-                </button>
-              </>
-            ) : property.status === "Rejected" ? (
+            {property.status === "Active" ? (
               <button
                 type="button"
-                onClick={() => onApprove(property)}
-                className="rounded-xl bg-[#2854cb] px-5 py-2 text-xs font-bold text-white hover:bg-[#1f45ae] transition-colors"
+                onClick={() => updateProperty(property.id, { status: "Draft" })}
+                className="rounded-xl border border-[#fee2e2] bg-[#fef2f2] px-4 py-2 text-xs font-bold text-[#dc2626] hover:bg-[#fee2e2] transition-colors"
               >
-                Re-approve Property
+                Unpublish
               </button>
             ) : (
               <button
                 type="button"
-                onClick={() => onReject(property)}
-                className="rounded-xl border border-[#fee2e2] bg-[#fef2f2] px-4 py-2 text-xs font-bold text-[#dc2626] hover:bg-[#fee2e2] transition-colors"
+                onClick={() => updateProperty(property.id, { status: "Active" })}
+                className="rounded-xl bg-[#2854cb] px-5 py-2 text-xs font-bold text-white hover:bg-[#1f45ae] transition-colors"
               >
-                Delist / Reject
+                Publish now
               </button>
             )}
             <button

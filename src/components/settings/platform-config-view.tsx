@@ -140,23 +140,6 @@ export function PlatformConfigView() {
         </div>
 
         <div className="space-y-3 divide-y divide-[#f8fafc]">
-          {/* Require KYC */}
-          <div className="flex items-center justify-between pt-2 text-xs">
-            <div>
-              <span className="font-semibold text-[#101828]">
-                Mandatory Owner KYC Verification
-              </span>
-              <p className="text-[11px] text-[#64748b]">
-                Property owners must submit Aadhaar and proof of ownership before listings can be approved.
-              </p>
-            </div>
-            <input
-              type="checkbox"
-              checked={formData.requireOwnerKyc}
-              onChange={(e) => handleChange("requireOwnerKyc", e.target.checked)}
-              className="h-4 w-4 rounded border-[#cbd5e1] text-[#162d66] cursor-pointer"
-            />
-          </div>
 
           {/* Require RERA */}
           <div className="flex items-center justify-between pt-3 text-xs">

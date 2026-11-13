@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearProfile, getProfile, type Profile } from '@/lib/profile';
+import { NotificationBell } from '@/components/common/notification-bell';
 import { useWishlist } from '@/lib/wishlist';
 import {
   Menu,
@@ -443,6 +444,8 @@ export default function Header() {
               </span>
             )}
           </Link>
+
+          {profile && <NotificationBell profile={profile} />}
 
           {/* Profile Trigger */}
           <div ref={userDropdownRef} className="relative">

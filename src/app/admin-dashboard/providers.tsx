@@ -6,7 +6,6 @@ import { PropertyProvider } from '@/context/property-context';
 import { UserProvider } from '@/context/user-context';
 import { EnquiryProvider } from '@/context/enquiry-context';
 import { SettingsProvider } from '@/context/settings-context';
-import { ToastNotification } from '@/components/common/toast-notification';
 import { AdminAuthGuard } from '@/components/dashboard/admin-auth-guard';
 
 export function AdminDashboardProviders({ children }: { children: React.ReactNode }) {
@@ -19,7 +18,6 @@ export function AdminDashboardProviders({ children }: { children: React.ReactNod
               <AdminAuthGuard>
                 {children}
               </AdminAuthGuard>
-              <ToastNotification />
             </SettingsProvider>
           </EnquiryProvider>
         </UserProvider>

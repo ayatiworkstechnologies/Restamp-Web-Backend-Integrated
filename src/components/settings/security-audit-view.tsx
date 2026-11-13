@@ -78,7 +78,7 @@ export function SecurityAuditView() {
             <option value="all">All Categories</option>
             <option value="Auth">Authentication</option>
             <option value="Listing">Listings</option>
-            <option value="User">Users & KYC</option>
+            <option value="User">Users</option>
             <option value="Setting">Settings</option>
             <option value="Access">Team Access</option>
           </select>

@@ -88,7 +88,7 @@ export default function OwnerDashboardPage() {
               </div>
               <div className="flex flex-col p-6">
                 <span className={`self-start rounded-full px-2.5 py-1 text-[11px] font-semibold ${primary.status === 'Pending Verification' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                  {primary.status === 'Pending Verification' ? 'Pending Verification' : 'Live'}
+                  {primary.status === 'Pending Verification' ? 'Going live in 5 min' : 'Live'}
                 </span>
                 <h2 className="mt-3 text-xl font-bold text-slate-900">
                   {[primary.bhk, primary.propertyType].filter(Boolean).join(' ')} for {primary.purpose}

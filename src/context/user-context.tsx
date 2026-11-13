@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from "react";
-import { User, KycStatus, UserStatus } from "@/types/user";
+import { User, UserStatus, normalizeUserRole } from "@/types/user";
 import { initialUsers } from "@/lib/users-data";
 import { usePropertyStore } from "@/context/property-context";
 
@@ -11,13 +11,10 @@ interface UserContextType {
     total: number;
     buyers: number;
     owners: number;
-    pendingKyc: number;
+    agents: number;
     suspended: number;
     active: number;
-    pendingKycUsers: User[];
   };
-  verifyKyc: (userId: string, notes?: string) => void;
-  rejectKyc: (userId: string, reason: string) => void;
   suspendUser: (userId: string, reason: string) => void;
   activateUser: (userId: string) => void;
   updateUser: (userId: string, updates: Partial<User>) => void;
@@ -26,7 +23,6 @@ interface UserContextType {
   ) => string;
   deleteUser: (userId: string) => void;
   addAdminNote: (userId: string, content: string, adminName?: string) => void;
-  batchVerifyKyc: (userIds: string[]) => void;
   batchSuspend: (userIds: string[], reason: string) => void;
   resetToDefaultUsers: () => void;
 }
@@ -38,7 +34,7 @@ const USER_STORAGE_KEY = "restamp_admin_users_v1";
 const tints = ["#E6EBFF", "#E7F3EC", "#FDF0DB", "#EDE9FE", "#FCE7F3", "#DCFCE7", "#FEF3C7"];
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<User[]>(() => initialUsers.map(normalizeUserRole));
   const [isHydrated, setIsHydrated] = useState(false);
   const { showToast } = usePropertyStore();
 
@@ -49,7 +45,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setUsers(parsed);
+          setUsers((parsed as User[]).map(normalizeUserRole));
         }
       }
     } catch {
@@ -73,94 +69,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const total = users.length;
     const buyers = users.filter((u) => u.role === "buyer").length;
     const owners = users.filter((u) => u.role === "owner").length;
-    const pendingKyc = users.filter((u) => u.kycStatus === "Pending").length;
+    const agents = users.filter((u) => u.role === "agent").length;
     const suspended = users.filter((u) => u.status === "Suspended").length;
     const active = users.filter((u) => u.status === "Active").length;
-    const pendingKycUsers = users.filter((u) => u.kycStatus === "Pending");
-    return { total, buyers, owners, pendingKyc, suspended, active, pendingKycUsers };
+    return { total, buyers, owners, agents, suspended, active };
   }, [users]);
-
-  const verifyKyc = (userId: string, notes?: string) => {
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, ${now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id !== userId) return user;
-
-        const updatedKycDocs = (user.kycDocuments || []).map((doc) => ({
-          ...doc,
-          status: "Verified" as KycStatus,
-          verifiedAt: timestamp,
-          verifiedBy: "RESTAMP Admin",
-        }));
-
-        const updatedAuditLog = [
-          {
-            id: `AUD-${Date.now().toString().slice(-4)}`,
-            action: "KYC Verified",
-            actor: "RESTAMP Admin",
-            timestamp,
-            details: notes || "All identity and compliance documents verified.",
-          },
-          ...(user.auditLog || []),
-        ];
-
-        return {
-          ...user,
-          kycStatus: "Verified" as KycStatus,
-          status: user.status === "Pending KYC" ? ("Active" as UserStatus) : user.status,
-          kycDocuments: updatedKycDocs,
-          auditLog: updatedAuditLog,
-        };
-      })
-    );
-
-    showToast(`KYC verified successfully for user ${userId}.`);
-  };
-
-  const rejectKyc = (userId: string, reason: string) => {
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, ${now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id !== userId) return user;
-
-        const updatedKycDocs = (user.kycDocuments || []).map((doc) => ({
-          ...doc,
-          status: "Rejected" as KycStatus,
-          rejectionReason: reason,
-        }));
-
-        const updatedAuditLog = [
-          {
-            id: `AUD-${Date.now().toString().slice(-4)}`,
-            action: "KYC Rejected",
-            actor: "RESTAMP Admin",
-            timestamp,
-            details: `Rejected: ${reason}`,
-          },
-          ...(user.auditLog || []),
-        ];
-
-        return {
-          ...user,
-          kycStatus: "Rejected" as KycStatus,
-          kycDocuments: updatedKycDocs,
-          auditLog: updatedAuditLog,
-        };
-      })
-    );
-
-    showToast(`KYC rejected for user ${userId}. Resubmission requested.`, "error");
-  };
 
   const suspendUser = (userId: string, reason: string) => {
     const now = new Date();
@@ -329,36 +242,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     showToast("Internal admin note added.");
   };
 
-  const batchVerifyKyc = (userIds: string[]) => {
-    if (userIds.length === 0) return;
-    const now = new Date();
-    const timestamp = `${now.toLocaleDateString("en-GB")}, Batch`;
-
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (!userIds.includes(user.id)) return user;
-
-        return {
-          ...user,
-          kycStatus: "Verified" as KycStatus,
-          status: user.status === "Pending KYC" ? ("Active" as UserStatus) : user.status,
-          auditLog: [
-            {
-              id: `AUD-${Date.now().toString().slice(-4)}`,
-              action: "Batch KYC Verified",
-              actor: "Admin",
-              timestamp,
-              details: "Approved via bulk action toolbar.",
-            },
-            ...(user.auditLog || []),
-          ],
-        };
-      })
-    );
-
-    showToast(`Batch verified KYC for ${userIds.length} users!`);
-  };
-
   const batchSuspend = (userIds: string[], reason: string) => {
     if (userIds.length === 0) return;
     const now = new Date();
@@ -395,7 +278,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // ignore
     }
-    setUsers(initialUsers);
+    setUsers(initialUsers.map(normalizeUserRole));
     showToast("Reset users data to initial seed.", "info");
   };
 
@@ -404,15 +287,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       value={{
         users,
         stats,
-        verifyKyc,
-        rejectKyc,
         suspendUser,
         activateUser,
         updateUser,
         addUser,
         deleteUser,
         addAdminNote,
-        batchVerifyKyc,
         batchSuspend,
         resetToDefaultUsers,
       }}

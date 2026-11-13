@@ -129,12 +129,11 @@ export default function AgentProfilePage() {
         </div>
 
         <div className="space-y-6">
-          <Section title="KYC / Verification">
+          <Section title="RERA Registration">
             <Row
               icon={ShieldCheck}
-              label="RERA & Identity Verification"
-              detail={`Agent RERA ID: ${sub.reraNumber || 'Not provided'}`}
-              right={<span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Verified & Active</span>}
+              label="RERA ID"
+              detail={sub.reraNumber || 'Not provided'}
             />
           </Section>
 

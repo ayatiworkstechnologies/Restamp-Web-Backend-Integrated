@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { UserPlus, X } from "lucide-react";
-import { User, UserRole, OwnerType, KycStatus } from "@/types/user";
+import { User, UserRole, OwnerType } from "@/types/user";
 
 interface UserAddModalProps {
   isOpen: boolean;
+  /** Pre-selects the role (e.g. when adding from the Agents page). */
+  defaultRole?: UserRole;
   onClose: () => void;
   onAdd: (
     newUser: Omit<
@@ -15,16 +17,18 @@ interface UserAddModalProps {
   ) => void;
 }
 
-export function UserAddModal({ isOpen, onClose, onAdd }: UserAddModalProps) {
+export function UserAddModal({ isOpen, onClose, onAdd, defaultRole = "buyer" }: UserAddModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("+91 ");
-  const [role, setRole] = useState<UserRole>("buyer");
+  const [role, setRole] = useState<UserRole>(defaultRole);
+  useEffect(() => {
+    if (isOpen) setRole(defaultRole);
+  }, [isOpen, defaultRole]);
   const [ownerType, setOwnerType] = useState<OwnerType>("Individual Owner");
   const [companyName, setCompanyName] = useState("");
   const [city, setCity] = useState("Chennai");
   const [state, setState] = useState("Tamil Nadu");
-  const [kycStatus, setKycStatus] = useState<KycStatus>("Verified");
 
   // Buyer specific preferences
   const [budgetMin, setBudgetMin] = useState(8000000);
@@ -44,14 +48,13 @@ export function UserAddModal({ isOpen, onClose, onAdd }: UserAddModalProps) {
       email,
       phone,
       role,
-      status: kycStatus === "Verified" ? "Active" : "Pending KYC",
-      kycStatus,
+      status: "Active",
       city,
       state,
       emailVerified: true,
       phoneVerified: true,
-      ownerType: role === "owner" ? ownerType : undefined,
-      companyName: role === "owner" && companyName ? companyName : undefined,
+      ownerType: role !== "buyer" ? ownerType : undefined,
+      companyName: role !== "buyer" && companyName ? companyName : undefined,
       totalListingsCount: 0,
       activeListingsCount: 0,
       buyerPreferences:
@@ -68,22 +71,6 @@ export function UserAddModal({ isOpen, onClose, onAdd }: UserAddModalProps) {
           : undefined,
       enquiries: [],
       savedPropertyIds: [],
-      kycDocuments:
-        kycStatus === "Verified"
-          ? [
-              {
-                id: `KYC-NEW-1`,
-                type: "Aadhaar Card",
-                documentNumber: "XXXX-XXXX-Verified",
-                fileUrl: "#",
-                fileSize: "1.5 MB",
-                status: "Verified",
-                submittedAt: "Today",
-                verifiedAt: "Today",
-                verifiedBy: "Admin",
-              },
-            ]
-          : [],
     };
 
     onAdd(newUserData);
@@ -169,10 +156,11 @@ export function UserAddModal({ isOpen, onClose, onAdd }: UserAddModalProps) {
               >
                 <option value="buyer">Buyer (Looking for Property)</option>
                 <option value="owner">Owner / Seller (Listing Property)</option>
+                <option value="agent">Agent / Broker (Managing Listings)</option>
               </select>
             </div>
 
-            {role === "owner" ? (
+            {role !== "buyer" ? (
               <div>
                 <label className="block text-xs font-bold text-[#344560] mb-1">Owner Type</label>
                 <select
@@ -198,7 +186,7 @@ export function UserAddModal({ isOpen, onClose, onAdd }: UserAddModalProps) {
             )}
           </div>
 
-          {role === "owner" && (
+          {role !== "buyer" && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-bold text-[#344560] mb-1">
@@ -263,19 +251,6 @@ export function UserAddModal({ isOpen, onClose, onAdd }: UserAddModalProps) {
               </div>
             </div>
           )}
-
-          <div className="border-t border-[#f0f3f8] pt-4">
-            <label className="block text-xs font-bold text-[#344560] mb-1">Initial KYC Status</label>
-            <select
-              value={kycStatus}
-              onChange={(e) => setKycStatus(e.target.value as KycStatus)}
-              className="w-full rounded-xl border border-[#dce3ee] bg-[#fafbfd] px-3 py-2 text-xs font-semibold text-[#20314b] outline-none"
-            >
-              <option value="Verified">Verified (Immediate Approval)</option>
-              <option value="Pending">Pending Verification (Needs Admin Review)</option>
-              <option value="Not Submitted">Not Submitted</option>
-            </select>
-          </div>
 
           {/* Footer */}
           <div className="flex items-center justify-end gap-2.5 border-t border-[#f0f3f8] pt-4">

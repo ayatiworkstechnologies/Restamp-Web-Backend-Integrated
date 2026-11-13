@@ -1,19 +1,21 @@
 "use client";
 
+import { confirmDialog } from "@/components/common/confirm-dialog";
 import React, { useState } from "react";
 import Link from "next/link";
 import {
-  Eye,
-  MoreVertical,
-  Phone,
-  Mail,
-  ShieldCheck,
-  CheckCircle2,
-  Trash2,
-  ExternalLink,
-  Clock,
   Archive,
   Building,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  Eye,
+  Mail,
+  MapPin,
+  MoreVertical,
+  Phone,
+  ShieldCheck,
+  Trash2,
   User,
 } from "lucide-react";
 import { Enquiry, EnquiryStatus } from "@/types/enquiry";
@@ -204,16 +206,8 @@ export function EnquiryTable({ enquiries, onInspect }: EnquiryTableProps) {
                           <span className="font-semibold text-[#101828]">
                             {enquiry.buyer.name}
                           </span>
-                          {enquiry.buyer.isKycVerified && (
-                            <span
-                              title="KYC Verified Buyer"
-                              className="inline-flex text-[#10b981]"
-                            >
-                              <ShieldCheck className="h-3.5 w-3.5" />
-                            </span>
-                          )}
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[#64748b]">
+                        <div className="mt-1 flex items-center gap-2 text-[11px] text-[#64748b]">
                           <a
                             href={`tel:${enquiry.buyer.phone}`}
                             className="inline-flex items-center gap-1 hover:text-[#162d66] hover:underline"
@@ -223,9 +217,16 @@ export function EnquiryTable({ enquiries, onInspect }: EnquiryTableProps) {
                             <span>{enquiry.buyer.phone}</span>
                           </a>
                         </div>
-                        <div className="text-[11px] text-[#94a3b8] truncate">
-                          {enquiry.buyer.email} · {enquiry.buyer.city}
+                        <div className="mt-1 flex min-w-0 items-center gap-1 text-[11px] text-[#64748b]">
+                          <Mail className="h-3 w-3 shrink-0 text-[#94a3b8]" />
+                          <span className="truncate">{enquiry.buyer.email}</span>
                         </div>
+                        {enquiry.buyer.city && (
+                          <div className="mt-1 flex items-center gap-1 text-[11px] text-[#64748b]">
+                            <MapPin className="h-3 w-3 shrink-0 text-[#94a3b8]" />
+                            <span>{enquiry.buyer.city}</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Target Property */}
@@ -390,9 +391,11 @@ export function EnquiryTable({ enquiries, onInspect }: EnquiryTableProps) {
 
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     setActiveMenuId(null);
-                                    deleteEnquiry(enquiry.id);
+                                    if (await confirmDialog({ title: "Delete enquiry", body: `Are you sure you want to delete enquiry ${enquiry.id}? This action cannot be undone.` })) {
+                                      deleteEnquiry(enquiry.id);
+                                    }
                                   }}
                                   className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-[#ef4444] hover:bg-[#fef2f2]"
                                 >

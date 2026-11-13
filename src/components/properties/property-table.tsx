@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/components/common/confirm-dialog";
 import React, { useState } from "react";
 import {
   CheckCircle2,
@@ -19,28 +20,25 @@ import {
 } from "lucide-react";
 import { Property, PropertyStatus } from "@/types/property";
 import { usePropertyStore } from "@/context/property-context";
+import { verifyCountdown } from "@/lib/auto-verify";
+import { useNow } from "@/lib/use-now";
 
 interface PropertyTableProps {
   properties: Property[];
   onInspect: (property: Property) => void;
-  onApprove: (property: Property) => void;
-  onReject: (property: Property) => void;
   onEdit: (property: Property) => void;
 }
 
 export function PropertyTable({
   properties,
   onInspect,
-  onApprove,
-  onReject,
   onEdit,
 }: PropertyTableProps) {
+  const now = useNow(1000);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   const {
-    batchApprove,
-    batchReject,
     toggleFeatured,
     toggleVerified,
     deleteProperty,
@@ -63,19 +61,10 @@ export function PropertyTable({
     }
   };
 
-  const handleBatchApprove = () => {
+  const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
-    batchApprove(selectedIds);
-    setSelectedIds([]);
-  };
-
-  const handleBatchReject = () => {
-    if (selectedIds.length === 0) return;
-    batchReject(
-      selectedIds,
-      "Administrative bulk rejection due to incomplete verification.",
-      "Compliance"
-    );
+    if (!(await confirmDialog({ title: `Delete ${selectedIds.length} listing${selectedIds.length === 1 ? "" : "s"}`, body: "Are you sure you want to delete the selected listings? This action cannot be undone." }))) return;
+    selectedIds.forEach((id) => deleteProperty(id));
     setSelectedIds([]);
   };
 
@@ -201,17 +190,6 @@ export function PropertyTable({
                       <div className="mt-0.5 text-[11px] text-[#7d8ea5]">
                         {property.owner.phone}
                       </div>
-                      <div className="mt-0.5">
-                        {property.owner.isKycVerified ? (
-                          <span className="inline-flex items-center gap-1 rounded bg-[#ecfdf5] px-1.5 py-0.2 text-[9px] font-extrabold text-[#059669]">
-                            <ShieldCheck size={10} /> KYC VERIFIED
-                          </span>
-                        ) : (
-                          <span className="rounded bg-[#fffbeb] px-1.5 py-0.2 text-[9px] font-bold text-[#b45309]">
-                            KYC PENDING
-                          </span>
-                        )}
-                      </div>
                     </td>
 
                     {/* Price & Area */}
@@ -259,8 +237,8 @@ export function PropertyTable({
                     <td className="whitespace-nowrap px-3 py-4 text-xs text-[#8091a7]">
                       <div>{property.submittedAt}</div>
                       {property.status === "Pending" && (
-                        <div className="mt-0.5 flex items-center gap-1 text-[10px] text-[#d97706] font-semibold">
-                          <Clock size={11} /> Waiting approval
+                        <div className="mt-0.5 flex items-center gap-1 text-[10px] text-[#087ed9] font-semibold">
+                          <Clock size={11} /> {verifyCountdown(property.submittedAt, now)}
                         </div>
                       )}
                     </td>
@@ -268,28 +246,6 @@ export function PropertyTable({
                     {/* Actions */}
                     <td className="whitespace-nowrap px-4 py-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {/* Quick Approve & Reject for Pending status */}
-                        {property.status === "Pending" && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => onApprove(property)}
-                              className="rounded-lg bg-[#10b981]/10 p-1.5 text-[#10b981] hover:bg-[#10b981] hover:text-white transition-colors"
-                              title="Approve Listing"
-                            >
-                              <CheckCircle2 size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onReject(property)}
-                              className="rounded-lg bg-[#ef4444]/10 p-1.5 text-[#ef4444] hover:bg-[#ef4444] hover:text-white transition-colors"
-                              title="Reject Listing"
-                            >
-                              <XCircle size={16} />
-                            </button>
-                          </>
-                        )}
-
                         {/* View / Review Details */}
                         <button
                           type="button"
@@ -359,9 +315,9 @@ export function PropertyTable({
                               <div className="my-1 border-t border-[#f0f3f8]" />
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                   setActiveMenuId(null);
-                                  if (confirm(`Are you sure you want to delete ${property.id}?`)) {
+                                  if (await confirmDialog({ title: "Delete listing", body: `Are you sure you want to delete ${property.id}? This action cannot be undone.` })) {
                                     deleteProperty(property.id);
                                   }
                                 }}
@@ -397,19 +353,11 @@ export function PropertyTable({
           <div className="h-4 w-px bg-white/20" />
           <button
             type="button"
-            onClick={handleBatchApprove}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#10b981] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#059669] transition-all"
-          >
-            <CheckCircle2 size={14} />
-            <span>Approve Selected</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleBatchReject}
+            onClick={handleBatchDelete}
             className="inline-flex items-center gap-1.5 rounded-xl bg-[#ef4444] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#dc2626] transition-all"
           >
             <XCircle size={14} />
-            <span>Reject Selected</span>
+            <span>Delete Selected</span>
           </button>
           <button
             type="button"

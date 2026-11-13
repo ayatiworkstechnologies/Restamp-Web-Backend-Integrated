@@ -1,6 +1,18 @@
-export type UserRole = "buyer" | "owner";
+export type UserRole = "buyer" | "owner" | "agent";
 
-export type UserStatus = "Active" | "Pending KYC" | "Suspended" | "Inactive";
+/** Owners and agents both list properties. */
+export const isLister = (u: { role: UserRole }) => u.role !== "buyer";
+
+/** Migrates legacy records where agents were stored as owners with ownerType "Agent / Broker". */
+export function normalizeUserRole<T extends { role: UserRole; ownerType?: OwnerType }>(u: T): T {
+  let out = u;
+  if (out.role === "owner" && out.ownerType === "Agent / Broker") out = { ...out, role: "agent" };
+  // KYC removed: accounts previously parked in "Pending KYC" are active.
+  if ((out as { status?: string }).status === "Pending KYC") out = { ...out, status: "Active" };
+  return out;
+}
+
+export type UserStatus = "Active" | "Suspended" | "Inactive";
 
 export type KycStatus = "Verified" | "Pending" | "Rejected" | "Not Submitted";
 
@@ -66,7 +78,8 @@ export interface User {
   tint: string;
   role: UserRole;
   status: UserStatus;
-  kycStatus: KycStatus;
+  /** Legacy seed data only. The KYC process has been removed from the product. */
+  kycStatus?: KycStatus;
   city: string;
   state: string;
   joinedDate: string;
@@ -88,7 +101,8 @@ export interface User {
   savedPropertyIds?: string[];
 
   // Verification & Compliance
-  kycDocuments: KycDocument[];
+  /** Legacy seed data only. Not shown or used. */
+  kycDocuments?: KycDocument[];
   adminNotes: UserAdminNote[];
   auditLog: UserAuditEntry[];
   suspensionReason?: string;
@@ -98,7 +112,6 @@ export interface UserFilters {
   search: string;
   role: "all" | UserRole;
   status: "all" | UserStatus;
-  kycStatus: "all" | KycStatus;
   ownerType?: "all" | OwnerType;
   city?: string;
   sortBy: "recent" | "name_asc" | "listings_desc" | "enquiries_desc";

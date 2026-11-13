@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  Briefcase,
   Activity,
   ArrowRight,
   BarChart3,
@@ -19,14 +20,16 @@ import {
   Search,
   ShieldAlert,
   SlidersHorizontal,
-  TrendingUp,
   UsersRound,
   X,
   ExternalLink,
 } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { StatCard } from "@/components/dashboard/stat-card";
-import { activities, monthlyListings } from "@/lib/dashboard-data";
+import { activities } from "@/lib/dashboard-data";
+import { SubscriptionOverview } from "@/components/dashboard/subscription-overview";
+import { verifyCountdown } from "@/lib/auto-verify";
+import { useNow } from "@/lib/use-now";
 import { usePropertyStore } from "@/context/property-context";
 import { useUserStore } from "@/context/user-context";
 import { useEnquiryStore } from "@/context/enquiry-context";
@@ -73,11 +76,37 @@ function SectionHeading({
   );
 }
 
-function ListingsChart() {
-  const max = Math.max(...monthlyListings.map((point) => point.count));
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Parses "28 Oct 2026, 09:15 AM" (the format used by property records). */
+function parseSubmitted(v: string): Date | null {
+  const m = /^(\d{1,2}) ([A-Za-z]{3}) (\d{4})/.exec(v);
+  if (!m) {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const mi = MONTHS.indexOf(m[2]);
+  return mi < 0 ? null : new Date(Number(m[3]), mi, Number(m[1]));
+}
+
+/** New listings per month for the six months ending with the latest submission. */
+function monthlyFromProperties(list: { submittedAt: string }[]) {
+  const dates = list.map((p) => parseSubmitted(p.submittedAt)).filter((d): d is Date => !!d);
+  const end = dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : new Date();
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(end.getFullYear(), end.getMonth() - 5 + i, 1);
+    return {
+      month: MONTHS[d.getMonth()],
+      count: dates.filter((x) => x.getFullYear() === d.getFullYear() && x.getMonth() === d.getMonth()).length,
+    };
+  });
+}
+
+function ListingsChart({ points }: { points: { month: string; count: number }[] }) {
+  const max = Math.max(1, ...points.map((point) => point.count));
   return (
     <div className="flex h-[213px] items-end gap-3 border-b border-[#e7ebf2] pt-6 sm:gap-6">
-      {monthlyListings.map((point, i) => (
+      {points.map((point, i) => (
         <div
           className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-3"
           key={point.month}
@@ -109,6 +138,7 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<StatusFilter>("All");
 
   const { properties, stats } = usePropertyStore();
+  const now = useNow(1000);
   const { stats: userStats } = useUserStore();
   const { stats: enquiryStats } = useEnquiryStore();
 
@@ -116,8 +146,7 @@ export default function DashboardPage() {
     {
       label: "Total Properties",
       value: properties.length.toString(),
-      change: "12.8%",
-      detail: "vs. previous month",
+      detail: "all statuses",
       icon: Building2,
       iconBg: "#EAF1FF",
       iconColor: "#3869E6",
@@ -126,28 +155,25 @@ export default function DashboardPage() {
     {
       label: "Active Listings",
       value: stats.active.toString(),
-      change: "8.2%",
-      detail: "vs. previous month",
+      detail: "live on marketplace",
       icon: CheckCircle2,
       iconBg: "#E7F8EF",
       iconColor: "#25A873",
       href: "/admin-dashboard/properties?status=Active",
     },
     {
-      label: "Pending Approvals",
+      label: "Verifying",
       value: stats.pending.toString(),
-      change: "Action needed",
-      detail: "ready for review",
+      detail: "go live automatically in 5 min",
       icon: Clock3,
       iconBg: "#FFF4E3",
       iconColor: "#ECA037",
-      href: "/admin-dashboard/properties?tab=approvals",
+      href: "/admin-dashboard/properties",
     },
     {
       label: "Total Enquiries",
-      value: (3580 + enquiryStats.total).toLocaleString(),
-      change: "16.5%",
-      detail: "vs. previous month",
+      value: enquiryStats.total.toLocaleString(),
+      detail: `${enquiryStats.active} open`,
       icon: MessageSquareText,
       iconBg: "#F0EAFF",
       iconColor: "#885CE8",
@@ -167,6 +193,14 @@ export default function DashboardPage() {
       return matchesStatus && matchesQuery;
     });
   }, [properties, search, filter]);
+
+  const monthly = useMemo(() => monthlyFromProperties(properties), [properties]);
+  const monthlyTotal = monthly.reduce((a, p) => a + p.count, 0);
+  const statusTotal = stats.active + stats.pending + stats.rejected;
+  const pct = (n: number) => (statusTotal ? (n / statusTotal) * 100 : 0);
+  const donut = statusTotal
+    ? `conic-gradient(#3566e9 0 ${pct(stats.active)}%, #f4b64c ${pct(stats.active)}% ${pct(stats.active) + pct(stats.pending)}%, #e66a74 ${pct(stats.active) + pct(stats.pending)}% 100%)`
+    : "conic-gradient(#eef1f6 0 100%)";
 
   const pendingQueue = useMemo(() => {
     return properties.filter((p) => p.status === "Pending");
@@ -233,13 +267,13 @@ export default function DashboardPage() {
                     </button>
                   </div>
                   <p className="mt-1 text-[11px] text-[#9ba8ba]">
-                    {stats.pending} properties waiting for approval
+                    {stats.pending} listings going live automatically
                   </p>
                   <div className="mt-3 space-y-2 border-t border-[#eef1f6] pt-3">
                     {pendingQueue.slice(0, 3).map((item) => (
                       <Link
                         key={item.id}
-                        href={`/dashboard/properties?id=${item.id}`}
+                        href={`/admin-dashboard/properties?id=${item.id}`}
                         className="block rounded-lg p-1.5 text-xs text-[#54637b] hover:bg-[#f5f8ff]"
                       >
                         <span className="font-semibold text-[#2854cb]">{item.id}:</span>{" "}
@@ -263,7 +297,7 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1650px] space-y-6 px-4 py-7 sm:px-7 xl:px-9 xl:py-9">
+        <main className="min-w-0 w-full space-y-6 px-4 py-7 sm:px-7 xl:px-9 xl:py-9">
           <div className="animate-fade-in flex flex-wrap items-end justify-between gap-4">
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
@@ -308,6 +342,8 @@ export default function DashboardPage() {
             ))}
           </section>
 
+          <SubscriptionOverview />
+
           <section
             aria-label="Platform charts"
             className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]"
@@ -326,15 +362,12 @@ export default function DashboardPage() {
               <div className="mt-2 flex items-end justify-between">
                 <div>
                   <span className="text-[29px] font-extrabold tracking-[-0.04em] text-[#1d2c45]">
-                    268
+                    {monthlyTotal}
                   </span>
                   <span className="ml-2 text-xs text-[#98a5b8]">listings added</span>
                 </div>
-                <span className="flex items-center gap-1 rounded-lg bg-[#eaf9f0] px-2.5 py-1.5 text-xs font-bold text-[#20a470]">
-                  <TrendingUp size={14} /> +18.6%
-                </span>
               </div>
-              <ListingsChart />
+              <ListingsChart points={monthly} />
             </div>
 
             <div className="rounded-[18px] border border-[#e9edf4] bg-white p-5 shadow-[0_3px_18px_#15223d06] sm:p-6">
@@ -348,15 +381,14 @@ export default function DashboardPage() {
                   aria-label="Distribution chart"
                   className="relative h-[168px] w-[168px] shrink-0 rounded-full"
                   style={{
-                    background:
-                      "conic-gradient(#3566e9 0 65%, #f4b64c 65% 85%, #e66a74 85% 100%)",
+                    background: donut,
                   }}
                 >
                   <div className="absolute inset-[24px] flex flex-col items-center justify-center rounded-full bg-white">
                     <div className="text-[25px] font-extrabold text-[#1e2d47]">
-                      {properties.length}
+                      {statusTotal}
                     </div>
-                    <div className="text-[10px] font-semibold text-[#a1adbe]">Properties</div>
+                    <div className="text-[10px] font-semibold text-[#a1adbe]">Listings</div>
                   </div>
                 </div>
                 <div className="min-w-[120px] space-y-4">
@@ -390,7 +422,7 @@ export default function DashboardPage() {
           </section>
 
           <section
-            aria-label="Property listings and approvals"
+            aria-label="Property listings"
             className="grid gap-5 2xl:grid-cols-[minmax(0,1.8fr)_minmax(320px,.9fr)]"
           >
             <div className="min-w-0 rounded-[18px] border border-[#e9edf4] bg-white shadow-[0_3px_18px_#15223d06]">
@@ -520,19 +552,19 @@ export default function DashboardPage() {
                   href="/admin-dashboard/properties"
                   className="text-[11px] font-bold text-[#2854cb] hover:underline"
                 >
-                  Manage, approve & reject all listings <ArrowRight size={13} className="ml-1 inline" />
+                  Manage all listings <ArrowRight size={13} className="ml-1 inline" />
                 </Link>
               </div>
             </div>
 
             <div
-              id="approval-queue"
+              id="going-live"
               className="rounded-[18px] border border-[#e9edf4] bg-white p-5 shadow-[0_3px_18px_#15223d06] sm:p-6"
             >
               <div className="flex items-center justify-between gap-3">
                 <SectionHeading
-                  title="Approval Queue"
-                  subtitle={`${pendingQueue.length} items waiting for admin review`}
+                  title="Going Live Soon"
+                  subtitle={`${pendingQueue.length} listing${pendingQueue.length === 1 ? "" : "s"} auto-verifying (5 minutes after submission)`}
                 />
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#fff5e7] text-[#eea33f]">
                   <ShieldAlert size={17} />
@@ -550,7 +582,7 @@ export default function DashboardPage() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <Link
-                          href={`/dashboard/properties?id=${item.id}`}
+                          href={`/admin-dashboard/properties?id=${item.id}`}
                           className="truncate text-[12px] font-extrabold text-[#36445d] hover:text-[#2854cb]"
                         >
                           {item.title}
@@ -560,30 +592,30 @@ export default function DashboardPage() {
                         </div>
                         <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[#b0bac9]">
                           <Clock3 size={12} />
-                          {item.submittedAt}
+                          {verifyCountdown(item.submittedAt, now)}
                         </div>
                       </div>
                       <Link
-                        href={`/dashboard/properties?id=${item.id}`}
+                        href={`/admin-dashboard/properties?id=${item.id}`}
                         className="rounded-lg bg-[#f0f4ff] px-2 py-1 text-[11px] font-bold text-[#2854cb] hover:bg-[#2854cb] hover:text-white transition-colors"
                       >
-                        Review
+                        View
                       </Link>
                     </div>
                   ))
                 ) : (
                   <div className="py-6 text-center text-xs text-[#95a3b7]">
-                    🎉 All pending listings have been reviewed! No items in queue.
+                    All listings are live. New submissions go live automatically after 5 minutes.
                   </div>
                 )}
               </div>
               <div className="mt-5">
                 <Link
-                  href="/admin-dashboard/properties?tab=approvals"
+                  href="/admin-dashboard/properties"
                   className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#f5f8ff] py-2.5 text-xs font-bold text-[#2854cb] hover:bg-[#ebf1ff] transition-colors"
                 >
                   <ClipboardCheck size={14} />
-                  <span>Open Dedicated Approval Queue ({pendingQueue.length})</span>
+                  <span>Open all listings</span>
                 </Link>
               </div>
             </div>
@@ -619,17 +651,17 @@ export default function DashboardPage() {
                   },
                   {
                     label: "Open enquiries",
-                    value: (170 + enquiryStats.active).toString(),
+                    value: enquiryStats.active.toString(),
                     href: "/admin-dashboard/enquiries?status=Active",
                     icon: MessageSquareText,
                     color: "#fff4e6",
                     text: "#d8a24e",
                   },
                   {
-                    label: "Pending KYC",
-                    value: userStats.pendingKyc.toString(),
-                    href: "/admin-dashboard/users?tab=kyc",
-                    icon: ClipboardCheck,
+                    label: "Registered agents",
+                    value: userStats.agents.toString(),
+                    href: "/admin-dashboard/users/agents",
+                    icon: Briefcase,
                     color: "#f3edff",
                     text: "#9469dc",
                   },
@@ -663,7 +695,7 @@ export default function DashboardPage() {
             <div className="rounded-[18px] border border-[#e9edf4] bg-white p-5 shadow-[0_3px_18px_#15223d06] sm:p-6">
               <SectionHeading
                 title="Recent Activity"
-                subtitle="Latest events across the platform"
+                subtitle="Sample data: not yet connected to live platform events"
                 icon={<Activity size={17} className="text-[#5475d7]" />}
               />
               <div className="mt-5 space-y-4">

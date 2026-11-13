@@ -30,7 +30,6 @@ export interface RolePermissions {
   };
   users: {
     view: boolean;
-    kyc_verify: boolean;
     suspend: boolean;
     export: boolean;
   };
@@ -70,7 +69,6 @@ export interface PlatformSettings {
   defaultCity: string;
 
   // Listing & Compliance Rules
-  requireOwnerKyc: boolean;
   requireReraNumber: boolean;
   maxImagesPerListing: number;
   autoExpireDays: number;

@@ -71,12 +71,11 @@ export function RolesPermissionsView() {
     },
     {
       id: "users",
-      name: "User & KYC Management",
+      name: "User Management",
       icon: Users,
-      desc: "Controls access to manage buyers, property owners, KYC verification, and accounts.",
+      desc: "Controls access to manage buyers, property owners, agents and accounts.",
       permissions: [
         { key: "view", label: "View User Profiles", desc: "Access user registry, phone numbers, and activity" },
-        { key: "kyc_verify", label: "Verify Owner KYC", desc: "Approve Aadhaar, electricity bill, and title documents" },
         { key: "suspend", label: "Suspend Accounts", desc: "Block fraudulent buyers or non-compliant owners" },
         { key: "export", label: "Export User Data", desc: "Download CSV spreadsheets of registered users" },
       ],
@@ -119,7 +118,7 @@ export function RolesPermissionsView() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       {/* Left Column: Role Selector */}
-      <div className="lg:col-span-4 space-y-3">
+      <div className="space-y-3 lg:sticky lg:top-24 lg:col-span-4 lg:self-start xl:col-span-3">
         <h3 className="font-semibold text-sm text-[#101828]">
           Select Admin Role
         </h3>
@@ -164,7 +163,7 @@ export function RolesPermissionsView() {
       </div>
 
       {/* Right Column: Permission Matrix */}
-      <div className="lg:col-span-8 space-y-5">
+      <div className="min-w-0 space-y-5 lg:col-span-8 xl:col-span-9">
         <div className="flex items-center justify-between border-b border-[#e8ecf4] pb-3">
           <div>
             <h3 className="font-bold text-base text-[#101828]">

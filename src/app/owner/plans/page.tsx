@@ -9,7 +9,7 @@ import { getProfile, saveProfile } from '@/lib/profile';
 import {
   activatePlan,
   getSubscription,
-  ownerPlans,
+  useOwnerPlans,
   priceBreakdown,
   PROMO_CODES,
   type OwnerPlan,
@@ -26,6 +26,7 @@ const card = 'rounded-2xl border border-slate-100 bg-white shadow-[0_12px_45px_-
 
 export default function OwnerPlansPage() {
   const router = useRouter();
+  const ownerPlans = useOwnerPlans();
   const [stage, setStage] = useState<Stage>('plans');
   const [category, setCategory] = useState<'Residential' | 'Commercial'>('Residential');
   const [plan, setPlan] = useState<OwnerPlan | null>(null);

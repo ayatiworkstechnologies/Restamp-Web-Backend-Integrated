@@ -1,5 +1,6 @@
 'use client';
 
+import { snackbar, toast } from '@/lib/notify';
 import React, { useState } from 'react';
 import { Phone, CheckCircle, ChevronDown, Check, ShieldCheck, Mail, MessageSquare } from 'lucide-react';
 import type { Property } from '@/data/properties';
@@ -35,6 +36,7 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
     } else {
       navigator.clipboard?.writeText(dealerPhone.replace(/\s+/g, ''));
       setPhoneCopied(true);
+      snackbar('Phone number copied');
       setTimeout(() => setPhoneCopied(false), 2000);
     }
   };
@@ -60,6 +62,7 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
     setTimeout(() => {
       setIsSubmitting(false);
       setSubmitted(true);
+      toast.success('Enquiry sent', { description: 'The dealer will contact you shortly.' });
       setTimeout(() => {
         setSubmitted(false);
         setName('');

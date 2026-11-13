@@ -18,7 +18,7 @@ const roles: { role: AdminRoleType; desc: string }[] = [
   },
   {
     role: "Operations Manager",
-    desc: "Manage property listings, KYC verification, and export operational reports.",
+    desc: "Manage property listings and export operational reports.",
   },
   {
     role: "Listing Reviewer",

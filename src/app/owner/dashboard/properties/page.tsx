@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/components/common/confirm-dialog";
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { clearDraft, deleteListing, getDraft, getOwnerListings, type OwnerListing } from '@/lib/ownerListings';
@@ -24,12 +25,12 @@ export default function OwnerPropertiesPage() {
   };
   useEffect(load, []);
 
-  const remove = (l: Row) => {
+  const remove = async (l: Row) => {
     if (l.tab === 'Draft') {
-      if (!confirm('Delete this draft? Your saved progress will be permanently removed.')) return;
+      if (!(await confirmDialog({ title: 'Delete draft', body: 'Are you sure you want to delete this draft? Your saved progress will be permanently removed.' }))) return;
       clearDraft();
     } else {
-      if (!confirm('Remove this listing from the marketplace? This cannot be undone.')) return;
+      if (!(await confirmDialog({ title: 'Delete listing', body: 'Are you sure you want to remove this listing from the marketplace? This action cannot be undone.' }))) return;
       deleteListing(l.id);
     }
     load();

@@ -1,3 +1,7 @@
+import { useMemo } from 'react';
+import type { SubscriptionPlan } from '@/types/subscription';
+import { getPlan as getStorePlan, recordCheckout, usePublicPlans } from '@/lib/subscription-store';
+
 export type AgentPlan = {
   id: string;
   name: string;
@@ -121,7 +125,7 @@ export const agentPlans: Record<'Broker' | 'Agency', AgentPlan[]> = {
 
 /* --- LOCATION PACKAGES (Step 2 Requirements) --- */
 export type LocationPackage = {
-  id: 'loc-5' | 'loc-10' | 'loc-15';
+  id: string;
   name: string;
   tagline: string;
   badge: string;
@@ -135,69 +139,63 @@ export type LocationPackage = {
   features: string[];
 };
 
-export const locationPackages: LocationPackage[] = [
-  {
-    id: 'loc-5',
-    name: '5 Micro-Markets',
-    tagline: 'Ideal for neighborhood specialists & boutique agents',
-    badge: 'Starter Hub',
-    locationLimit: 5,
-    price: 2999,
-    monthlyEquivalent: 999,
-    validityDays: 90,
-    mandateLimit: 10,
-    commissionCut: '0% Restamp commission',
-    features: [
-      'Coverage across 5 chosen high-intent micro-markets',
-      'Post up to 10 active exclusive mandates',
-      'Direct buyer WhatsApp & push lead notifications',
-      'Verified RERA Agent badge on all listings',
-      'Standard search ranking in your 5 zones',
-      'Retain 100% of your buyer & seller brokerage',
-    ],
-  },
-  {
-    id: 'loc-10',
-    name: '10 Micro-Markets',
-    tagline: 'Best for active full-time agents & mid-size teams',
-    badge: 'Growth Agent',
-    locationLimit: 10,
-    price: 4999,
-    monthlyEquivalent: 1666,
-    validityDays: 90,
-    mandateLimit: 25,
-    popular: true,
-    commissionCut: '0% Restamp commission',
-    features: [
-      'Coverage across 10 prime micro-markets',
-      'Post up to 25 active prime mandates',
-      'Instant buyer phone unmasking & WhatsApp CRM sync',
-      'Top 10% search placement in your 10 zones',
-      'Access to Restamp Co-Broking Syndicate (50:50 splits)',
-      'Quarterly deal closing analytics & price movement insights',
-    ],
-  },
-  {
-    id: 'loc-15',
-    name: '15 Micro-Markets',
-    tagline: 'Full metro-wide dominance for top-producing agencies',
-    badge: 'Enterprise Syndicate',
-    locationLimit: 15,
-    price: 7999,
-    monthlyEquivalent: 2666,
-    validityDays: 90,
-    mandateLimit: 50,
-    commissionCut: '0% Restamp commission',
-    features: [
-      'City-wide dominance across 15 prime micro-markets',
-      'Post up to 50 active high-value mandates',
-      'Exclusive developer pre-launch mandate rights',
-      'Dedicated Key Account Manager & fast RERA compliance desk',
-      'Pre-approved mortgage assistance desk for your buyers',
-      'Priority showcase in weekly Restamp HNI Buyer Digest',
-    ],
-  },
-];
+/*
+ * Location packages are managed in Admin → Subscription Plans (Agent tab) and
+ * read from the subscription store. Prices are never hard-coded here.
+ */
+const COMMISSION_COPY = '0% Restamp commission';
+
+export function toLocationPackage(p: SubscriptionPlan): LocationPackage {
+  const months = Math.max(1, Math.round((p.validityDays ?? 30) / 30));
+  return {
+    id: p.id,
+    name: p.name,
+    tagline: p.description,
+    badge: p.badge ?? '',
+    locationLimit: p.limits.locationLimit ?? 0,
+    price: p.price,
+    monthlyEquivalent: Math.round(p.price / months),
+    validityDays: p.validityDays ?? 365,
+    mandateLimit: p.limits.listingLimit === undefined || p.limits.listingLimit < 0 ? 999 : p.limits.listingLimit,
+    popular: p.recommended,
+    commissionCut: COMMISSION_COPY,
+    features: p.features,
+  };
+}
+
+/** Shown while plans load so layouts don't crash; never purchasable (price check in checkout). */
+export const PLACEHOLDER_PACKAGE: LocationPackage = {
+  id: '',
+  name: 'Loading…',
+  tagline: '',
+  badge: '',
+  locationLimit: 0,
+  price: 0,
+  monthlyEquivalent: 0,
+  validityDays: 0,
+  mandateLimit: 0,
+  commissionCut: COMMISSION_COPY,
+  features: [],
+};
+
+const byLocations = (a: LocationPackage, b: LocationPackage) => a.locationLimit - b.locationLimit;
+
+/** Purchasable packages, ordered by coverage. Empty array while loading. */
+export function useLocationPackages(): LocationPackage[] {
+  const plans = usePublicPlans('agent');
+  return useMemo(() => (plans ?? []).map(toLocationPackage).sort(byLocations), [plans]);
+}
+
+/** Any agent package by id, including archived ones (for existing subscriptions). */
+export function findLocationPackage(id: string): LocationPackage | undefined {
+  const p = getStorePlan(id);
+  return p && p.role === 'agent' ? toLocationPackage(p) : undefined;
+}
+
+/** The smallest package with more coverage than `current`, if any. */
+export function nextLocationPackage(list: LocationPackage[], current: LocationPackage) {
+  return list.find((p) => p.locationLimit > current.locationLimit);
+}
 
 /* --- AVAILABLE AGENT LOCATIONS / MICRO-MARKETS --- */
 export type AgentLocation = {
@@ -533,7 +531,7 @@ export function calculateAgentPackageBill(pkg: LocationPackage, discountAmount: 
 
 /* --- DRAFT PACKAGE STATE (Checkout Bridge) --- */
 export type DraftAgentPackage = {
-  packageId: 'loc-5' | 'loc-10' | 'loc-15';
+  packageId: string;
   selectedLocations: string[];
   promoCode?: string;
   discount?: number;
@@ -640,11 +638,18 @@ export function activateAgentPackage(
     agentName?: string;
     firmName?: string;
     reraNumber?: string;
+    /** Stable per checkout attempt; repeated submits with the same key do not create a second payment. */
+    idempotencyKey?: string;
   }
 ): { sub: AgentSubscription; paymentRecord: AgentPaymentRecord } {
   const now = new Date();
+  if (payment.idempotencyKey) {
+    const prior = getAgentPayments().find((p) => p.transactionRef === payment.idempotencyKey);
+    const existingSub = getAgentSubscription();
+    if (prior && existingSub) return { sub: existingSub, paymentRecord: prior };
+  }
   const paymentId = `PAY-AGNT-${now.getTime()}-${Math.floor(100 + Math.random() * 900)}`;
-  const transactionRef = `TXN-RST-${now.getTime()}`;
+  const transactionRef = payment.idempotencyKey ?? `TXN-RST-${now.getTime()}`;
 
   const paymentRecord: AgentPaymentRecord = {
     id: paymentId,
@@ -679,7 +684,8 @@ export function activateAgentPackage(
     totalPaid: payment.total,
     paymentId,
     paymentMethod: payment.method,
-    paymentStatus: 'verified',
+    // No gateway is integrated, so the payment cannot be verified (see PAYMENTS.md).
+    paymentStatus: 'pending',
     startedAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + pkg.validityDays * 864e5).toISOString(),
     agentMobile: payment.agentMobile,
@@ -690,6 +696,20 @@ export function activateAgentPackage(
 
   saveAgentSubscription(sub);
   clearDraftPackage();
+
+  recordCheckout({
+    role: 'agent',
+    planId: pkg.id,
+    subscriberName: payment.agentName || payment.firmName || 'Agent',
+    subscriberPhone: payment.agentMobile || '',
+    baseAmount: payment.amount,
+    discount: payment.discount,
+    gst: payment.gst,
+    total: payment.total,
+    method: payment.method,
+    transactionRef,
+    usage: { locationsUsed: selectedLocations.length },
+  });
 
   return { sub, paymentRecord };
 }

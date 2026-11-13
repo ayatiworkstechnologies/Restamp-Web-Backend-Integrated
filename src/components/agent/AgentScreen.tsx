@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   getAgentAnalyticsSummary,
 } from '@/lib/agent-data';
-import { locationPackages, type LocationPackage } from '@/lib/agentPlan';
+import { useLocationPackages, type LocationPackage } from '@/lib/agentPlan';
 import {
   Check,
   ChevronDown,
@@ -263,6 +263,7 @@ function HowItWorksSteps() {
 }
 
 export default function AgentScreen() {
+  const locationPackages = useLocationPackages();
   const summary = getAgentAnalyticsSummary();
 
   // FAQ state

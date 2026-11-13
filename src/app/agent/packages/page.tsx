@@ -7,7 +7,9 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { getProfile } from '@/lib/profile';
 import {
-  locationPackages,
+  useLocationPackages,
+  nextLocationPackage,
+  PLACEHOLDER_PACKAGE,
   availableAgentLocations,
   saveDraftPackage,
   getDraftPackage,
@@ -39,11 +41,13 @@ export default function AgentPackagesPage() {
   const [step, setStep] = useState<1 | 2>(1);
 
   // Selected package (default: Growth Agent 10 locations)
-  const [selectedPkgId, setSelectedPkgId] = useState<'loc-5' | 'loc-10' | 'loc-15'>('loc-5');
+  const locationPackages = useLocationPackages();
+  const [selectedPkgId, setSelectedPkgId] = useState<string>('');
   const currentPackage = useMemo(
-    () => locationPackages.find((p) => p.id === selectedPkgId) || locationPackages[0],
-    [selectedPkgId]
+    () => locationPackages.find((p) => p.id === selectedPkgId) || locationPackages[0] || PLACEHOLDER_PACKAGE,
+    [selectedPkgId, locationPackages]
   );
+  const upgradePackage = nextLocationPackage(locationPackages, currentPackage);
 
   // Selected locations (defaults empty so agent can make fresh selection or restore from draft)
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
@@ -55,11 +59,11 @@ export default function AgentPackagesPage() {
 
   // Load existing draft or URL query param if available
   useEffect(() => {
-    let pkgFromUrl: 'loc-5' | 'loc-10' | 'loc-15' | null = null;
+    let pkgFromUrl: string | null = null;
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const pkgParam = params.get('pkg');
-      if (pkgParam === 'loc-5' || pkgParam === 'loc-10' || pkgParam === 'loc-15') {
+      if (pkgParam) {
         pkgFromUrl = pkgParam;
         setSelectedPkgId(pkgParam);
         setStep(2);
@@ -90,9 +94,10 @@ export default function AgentPackagesPage() {
   }, [searchQuery, selectedRegion]);
 
   // Handle Package Selection & Transition to Step 2
-  const handleSelectPackageAndProceed = (pkgId: 'loc-5' | 'loc-10' | 'loc-15') => {
+  const handleSelectPackageAndProceed = (pkgId: string) => {
     setSelectedPkgId(pkgId);
-    const newPkg = locationPackages.find((p) => p.id === pkgId)!;
+    const newPkg = locationPackages.find((p) => p.id === pkgId);
+    if (!newPkg) return;
 
     // Adjust selected locations if they exceed new limit
     if (selectedLocations.length > newPkg.locationLimit) {
@@ -106,9 +111,10 @@ export default function AgentPackagesPage() {
   };
 
   // Switch package while inside Step 2
-  const handleChangePackageTier = (pkgId: 'loc-5' | 'loc-10' | 'loc-15') => {
+  const handleChangePackageTier = (pkgId: string) => {
     setSelectedPkgId(pkgId);
-    const newPkg = locationPackages.find((p) => p.id === pkgId)!;
+    const newPkg = locationPackages.find((p) => p.id === pkgId);
+    if (!newPkg) return;
     if (selectedLocations.length > newPkg.locationLimit) {
       setSelectedLocations(selectedLocations.slice(0, newPkg.locationLimit));
       setLimitWarning(
@@ -130,12 +136,7 @@ export default function AgentPackagesPage() {
 
     // Check if adding would exceed limit
     if (selectedLocations.length >= currentPackage.locationLimit) {
-      const nextPkg =
-        selectedPkgId === 'loc-5'
-          ? locationPackages[1]
-          : selectedPkgId === 'loc-10'
-          ? locationPackages[2]
-          : null;
+      const nextPkg = upgradePackage;
 
       if (nextPkg) {
         setLimitWarning(
@@ -159,6 +160,7 @@ export default function AgentPackagesPage() {
 
   // Continue to Payment
   const handleContinueToPayment = () => {
+    if (!currentPackage.id) return; // plans still loading
     if (selectedLocations.length === 0) {
       setLimitWarning(`Please select at least 1 preferred micro-market location to continue.`);
       return;
@@ -166,7 +168,7 @@ export default function AgentPackagesPage() {
 
     // Save draft for payment checkout
     saveDraftPackage({
-      packageId: selectedPkgId,
+      packageId: currentPackage.id,
       selectedLocations,
       updatedAt: new Date().toISOString(),
     });
@@ -276,9 +278,13 @@ export default function AgentPackagesPage() {
 
               {/* 3 Package Comparison Cards (Matching Mockup Design) */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-7 items-stretch pt-2">
+                {locationPackages.length === 0 &&
+                  [0, 1, 2].map((i) => (
+                    <div key={i} className="h-[420px] animate-pulse rounded-[32px] border border-slate-200/80 bg-slate-50" />
+                  ))}
                 {locationPackages.map((pkg) => {
                   const isFeatured = pkg.popular;
-                  const isSelected = selectedPkgId === pkg.id;
+                  const isSelected = currentPackage.id === pkg.id;
                   return (
                     <div
                       key={pkg.id}
@@ -420,7 +426,7 @@ export default function AgentPackagesPage() {
 
                 <button
                   type="button"
-                  onClick={() => handleSelectPackageAndProceed(selectedPkgId)}
+                  onClick={() => handleSelectPackageAndProceed(currentPackage.id)}
                   className="w-full sm:w-auto px-7 h-[53px] rounded-2xl bg-[#087ed9] hover:bg-sky-500 text-white text-sm font-extrabold transition shadow-lg hover:shadow-sky-500/25 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>Continue to Step 2: Choose {currentPackage.locationLimit} Micro-Markets</span>
@@ -455,18 +461,18 @@ export default function AgentPackagesPage() {
                     {currentPackage.name} (₹{currentPackage.price.toLocaleString('en-IN')})
                   </span>
                   <div className="flex items-center gap-1 p-1 bg-[#f4f4f5] rounded-full border border-slate-200/80">
-                    {(['loc-5', 'loc-10', 'loc-15'] as const).map((id) => (
+                    {locationPackages.map(({ id, locationLimit }) => (
                       <button
                         key={id}
                         type="button"
                         onClick={() => handleChangePackageTier(id)}
                         className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all duration-200 cursor-pointer ${
-                          selectedPkgId === id
+                          currentPackage.id === id
                             ? 'bg-[#18181b] text-white shadow-xs'
                             : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
-                        {id.replace('loc-', '')} Loc
+                        {locationLimit} Loc
                       </button>
                     ))}
                   </div>
@@ -516,12 +522,10 @@ export default function AgentPackagesPage() {
                       <AlertCircle size={15} className="text-amber-600 shrink-0" />
                       <span>{limitWarning}</span>
                     </div>
-                    {selectedPkgId !== 'loc-15' && (
+                    {upgradePackage && (
                       <button
                         type="button"
-                        onClick={() =>
-                          handleChangePackageTier(selectedPkgId === 'loc-5' ? 'loc-10' : 'loc-15')
-                        }
+                        onClick={() => handleChangePackageTier(upgradePackage.id)}
                         className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold transition shrink-0 cursor-pointer"
                       >
                         Upgrade &rarr;

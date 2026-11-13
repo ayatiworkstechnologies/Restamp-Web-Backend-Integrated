@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/components/common/confirm-dialog";
 import React, { useState } from "react";
 import {
   ShieldCheck,
@@ -264,9 +265,11 @@ export function AdminUsersTable({
 
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     setActiveMenuId(null);
-                                    deleteAdminUser(user.id);
+                                    if (await confirmDialog({ title: "Remove member", body: `Are you sure you want to remove ${user.name} from the admin team? They will lose access immediately.`, confirmLabel: "Remove" })) {
+                                      deleteAdminUser(user.id);
+                                    }
                                   }}
                                   className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[#ef4444] hover:bg-[#fef2f2]"
                                 >

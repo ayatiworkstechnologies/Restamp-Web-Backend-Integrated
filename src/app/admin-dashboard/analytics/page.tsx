@@ -90,15 +90,9 @@ function AnalyticsContent() {
     const rows = [
       ["Total Listed Asset Value", formatCr(totalAssetValue), "+18.4%", "N/A"],
       ["Total Live Properties", properties.length.toString(), "+12.8%", "N/A"],
-      ["Pending Approvals SLA", `${propStats.pending} in queue`, "Average 3.2 hours", "< 24 hours"],
+      ["Auto-verification", `${propStats.pending} verifying`, "5 minutes", "5 minutes"],
       ["Registered Buyers", userStats.buyers.toString(), "+15.6%", "N/A"],
       ["Registered Owners", userStats.owners.toString(), "+9.4%", "N/A"],
-      [
-        "KYC Verification Rate",
-        `${((users.filter((u) => u.kycStatus === "Verified").length / Math.max(1, users.length)) * 100).toFixed(1)}%`,
-        "+4.2%",
-        "> 85%",
-      ],
       ["Total Inbound Enquiries", (3580 + enquiryStats.total).toString(), "+24.5%", "N/A"],
       ["Active Inquiries Desk", enquiryStats.active.toString(), "Needs attention", "< 12 hours"],
     ];
@@ -125,7 +119,7 @@ function AnalyticsContent() {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main Container */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <div className="flex-1 lg:pl-[272px] flex flex-col min-w-0">
         {/* Navbar */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#e8ecf4] bg-white/95 px-4 sm:px-6 lg:px-8 backdrop-blur">
           <div className="flex items-center gap-3">
@@ -163,7 +157,7 @@ function AnalyticsContent() {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
+        <main className="min-w-0 w-full flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
           {/* Header & Filter */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -267,20 +261,17 @@ function AnalyticsContent() {
             <div className="rounded-2xl border border-[#e8ecf4] bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-[#64748b]">
-                  Avg Approval Turnaround
+                  Listing Verification
                 </span>
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fff4e6] text-[#ea580c]">
                   <Clock className="h-5 w-5" />
                 </div>
               </div>
               <div className="mt-2 text-2xl font-extrabold text-[#101828]">
-                3.2 Hours
+                5 Minutes
               </div>
               <div className="mt-2 flex items-center gap-1.5 text-xs">
-                <span className="inline-flex items-center gap-0.5 font-bold text-[#059669]">
-                  96.8%
-                </span>
-                <span className="text-[#94a3b8]">cleared under 24 hours</span>
+                <span className="text-[#94a3b8]">Automatic. No manual approval step.</span>
               </div>
             </div>
           </div>
@@ -295,7 +286,7 @@ function AnalyticsContent() {
                     Property Listing Velocity
                   </h3>
                   <p className="text-xs text-[#64748b]">
-                    Monthly inventory added and approved across Tamil Nadu regions
+                    Monthly inventory added across Tamil Nadu regions
                   </p>
                 </div>
                 <div className="flex items-center gap-3 text-xs">
@@ -471,18 +462,6 @@ function AnalyticsContent() {
                   </div>
                   <p className="mt-1 text-[11px] text-[#64748b]">
                     Target: &lt; 24h. 96.8% compliance rate across all submissions.
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-[#e8ecf4] p-3.5 bg-[#fcfdff]">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-[#101828]">
-                      Owner KYC Approval Turnaround
-                    </span>
-                    <span className="font-bold text-[#059669]">4.8h avg</span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-[#64748b]">
-                    Target: &lt; 12h. Aadhaar & electricity bill document checks.
                   </p>
                 </div>
 

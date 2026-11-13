@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { NotificationBell } from '@/components/common/notification-bell';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearProfile, getProfile, type Profile } from '@/lib/profile';
@@ -215,6 +216,7 @@ export default function AgentDashboardLayout({ children }: { children: React.Rea
           </div>
 
           <div className="flex items-center gap-3">
+            {profile && <NotificationBell profile={profile} />}
             <Link
               href="/agent/packages"
               className="inline-flex items-center gap-1.5 rounded-xl bg-sky-50 text-[#087ed9] border border-sky-200 px-3.5 py-1.5 text-xs font-bold hover:bg-[#087ed9] hover:text-white transition shadow-2xs"

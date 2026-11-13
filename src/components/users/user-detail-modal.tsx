@@ -29,7 +29,6 @@ interface UserDetailModalProps {
   user: User | null;
   isOpen: boolean;
   onClose: () => void;
-  onVerifyKyc: (user: User) => void;
   onSuspend: (user: User) => void;
   onEdit: (user: User) => void;
 }
@@ -38,12 +37,11 @@ export function UserDetailModal({
   user,
   isOpen,
   onClose,
-  onVerifyKyc,
   onSuspend,
   onEdit,
 }: UserDetailModalProps) {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "kyc" | "activity" | "notes" | "audit"
+    "overview" | "activity" | "notes" | "audit"
   >("overview");
   const [newNote, setNewNote] = useState("");
 
@@ -61,16 +59,8 @@ export function UserDetailModal({
 
   const statusColors = {
     Active: "bg-[#e7f8ee] text-[#199864] border-[#b4eed3]",
-    "Pending KYC": "bg-[#fff5e3] text-[#bf811a] border-[#fde1ad]",
     Suspended: "bg-[#ffeaeb] text-[#d45561] border-[#fbc9ce]",
     Inactive: "bg-[#f1f4f9] text-[#6e7d94] border-[#dde3ee]",
-  };
-
-  const kycColors = {
-    Verified: "bg-[#ecfdf5] text-[#059669]",
-    Pending: "bg-[#fffbeb] text-[#d97706]",
-    Rejected: "bg-[#fef2f2] text-[#dc2626]",
-    "Not Submitted": "bg-[#f1f4f9] text-[#6b7b92]",
   };
 
   // Find properties belonging to this owner
@@ -98,7 +88,7 @@ export function UserDetailModal({
                 <span className="font-mono text-xs font-bold text-[#8697ae]">{user.id}</span>
                 <span
                   className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold capitalize ${
-                    user.role === "owner" ? "bg-[#f5f3ff] text-[#7c3aed]" : "bg-[#eff6ff] text-[#2563eb]"
+                    user.role !== "buyer" ? "bg-[#f5f3ff] text-[#7c3aed]" : "bg-[#eff6ff] text-[#2563eb]"
                   }`}
                 >
                   {user.role}
@@ -121,17 +111,6 @@ export function UserDetailModal({
             >
               {user.status}
             </span>
-
-            {user.kycStatus === "Pending" && (
-              <button
-                type="button"
-                onClick={() => onVerifyKyc(user)}
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-[#10b981] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#059669] transition-all"
-              >
-                <ShieldCheck size={14} />
-                <span>Verify KYC</span>
-              </button>
-            )}
 
             <button
               type="button"
@@ -169,12 +148,11 @@ export function UserDetailModal({
         <div className="flex overflow-x-auto border-b border-[#eef2f7] bg-white px-6">
           {[
             { id: "overview", label: "Profile Overview", icon: UserIcon },
-            { id: "kyc", label: "KYC Documents", icon: ShieldCheck, count: user.kycDocuments?.length },
             {
               id: "activity",
-              label: user.role === "owner" ? "Listed Properties" : "Enquiries & Tours",
-              icon: user.role === "owner" ? Building : MessageSquare,
-              count: user.role === "owner" ? ownerProperties.length : user.enquiries?.length,
+              label: user.role !== "buyer" ? "Listed Properties" : "Enquiries & Tours",
+              icon: user.role !== "buyer" ? Building : MessageSquare,
+              count: user.role !== "buyer" ? ownerProperties.length : user.enquiries?.length,
             },
             { id: "notes", label: "Admin Notes", icon: FileText, count: user.adminNotes?.length },
             { id: "audit", label: "Audit Log", icon: History, count: user.auditLog?.length },
@@ -245,17 +223,7 @@ export function UserDetailModal({
                 </div>
 
                 <div>
-                  <span className="text-[11px] font-bold text-[#8697ae] uppercase">KYC Standing</span>
-                  <div className="mt-1">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                        kycColors[user.kycStatus]
-                      }`}
-                    >
-                      <ShieldCheck size={12} />
-                      {user.kycStatus}
-                    </span>
-                  </div>
+                  <span className="text-[11px] font-bold text-[#8697ae] uppercase">Activity</span>
                   <div className="mt-1 text-[10px] text-[#8697ae]">
                     Last active: {user.lastActive}
                   </div>
@@ -263,7 +231,7 @@ export function UserDetailModal({
               </div>
 
               {/* Specific to Owner */}
-              {user.role === "owner" && (
+              {user.role !== "buyer" && (
                 <div className="rounded-2xl border border-[#edf1f8] p-5 space-y-4">
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752]">
                     Seller / Listing Profile
@@ -348,72 +316,9 @@ export function UserDetailModal({
             </div>
           )}
 
-          {activeTab === "kyc" && (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between rounded-xl border border-[#e8ecf4] bg-[#f8fbfe] p-4">
-                <div>
-                  <div className="text-xs font-extrabold text-[#22334f]">
-                    KYC Compliance Standing
-                  </div>
-                  <div className="mt-0.5 text-xs text-[#7f8fa5]">
-                    Aadhaar, PAN & Identity documents for real estate transaction compliance
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onVerifyKyc(user)}
-                  className="rounded-xl bg-[#2854cb] px-4 py-2 text-xs font-bold text-white hover:bg-[#1f45ae] transition-colors"
-                >
-                  Review Documents
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {user.kycDocuments && user.kycDocuments.length > 0 ? (
-                  user.kycDocuments.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between rounded-xl border border-[#e8ecf4] p-4 bg-white"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef4ff] text-[#2854cb]">
-                          <FileText size={20} />
-                        </span>
-                        <div>
-                          <div className="text-xs font-bold text-[#1f2e48]">{doc.type}</div>
-                          <div className="mt-0.5 text-[11px] text-[#8697ae]">
-                            Number: {doc.documentNumber} · {doc.fileSize} · Submitted {doc.submittedAt}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                            doc.status === "Verified"
-                              ? "bg-[#ecfdf5] text-[#059669]"
-                              : doc.status === "Rejected"
-                              ? "bg-[#fef2f2] text-[#dc2626]"
-                              : "bg-[#fffbeb] text-[#d97706]"
-                          }`}
-                        >
-                          {doc.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-xl border border-[#f0f3f8] bg-[#fafbfc] p-8 text-center text-xs text-[#8c9cb2]">
-                    No identity verification documents submitted yet.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {activeTab === "activity" && (
             <div className="space-y-4">
-              {user.role === "owner" ? (
+              {user.role !== "buyer" ? (
                 <>
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#263752]">
                     Listed Properties ({ownerProperties.length})

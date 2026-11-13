@@ -469,8 +469,8 @@ export default function PostPropertyWizard({
         </div>
         <h2 className="mt-5 text-xl font-bold text-slate-900">Property submitted!</h2>
         <p className="mt-2 text-sm text-slate-500">
-          Your listing is <span className="font-semibold text-amber-600">Pending Verification</span>. It isn&apos;t visible to
-          buyers yet and will go live once it&apos;s verified.
+          Your listing is <span className="font-semibold text-amber-600">being verified</span>. It goes live for
+          buyers automatically in 5 minutes.
         </p>
         <div className="mt-6 flex items-center gap-4 rounded-xl bg-slate-50 p-3 text-left">
           {published.photos[0] && <img src={published.photos[0].src} alt="" className="h-16 w-16 rounded-lg object-cover" />}

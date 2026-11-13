@@ -6,7 +6,7 @@ import { Check, Crown, MapPin } from 'lucide-react';
 import {
   getAgentPayments,
   getAgentSubscription,
-  locationPackages,
+  findLocationPackage,
   type AgentPaymentRecord,
   type AgentSubscription,
 } from '@/lib/agentPlan';
@@ -35,7 +35,7 @@ export default function AgentPaymentsPage() {
   }, []);
 
   if (!loaded) return null;
-  const pkg = sub ? locationPackages.find((p) => p.id === sub.planId) : undefined;
+  const pkg = sub ? findLocationPackage(sub.planId) : undefined;
 
   return (
     <div className="space-y-6">
@@ -94,7 +94,7 @@ export default function AgentPaymentsPage() {
         {payments.length === 0 ? (
           <p className="px-6 py-8 text-sm text-slate-500">No payments yet.</p>
         ) : (
-          <table className="mt-3 w-full min-w-[720px] text-left text-sm">
+          <table className="mt-3 w-full min-w-[820px] text-left text-sm">
             <thead className="border-y border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th className="px-6 py-3 font-semibold">Transaction ID</th>
@@ -103,6 +103,7 @@ export default function AgentPaymentsPage() {
                 <th className="px-6 py-3 font-semibold">Method</th>
                 <th className="px-6 py-3 font-semibold">Status</th>
                 <th className="px-6 py-3 text-right font-semibold">Amount</th>
+                <th className="px-6 py-3 text-right font-semibold">Invoice</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -121,6 +122,16 @@ export default function AgentPaymentsPage() {
                   <td className="px-6 py-3 text-right">
                     <span className="font-semibold text-slate-900">{rupees(p.total)}</span>
                     <span className="block text-[11px] text-slate-400">incl. {rupees(p.gst)} GST{p.discount ? ` · ${rupees(p.discount)} off` : ''}</span>
+                  </td>
+                  <td className="px-6 py-3 text-right">
+                    <a
+                      href={`/invoice/${encodeURIComponent(p.transactionRef || p.id)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-semibold text-[#087ed9] hover:underline"
+                    >
+                      View / PDF
+                    </a>
                   </td>
                 </tr>
               ))}

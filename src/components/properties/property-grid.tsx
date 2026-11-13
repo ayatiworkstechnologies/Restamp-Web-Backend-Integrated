@@ -11,23 +11,22 @@ import {
   Clock,
   MoreVertical,
 } from "lucide-react";
+import { verifyCountdown } from "@/lib/auto-verify";
+import { useNow } from "@/lib/use-now";
 import { Property, PropertyStatus } from "@/types/property";
 
 interface PropertyGridProps {
   properties: Property[];
   onInspect: (property: Property) => void;
-  onApprove: (property: Property) => void;
-  onReject: (property: Property) => void;
   onEdit: (property: Property) => void;
 }
 
 export function PropertyGrid({
   properties,
   onInspect,
-  onApprove,
-  onReject,
   onEdit,
 }: PropertyGridProps) {
+  const now = useNow(1000);
   const formatPrice = (price: number) => {
     if (price >= 10000000) {
       return `₹${(price / 10000000).toFixed(2)} Cr`;
@@ -148,35 +147,17 @@ export function PropertyGrid({
 
               {/* Bottom Actions */}
               <div className="mt-4 flex items-center gap-2 border-t border-[#f1f4f9] pt-3">
-                {property.status === "Pending" ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => onApprove(property)}
-                      className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl bg-[#10b981] py-1.5 text-xs font-bold text-white hover:bg-[#059669] transition-all shadow-sm"
-                    >
-                      <CheckCircle2 size={13} />
-                      <span>Approve</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onReject(property)}
-                      className="flex-1 inline-flex items-center justify-center gap-1 rounded-xl bg-[#ef4444] py-1.5 text-xs font-bold text-white hover:bg-[#dc2626] transition-all shadow-sm"
-                    >
-                      <XCircle size={13} />
-                      <span>Reject</span>
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => onInspect(property)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#2854cb] py-1.5 text-xs font-bold text-white hover:bg-[#1f45ae] transition-all"
-                  >
-                    <Eye size={13} />
-                    <span>View & Review</span>
-                  </button>
+                {property.status === "Pending" && (
+                  <span className="text-[10px] font-semibold text-[#087ed9]">{verifyCountdown(property.submittedAt, now)}</span>
                 )}
+                <button
+                  type="button"
+                  onClick={() => onInspect(property)}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#2854cb] py-1.5 text-xs font-bold text-white hover:bg-[#1f45ae] transition-all"
+                >
+                  <Eye size={13} />
+                  <span>View & Review</span>
+                </button>
 
                 <button
                   type="button"

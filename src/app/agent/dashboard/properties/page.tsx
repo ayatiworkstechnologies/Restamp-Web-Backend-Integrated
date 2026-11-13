@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from '@/lib/notify';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { getAgentSubscription } from '@/lib/agentPlan';
@@ -24,7 +25,6 @@ export default function AgentPropertiesPage() {
   const [loc, setLoc] = useState('All Locations');
   const [query, setQuery] = useState('');
   const [matching, setMatching] = useState<AgentPropertyItem | null>(null);
-  const [toast, setToast] = useState('');
   const { leads } = useAgentLeads();
 
   useEffect(() => {
@@ -170,16 +170,9 @@ export default function AgentPropertiesPage() {
           onClose={() => setMatching(null)}
           onDone={(msg) => {
             setMatching(null);
-            setToast(msg);
-            setTimeout(() => setToast(''), 3500);
+            toast.success('Property matched', { description: msg });
           }}
         />
-      )}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 z-50 w-[calc(100%-32px)] max-w-md -translate-x-1/2 rounded-[16px] bg-slate-900 px-5 py-4 text-sm text-white shadow-xl">
-          <p className="font-semibold">Lead Matched! 🎉</p>
-          <p className="mt-0.5 text-slate-300">{toast}</p>
-        </div>
       )}
     </div>
   );

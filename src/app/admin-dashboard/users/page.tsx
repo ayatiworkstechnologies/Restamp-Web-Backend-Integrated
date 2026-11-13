@@ -4,9 +4,7 @@ import React, { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Menu,
-  Bell,
   Search,
-  X,
   UsersRound,
   ShieldAlert,
 } from "lucide-react";
@@ -15,7 +13,6 @@ import { UserHeader } from "@/components/users/user-header";
 import { UserFiltersBar } from "@/components/users/user-filters";
 import { UserTable } from "@/components/users/user-table";
 import { UserDetailModal } from "@/components/users/user-detail-modal";
-import { UserKycModal } from "@/components/users/user-kyc-modal";
 import { UserSuspendModal } from "@/components/users/user-suspend-modal";
 import { UserEditModal } from "@/components/users/user-edit-modal";
 import { UserAddModal } from "@/components/users/user-add-modal";
@@ -25,16 +22,13 @@ import { User, UserFilters, UserRole } from "@/types/user";
 function UserManagementContent() {
   const searchParams = useSearchParams();
   const initialRole = searchParams.get("role") as UserRole | null;
-  const initialTab = searchParams.get("tab");
   const initialId = searchParams.get("id");
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   // Modals state
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isKycOpen, setIsKycOpen] = useState(false);
   const [isSuspendOpen, setIsSuspendOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -42,8 +36,6 @@ function UserManagementContent() {
   const {
     users,
     stats,
-    verifyKyc,
-    rejectKyc,
     suspendUser,
     activateUser,
     updateUser,
@@ -55,7 +47,6 @@ function UserManagementContent() {
     search: "",
     role: initialRole || "all",
     status: "all",
-    kycStatus: initialTab === "kyc" ? "Pending" : "all",
     ownerType: "all",
     sortBy: "recent",
   });
@@ -65,9 +56,6 @@ function UserManagementContent() {
     if (initialRole) {
       setFilters((prev) => ({ ...prev, role: initialRole }));
     }
-    if (initialTab === "kyc") {
-      setFilters((prev) => ({ ...prev, kycStatus: "Pending" }));
-    }
     if (initialId) {
       const match = users.find((u) => u.id === initialId);
       if (match) {
@@ -75,7 +63,7 @@ function UserManagementContent() {
         setIsDetailOpen(true);
       }
     }
-  }, [initialRole, initialTab, initialId, users]);
+  }, [initialRole, initialId, users]);
 
   const handleFilterChange = (newFilters: Partial<UserFilters>) => {
     setFilters((prev) => ({ ...prev, ...newFilters }));
@@ -91,12 +79,9 @@ function UserManagementContent() {
         // Status filter
         if (filters.status !== "all" && u.status !== filters.status) return false;
 
-        // KYC filter
-        if (filters.kycStatus !== "all" && u.kycStatus !== filters.kycStatus) return false;
-
         // Owner type filter
         if (filters.ownerType && filters.ownerType !== "all") {
-          if (u.role === "owner" && u.ownerType !== filters.ownerType) return false;
+          if (u.role !== "buyer" && u.ownerType !== filters.ownerType) return false;
         }
 
         // Search filter
@@ -130,6 +115,7 @@ function UserManagementContent() {
       all: users.length,
       buyers: users.filter((u) => u.role === "buyer").length,
       owners: users.filter((u) => u.role === "owner").length,
+      agents: users.filter((u) => u.role === "agent").length,
     };
   }, [users]);
 
@@ -137,11 +123,6 @@ function UserManagementContent() {
   const handleInspect = (user: User) => {
     setSelectedUser(user);
     setIsDetailOpen(true);
-  };
-
-  const handleOpenKyc = (user: User) => {
-    setSelectedUser(user);
-    setIsKycOpen(true);
   };
 
   const handleOpenSuspend = (user: User) => {
@@ -175,7 +156,7 @@ function UserManagementContent() {
                 Workspace <span className="px-2 text-[#c4cbd6]">/</span> Users
               </div>
               <div className="mt-0.5 text-[15px] font-extrabold text-[#24324b] sm:text-[16px]">
-                Buyers & Owners Directory
+                All Users Directory
               </div>
             </div>
           </div>
@@ -191,57 +172,6 @@ function UserManagementContent() {
                 className="w-36 bg-transparent text-xs text-[#24324b] outline-none placeholder:text-[#a8b3c4] xl:w-52"
                 placeholder="Search buyers, owners..."
               />
-            </div>
-
-            {/* Notification Bell */}
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="View notifications"
-                onClick={() => setNotificationsOpen(!notificationsOpen)}
-                className="relative rounded-xl p-2 text-[#6c7b91] hover:bg-[#f3f6fd]"
-              >
-                <Bell size={20} />
-                {stats.pendingKyc > 0 && (
-                  <span className="absolute right-1.5 top-1.5 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#f59e0b] opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#f59e0b]" />
-                  </span>
-                )}
-              </button>
-
-              {notificationsOpen && (
-                <div className="absolute right-0 top-12 z-30 w-[min(340px,85vw)] rounded-2xl border border-[#e5ebf4] bg-white p-4 shadow-xl">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-bold text-[#22314b]">Pending KYC Reviews</div>
-                    <button
-                      type="button"
-                      onClick={() => setNotificationsOpen(false)}
-                      className="text-slate-400 hover:text-slate-700"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <div className="mt-3 space-y-2.5 border-t border-[#eef1f6] pt-3">
-                    {stats.pendingKycUsers.slice(0, 3).map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => {
-                          setNotificationsOpen(false);
-                          handleOpenKyc(item);
-                        }}
-                        className="cursor-pointer rounded-xl p-2 hover:bg-[#f8fafc] transition-colors"
-                      >
-                        <div className="text-xs font-bold text-[#1f2e48]">{item.name}</div>
-                        <div className="text-[11px] text-[#7f8fa5]">
-                          {item.role === "owner" ? item.ownerType : "Buyer"} · {item.city} ·{" "}
-                          <span className="font-semibold text-[#f59e0b]">KYC Awaiting Review</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="h-7 w-px bg-[#edf0f5]" />
@@ -260,14 +190,12 @@ function UserManagementContent() {
         </header>
 
         {/* Main Content Area */}
-        <main className="mx-auto max-w-[1650px] space-y-6 px-4 py-7 sm:px-7 xl:px-9 xl:py-9">
+        <main className="min-w-0 w-full space-y-6 px-4 py-7 sm:px-7 xl:px-9 xl:py-9">
           {/* Header & KPI Summary */}
           <UserHeader
             onAddNew={() => setIsAddOpen(true)}
-            onFilterPendingKyc={() => handleFilterChange({ kycStatus: "Pending" })}
             filteredCount={filteredUsers.length}
             totalCount={users.length}
-            currentKycFilter={filters.kycStatus}
           />
 
           {/* Filters Bar */}
@@ -285,17 +213,11 @@ function UserManagementContent() {
                 <span className="font-bold text-[#23334d]">{users.length}</span> user accounts
                 {filters.role !== "all" && ` (${filters.role}s)`}
               </span>
-              {filters.kycStatus === "Pending" && (
-                <span className="font-bold text-[#d97706] flex items-center gap-1">
-                  ⚡ Pending KYC Review Queue
-                </span>
-              )}
             </div>
 
             <UserTable
               users={filteredUsers}
               onInspect={handleInspect}
-              onVerifyKyc={handleOpenKyc}
               onSuspend={handleOpenSuspend}
               onEdit={handleOpenEdit}
             />
@@ -308,10 +230,6 @@ function UserManagementContent() {
         user={selectedUser}
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
-        onVerifyKyc={(u) => {
-          setIsDetailOpen(false);
-          handleOpenKyc(u);
-        }}
         onSuspend={(u) => {
           setIsDetailOpen(false);
           handleOpenSuspend(u);
@@ -319,18 +237,6 @@ function UserManagementContent() {
         onEdit={(u) => {
           setIsDetailOpen(false);
           handleOpenEdit(u);
-        }}
-      />
-
-      <UserKycModal
-        user={selectedUser}
-        isOpen={isKycOpen}
-        onClose={() => setIsKycOpen(false)}
-        onVerify={(id, notes) => {
-          verifyKyc(id, notes);
-        }}
-        onReject={(id, reason) => {
-          rejectKyc(id, reason);
         }}
       />
 

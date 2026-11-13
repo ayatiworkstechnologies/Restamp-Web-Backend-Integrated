@@ -1,3 +1,7 @@
+import { msUntilVerified } from '@/lib/auto-verify';
+import { updateUsage } from '@/lib/subscription-store';
+import { getProfile } from '@/lib/profile';
+
 export type ListingPurpose = 'Sell' | 'Resale' | 'Rent' | 'Lease';
 export type ListingCategory = 'Residential' | 'Commercial';
 
@@ -15,7 +19,7 @@ export type ListingPhoto = { id: string; src: string; category: PhotoCategory };
 
 export type OwnerListing = {
   id: string;
-  status: 'Draft' | 'Pending Verification';
+  status: 'Draft' | 'Pending Verification' | 'Live';
   createdAt: string;
   updatedAt: string;
 
@@ -154,12 +158,19 @@ function write(key: string, value: unknown): boolean {
   }
 }
 
-export const getOwnerListings = () => read<OwnerListing[]>(LISTINGS_KEY, []);
+/** Listings submitted for verification go live automatically AUTO_VERIFY_MINUTES later. */
+export const getOwnerListings = () =>
+  read<OwnerListing[]>(LISTINGS_KEY, []).map((l) =>
+    l.status === 'Pending Verification' && msUntilVerified(l.updatedAt) === 0 ? { ...l, status: 'Live' as const } : l,
+  );
 
 export function publishListing(listing: OwnerListing): boolean {
   const published = { ...listing, status: 'Pending Verification' as const, updatedAt: new Date().toISOString() };
   const ok = write(LISTINGS_KEY, [published, ...getOwnerListings().filter((l) => l.id !== listing.id)]);
-  if (ok) clearDraft();
+  if (ok) {
+    clearDraft();
+    syncUsage();
+  }
   return ok;
 }
 
@@ -174,4 +185,11 @@ export function clearDraft() {
 
 export function deleteListing(id: string) {
   write(LISTINGS_KEY, getOwnerListings().filter((l) => l.id !== id));
+  syncUsage();
+}
+
+/** Keeps the admin-visible usage counter on the owner's subscription current. */
+function syncUsage() {
+  const me = getProfile();
+  if (me?.mobile) updateUsage('owner', me.mobile, { listingsUsed: getOwnerListings().length });
 }

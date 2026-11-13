@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/components/common/confirm-dialog";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
@@ -147,16 +148,6 @@ export function EnquiryDetailModal({
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748b]">
                   Buyer Information
                 </span>
-                {enquiry.buyer.isKycVerified ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-semibold text-[#059669]">
-                    <ShieldCheck className="h-3 w-3" />
-                    KYC Verified
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-[#94a3b8]">
-                    Unverified Buyer
-                  </span>
-                )}
               </div>
 
               <div className="mt-2.5">
@@ -287,7 +278,8 @@ export function EnquiryDetailModal({
         <div className="mt-6 flex items-center justify-between border-t border-[#f1f4f9] pt-4">
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
+              if (!(await confirmDialog({ title: "Delete enquiry", body: `Are you sure you want to delete enquiry ${enquiry.id}? This action cannot be undone.` }))) return;
               deleteEnquiry(enquiry.id);
               onClose();
             }}

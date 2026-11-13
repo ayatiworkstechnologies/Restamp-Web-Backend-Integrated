@@ -18,8 +18,6 @@ import { PropertyFiltersBar } from "@/components/properties/property-filters";
 import { PropertyTable } from "@/components/properties/property-table";
 import { PropertyGrid } from "@/components/properties/property-grid";
 import { PropertyDetailModal } from "@/components/properties/property-detail-modal";
-import { PropertyApprovalModal } from "@/components/properties/property-approval-modal";
-import { PropertyRejectModal } from "@/components/properties/property-reject-modal";
 import { PropertyEditModal } from "@/components/properties/property-edit-modal";
 import { PropertyAddModal } from "@/components/properties/property-add-modal";
 import { usePropertyStore } from "@/context/property-context";
@@ -27,26 +25,20 @@ import { Property, PropertyFilters, PropertyStatus } from "@/types/property";
 
 function PropertyManagementContent() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab");
   const initialId = searchParams.get("id");
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
 
   // Modals state
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isApprovalOpen, setIsApprovalOpen] = useState(false);
-  const [isRejectOpen, setIsRejectOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
   const {
     properties,
     stats,
-    approveProperty,
-    rejectProperty,
     updateProperty,
     addProperty,
   } = usePropertyStore();
@@ -54,7 +46,7 @@ function PropertyManagementContent() {
   // Filters state
   const [filters, setFilters] = useState<PropertyFilters>({
     search: "",
-    status: initialTab === "approvals" ? "Pending" : "All",
+    status: "All",
     type: "All",
     bhk: "All",
     sortBy: "newest",
@@ -64,9 +56,6 @@ function PropertyManagementContent() {
 
   // Handle URL params on initial load
   useEffect(() => {
-    if (initialTab === "approvals") {
-      setFilters((prev) => ({ ...prev, status: "Pending" }));
-    }
     if (initialId) {
       const match = properties.find((p) => p.id === initialId);
       if (match) {
@@ -74,7 +63,7 @@ function PropertyManagementContent() {
         setIsDetailOpen(true);
       }
     }
-  }, [initialTab, initialId, properties]);
+  }, [initialId, properties]);
 
   const handleFilterChange = (newFilters: Partial<PropertyFilters>) => {
     setFilters((prev) => ({ ...prev, ...newFilters }));
@@ -140,16 +129,6 @@ function PropertyManagementContent() {
     setIsDetailOpen(true);
   };
 
-  const handleOpenApprove = (prop: Property) => {
-    setSelectedProperty(prop);
-    setIsApprovalOpen(true);
-  };
-
-  const handleOpenReject = (prop: Property) => {
-    setSelectedProperty(prop);
-    setIsRejectOpen(true);
-  };
-
   const handleOpenEdit = (prop: Property) => {
     setSelectedProperty(prop);
     setIsEditOpen(true);
@@ -176,7 +155,7 @@ function PropertyManagementContent() {
                 Workspace <span className="px-2 text-[#c4cbd6]">/</span> Properties
               </div>
               <div className="mt-0.5 text-[15px] font-extrabold text-[#24324b] sm:text-[16px]">
-                Property Listings & Approvals
+                Property Listings
               </div>
             </div>
           </div>
@@ -192,56 +171,6 @@ function PropertyManagementContent() {
                 className="w-36 bg-transparent text-xs text-[#24324b] outline-none placeholder:text-[#a8b3c4] xl:w-52"
                 placeholder="Search listings..."
               />
-            </div>
-
-            {/* Notification Bell */}
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="View notifications"
-                onClick={() => setNotificationsOpen(!notificationsOpen)}
-                className="relative rounded-xl p-2 text-[#6c7b91] hover:bg-[#f3f6fd]"
-              >
-                <Bell size={20} />
-                {stats.pending > 0 && (
-                  <span className="absolute right-1.5 top-1.5 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#f59e0b] opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#f59e0b]" />
-                  </span>
-                )}
-              </button>
-
-              {notificationsOpen && (
-                <div className="absolute right-0 top-12 z-30 w-[min(340px,85vw)] rounded-2xl border border-[#e5ebf4] bg-white p-4 shadow-xl">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-bold text-[#22314b]">Pending Approvals</div>
-                    <button
-                      type="button"
-                      onClick={() => setNotificationsOpen(false)}
-                      className="text-slate-400 hover:text-slate-700"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <div className="mt-3 space-y-2.5 border-t border-[#eef1f6] pt-3">
-                    {stats.pendingApprovalProperties.slice(0, 3).map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => {
-                          setNotificationsOpen(false);
-                          handleInspect(item);
-                        }}
-                        className="cursor-pointer rounded-xl p-2 hover:bg-[#f8fafc] transition-colors"
-                      >
-                        <div className="text-xs font-bold text-[#1f2e48]">{item.title}</div>
-                        <div className="text-[11px] text-[#7f8fa5]">
-                          {item.locality} · {item.type} · Submitted by {item.owner.name}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="h-7 w-px bg-[#edf0f5]" />
@@ -260,7 +189,7 @@ function PropertyManagementContent() {
         </header>
 
         {/* Main Content Area */}
-        <main className="mx-auto max-w-[1650px] space-y-6 px-4 py-7 sm:px-7 xl:px-9 xl:py-9">
+        <main className="min-w-0 w-full space-y-6 px-4 py-7 sm:px-7 xl:px-9 xl:py-9">
           {/* Header & KPI Summary */}
           <PropertyHeader
             onAddNew={() => setIsAddOpen(true)}
@@ -288,9 +217,7 @@ function PropertyManagementContent() {
                 {filters.status !== "All" && ` (${filters.status} status)`}
               </span>
               {filters.status === "Pending" && (
-                <span className="font-bold text-[#d97706] flex items-center gap-1">
-                  ⚡ Approval Queue View
-                </span>
+                <span className="font-bold text-[#087ed9]">Listings go live automatically 5 minutes after submission</span>
               )}
             </div>
 
@@ -298,16 +225,12 @@ function PropertyManagementContent() {
               <PropertyTable
                 properties={filteredProperties}
                 onInspect={handleInspect}
-                onApprove={handleOpenApprove}
-                onReject={handleOpenReject}
                 onEdit={handleOpenEdit}
               />
             ) : (
               <PropertyGrid
                 properties={filteredProperties}
                 onInspect={handleInspect}
-                onApprove={handleOpenApprove}
-                onReject={handleOpenReject}
                 onEdit={handleOpenEdit}
               />
             )}
@@ -320,35 +243,9 @@ function PropertyManagementContent() {
         property={selectedProperty}
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
-        onApprove={(prop) => {
-          setIsDetailOpen(false);
-          handleOpenApprove(prop);
-        }}
-        onReject={(prop) => {
-          setIsDetailOpen(false);
-          handleOpenReject(prop);
-        }}
         onEdit={(prop) => {
           setIsDetailOpen(false);
           handleOpenEdit(prop);
-        }}
-      />
-
-      <PropertyApprovalModal
-        property={selectedProperty}
-        isOpen={isApprovalOpen}
-        onClose={() => setIsApprovalOpen(false)}
-        onConfirm={(id, notes, makeFeatured, makeVerified) => {
-          approveProperty(id, notes, makeFeatured, makeVerified);
-        }}
-      />
-
-      <PropertyRejectModal
-        property={selectedProperty}
-        isOpen={isRejectOpen}
-        onClose={() => setIsRejectOpen(false)}
-        onConfirm={(id, reason, category) => {
-          rejectProperty(id, reason, category);
         }}
       />
 

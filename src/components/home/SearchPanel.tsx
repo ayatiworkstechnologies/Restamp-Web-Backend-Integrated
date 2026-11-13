@@ -50,7 +50,7 @@ export default function SearchPanel() {
   };
 
   return (
-    <div className={`bg-white rounded-2xl shadow-[0_12px_45px_-10px_rgba(0,0,0,0.1)] hover:shadow-[0_20px_50px_-10px_rgba(8,126,217,0.14)] transition-shadow duration-300 border border-slate-100 p-4 sm:p-6 md:p-8 max-w-4xl mx-auto -mt-16 relative ${isFocused ? 'z-40' : 'z-30'}`}>
+    <div className={`bg-white rounded-2xl shadow-[0_12px_45px_-10px_rgba(0,0,0,0.1)] hover:shadow-[0_20px_50px_-10px_rgba(8,126,217,0.14)] transition-shadow duration-300 border border-slate-100 p-4 sm:p-6 md:p-8 max-w-4xl mx-auto mt-5 md:-mt-16 relative ${isFocused ? 'z-40' : 'z-30'}`}>
       {/* Navigation Tabs */}
       <div className="flex items-center justify-between gap-3 sm:gap-6 mb-4 sm:mb-6 border-b border-slate-100 sm:border-0 pb-1 sm:pb-0">
         <div className="flex items-center gap-5 sm:gap-8 overflow-x-auto no-scrollbar scrollbar-none py-0.5">

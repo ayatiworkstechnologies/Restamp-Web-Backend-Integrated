@@ -1,3 +1,10 @@
+import { useMemo } from 'react';
+import type { SubscriptionPlan } from '@/types/subscription';
+import { BILLING_LABEL } from '@/types/subscription';
+import { getPlan as getStorePlan, recordCheckout, usePublicPlans } from '@/lib/subscription-store';
+import { getProfile } from '@/lib/profile';
+import { getOwnerListings } from '@/lib/ownerListings';
+
 export type OwnerPlan = {
   id: string;
   name: string;
@@ -11,21 +18,39 @@ export type OwnerPlan = {
   features: string[];
 };
 
-// Owner plans — 7 tiers (one-time payment)
-const ownerTiers: OwnerPlan[] = [
-  { id: 'owner-startup', name: 'Startup Plan', price: 499, priceSub1: 'One-time payment · 30 Days', priceSub2: '1 property post', validityDays: 30, listingLimit: 1, features: ['Unlimited Leads', 'City Limit Reach'] },
-  { id: 'owner-super', name: 'Super Plan', price: 999, priceSub1: 'One-time payment · 45 Days', priceSub2: '3 property posts', validityDays: 45, listingLimit: 3, features: ['Unlimited Leads', 'City Limit Reach'] },
-  { id: 'owner-premium', name: 'Premium Plan', price: 1799, priceSub1: 'One-time payment · 60 Days', priceSub2: '5 property posts', validityDays: 60, listingLimit: 5, features: ['Unlimited Leads', 'City Limit Reach', 'Relationship Manager Assistance'] },
-  { id: 'owner-elite', name: 'Elite Plan', price: 2499, priceSub1: 'One-time payment · 90 Days', priceSub2: '20 property posts', validityDays: 90, listingLimit: 20, features: ['Unlimited Leads', 'City Limit Reach', 'Relationship Manager Assistance', 'Social Media Promotion'] },
-  { id: 'owner-special', name: 'Special Plan', price: 3499, priceSub1: 'One-time payment · 90 Days', priceSub2: '30 property posts', validityDays: 90, listingLimit: 30, features: ['Unlimited Leads', 'City Limit Reach', 'Relationship Manager Assistance', 'Social Media Promotion'] },
-  { id: 'owner-business', name: 'Business Plan', price: 49999, priceSub1: 'One-time payment · 90 Days', priceSub2: '50 property posts', validityDays: 90, listingLimit: 50, features: ['Unlimited Leads', 'City Limit Reach', 'Relationship Manager Assistance', 'Social Media Promotion'] },
-  { id: 'owner-unlimited-business', name: 'Unlimited Business Plan', price: 99999, priceSub1: 'One-time payment · 180 Days', priceSub2: 'Unlimited property posts', validityDays: 180, listingLimit: 999, features: ['Unlimited Leads', 'City Limit Reach', 'Relationship Manager Assistance', 'Social Media Promotion'] },
-];
+// Owner plans are managed in Admin → Subscription Plans and read from the
+// subscription store. Prices are never hard-coded here.
 
-export const ownerPlans: Record<'Residential' | 'Commercial', OwnerPlan[]> = {
-  Residential: ownerTiers,
-  Commercial: ownerTiers,
-};
+/** Legacy screens treat 999 as "unlimited". */
+const legacyLimit = (n: number | undefined) => (n === undefined || n < 0 ? 999 : n);
+
+export function toOwnerPlan(p: SubscriptionPlan): OwnerPlan {
+  const limit = legacyLimit(p.limits.listingLimit);
+  return {
+    id: p.id,
+    name: p.name,
+    highlight: p.badge,
+    price: p.price,
+    priceSub1: `${BILLING_LABEL[p.billingCycle]} payment · ${p.validityDays ? `${p.validityDays} Days` : 'Until deal closed'}`,
+    priceSub2: limit >= 999 ? 'Unlimited property posts' : `${limit} property post${limit === 1 ? '' : 's'}`,
+    validityDays: p.validityDays,
+    listingLimit: limit,
+    popular: p.recommended,
+    features: p.features,
+  };
+}
+
+const EMPTY_CATALOG: Record<'Residential' | 'Commercial', OwnerPlan[]> = { Residential: [], Commercial: [] };
+
+/** Admin-managed owner plans. Residential and Commercial share one catalog. Empty while loading. */
+export function useOwnerPlans(): Record<'Residential' | 'Commercial', OwnerPlan[]> {
+  const plans = usePublicPlans('owner');
+  return useMemo(() => {
+    if (!plans) return EMPTY_CATALOG;
+    const list = plans.map(toOwnerPlan);
+    return { Residential: list, Commercial: list };
+  }, [plans]);
+}
 
 export const GST_RATE = 0.18;
 export const PROMO_CODES: Record<string, number> = { RESTAMP: 300, OWNER10: 300, PROMO: 300 };
@@ -55,8 +80,10 @@ export type OwnerSubscription = {
 const SUB_KEY = 'restamp_owner_subscription';
 const PAYMENTS_KEY = 'restamp_owner_payments';
 
-export const findPlan = (id: string) =>
-  [...ownerPlans.Residential, ...ownerPlans.Commercial].find((p) => p.id === id);
+export const findPlan = (id: string) => {
+  const p = getStorePlan(id);
+  return p ? toOwnerPlan(p) : undefined;
+};
 
 export function priceBreakdown(plan: OwnerPlan, discount: number) {
   const afterDiscount = Math.max(0, plan.price - discount);
@@ -100,6 +127,20 @@ export function activatePlan(plan: OwnerPlan, payment?: Omit<Payment, 'id' | 'pa
       paymentId,
     };
     localStorage.setItem(SUB_KEY, JSON.stringify(sub));
+    const me = getProfile();
+    recordCheckout({
+      role: 'owner',
+      planId: plan.id,
+      subscriberName: me?.name || 'Owner',
+      subscriberPhone: me?.mobile || '',
+      baseAmount: payment?.amount ?? plan.price,
+      discount: payment?.discount ?? 0,
+      gst: payment?.gst ?? 0,
+      total: payment?.total ?? 0,
+      method: payment?.method ?? 'Free plan',
+      transactionRef: paymentId ?? `FREE-${now.getTime()}`,
+      usage: { listingsUsed: getOwnerListings().length },
+    });
     return { sub, paymentId };
   } catch {
     return null;

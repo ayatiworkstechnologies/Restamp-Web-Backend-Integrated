@@ -6,7 +6,6 @@ import {
   Clock3,
   CheckCircle2,
   XCircle,
-  TrendingUp,
   Download,
   RotateCcw,
   Plus,
@@ -104,7 +103,7 @@ export function PropertyHeader({
             </span>
           </div>
           <p className="mt-1 text-[13px] text-[#8696ab]">
-            Review, approve, reject, verify legal deeds, and manage real estate listings on RESTAMP.
+            Manage real estate listings on RESTAMP. New listings go live automatically 5 minutes after submission.
           </p>
         </div>
 
@@ -138,7 +137,7 @@ export function PropertyHeader({
       </div>
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {/* Total Properties */}
         <div className="rounded-[16px] border border-[#e8ecf4] bg-white p-4 shadow-sm transition-all hover:border-[#d4dded]">
           <div className="flex items-center justify-between">
@@ -156,7 +155,7 @@ export function PropertyHeader({
           </div>
         </div>
 
-        {/* Pending Approvals */}
+        {/* Auto-verifying */}
         <div
           onClick={onFilterPending}
           className={`cursor-pointer rounded-[16px] border p-4 shadow-sm transition-all ${
@@ -167,7 +166,7 @@ export function PropertyHeader({
         >
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#b45309]">
-              Pending Review
+              Verifying
             </span>
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#fef3c7] text-[#d97706]">
               <Clock3 size={16} />
@@ -175,13 +174,8 @@ export function PropertyHeader({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-[22px] font-extrabold text-[#92400e]">{stats.pending}</span>
-            {stats.pending > 0 && (
-              <span className="rounded-full bg-[#fef3c7] px-2 py-0.5 text-[10px] font-bold text-[#b45309]">
-                Action Needed
-              </span>
-            )}
           </div>
-          <div className="mt-1 text-[11px] text-[#b45309] font-medium">Click to filter review queue</div>
+          <div className="mt-1 text-[11px] text-[#b45309] font-medium">Live automatically in 5 min</div>
         </div>
 
         {/* Active Listings */}
@@ -196,7 +190,7 @@ export function PropertyHeader({
           </div>
           <div className="mt-2 text-[22px] font-extrabold text-[#1a2942]">{stats.active}</div>
           <div className="mt-1 text-[11px] text-[#16a34a] font-semibold">
-            {stats.total > 0 ? `${Math.round((stats.active / stats.total) * 100)}% approved rate` : "0%"}
+            {stats.total > 0 ? `${Math.round((stats.active / stats.total) * 100)}% of listings live` : "0%"}
           </div>
         </div>
 
@@ -214,21 +208,6 @@ export function PropertyHeader({
           <div className="mt-1 text-[11px] text-[#98a5b8]">Failed compliance checks</div>
         </div>
 
-        {/* Avg Property Value */}
-        <div className="col-span-2 sm:col-span-1 rounded-[16px] border border-[#e8ecf4] bg-white p-4 shadow-sm transition-all hover:border-[#d4dded]">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#9aa7bb]">
-              Avg Listing Price
-            </span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#f5f3ff] text-[#7c3aed]">
-              <TrendingUp size={16} />
-            </span>
-          </div>
-          <div className="mt-2 text-[22px] font-extrabold text-[#1a2942]">
-            {stats.total > 0 ? formatPriceCrores(stats.totalValue / stats.total) : "₹0"}
-          </div>
-          <div className="mt-1 text-[11px] text-[#98a5b8]">Tamil Nadu Market Base</div>
-        </div>
       </div>
     </div>
   );

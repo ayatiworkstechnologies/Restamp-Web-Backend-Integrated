@@ -7,31 +7,42 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   BarChart3,
   Bell,
+  Briefcase,
   Building2,
-  ChevronDown,
+  CalendarCheck,
   ClipboardCheck,
+  CreditCard,
+  History,
+  Home,
+  Layers,
   LayoutDashboard,
-  LifeBuoy,
   LogOut,
   MessageSquareText,
   Settings2,
   ShieldCheck,
+  UserRound,
   UsersRound,
   ExternalLink,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { usePropertyStore } from "@/context/property-context";
-import { useUserStore } from "@/context/user-context";
 import { useEnquiryStore } from "@/context/enquiry-context";
 import { useAdminAuth } from "@/context/admin-auth-context";
+import { useSubscriptionData } from "@/lib/subscription-store";
+
+type BadgeKey = "pendingApprovals" | "openEnquiries" | "expiringSubs";
 
 interface NavItem {
   label: string;
   href?: string;
   icon: LucideIcon;
-  badge?: "pendingApprovals" | "pendingKyc" | "openEnquiries";
+  badge?: BadgeKey;
   planned?: boolean;
+  /** Marks modules added in the subscription release. */
+  isNew?: boolean;
+  /** "exact" = only this path; default also matches sub-paths. */
+  match?: "exact" | "prefix";
 }
 
 const navGroups: {
@@ -41,18 +52,34 @@ const navGroups: {
   {
     group: "WORKSPACE",
     links: [
-      { label: "Overview", href: "/admin-dashboard", icon: LayoutDashboard },
-      { label: "Properties", href: "/admin-dashboard/properties", icon: Building2, badge: "pendingApprovals" },
-      { label: "Users", href: "/admin-dashboard/users", icon: UsersRound, badge: "pendingKyc" },
+      { label: "Dashboard Overview", href: "/admin-dashboard", icon: LayoutDashboard, match: "exact" },
+      { label: "Properties", href: "/admin-dashboard/properties", icon: Building2 },
       { label: "Enquiries", href: "/admin-dashboard/enquiries", icon: MessageSquareText, badge: "openEnquiries" },
-      { label: "Approvals", href: "/admin-dashboard/properties?tab=approvals", icon: ClipboardCheck, badge: "pendingApprovals" },
       { label: "Analytics", href: "/admin-dashboard/analytics", icon: BarChart3 },
+    ],
+  },
+  {
+    group: "USER MANAGEMENT",
+    links: [
+      { label: "All Users", href: "/admin-dashboard/users", icon: UsersRound, match: "exact" },
+      { label: "Buyers", href: "/admin-dashboard/users/buyers", icon: UserRound, isNew: true },
+      { label: "Owners", href: "/admin-dashboard/users/owners", icon: Home, isNew: true },
+      { label: "Agents", href: "/admin-dashboard/users/agents", icon: Briefcase, isNew: true },
+    ],
+  },
+  {
+    group: "SUBSCRIPTION MANAGEMENT",
+    links: [
+      { label: "Subscription Plans", href: "/admin-dashboard/subscriptions/plans", icon: Layers, isNew: true },
+      { label: "Active Subscriptions", href: "/admin-dashboard/subscriptions/active", icon: CalendarCheck, badge: "expiringSubs", isNew: true },
+      { label: "Payments & Invoices", href: "/admin-dashboard/subscriptions/payments", icon: CreditCard, isNew: true },
+      { label: "Pricing History", href: "/admin-dashboard/subscriptions/pricing-history", icon: History, isNew: true },
     ],
   },
   {
     group: "MANAGEMENT",
     links: [
-      { label: "Notifications", icon: Bell, planned: true },
+      { label: "Notifications", href: "/admin-dashboard/notifications", icon: Bell, isNew: true },
       { label: "Settings", href: "/admin-dashboard/settings", icon: Settings2 },
     ],
   },
@@ -63,39 +90,22 @@ function SidebarNavContent({ onClose }: { onClose: () => void }) {
   const searchParams = useSearchParams();
   const currentTab = searchParams ? searchParams.get("tab") : null;
   const { stats: propStats } = usePropertyStore();
-  const { stats: userStats } = useUserStore();
   const { stats: enquiryStats } = useEnquiryStore();
+  const { subscriptions } = useSubscriptionData();
+  const expiringSubs = subscriptions.filter((s) => s.status === "expiring").length;
 
   const isLinkActive = (item: NavItem) => {
     if (!item.href) return false;
-    if (item.label === "Overview") {
-      return pathname === "/admin-dashboard" || pathname === "/dashboard";
-    }
-    if (item.label === "Approvals") {
-      return (
-        (pathname === "/admin-dashboard/properties" || pathname === "/dashboard/properties") &&
-        currentTab === "approvals"
-      );
-    }
-    if (item.label === "Properties") {
-      return (
-        (pathname === "/admin-dashboard/properties" || pathname === "/dashboard/properties") &&
-        currentTab !== "approvals"
-      );
-    }
-    if (item.label === "Users") {
-      return pathname.startsWith("/admin-dashboard/users") || pathname.startsWith("/dashboard/users");
-    }
-    if (item.label === "Enquiries") {
-      return pathname.startsWith("/admin-dashboard/enquiries") || pathname.startsWith("/dashboard/enquiries");
-    }
-    if (item.label === "Analytics") {
-      return pathname.startsWith("/admin-dashboard/analytics") || pathname.startsWith("/dashboard/analytics");
-    }
-    if (item.label === "Settings") {
-      return pathname.startsWith("/admin-dashboard/settings") || pathname.startsWith("/dashboard/settings");
-    }
-    return pathname === item.href;
+    const [path, query] = item.href.split("?");
+    if (query) return pathname === path && currentTab === new URLSearchParams(query).get("tab");
+    if (item.match === "exact") return pathname === path;
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
+
+  const badgeCount: Record<BadgeKey, number> = {
+    pendingApprovals: propStats.pending,
+    openEnquiries: enquiryStats.active,
+    expiringSubs,
   };
 
   return (
@@ -109,14 +119,7 @@ function SidebarNavContent({ onClose }: { onClose: () => void }) {
             {section.links.map((item) => {
               const Icon = item.icon;
               const active = isLinkActive(item);
-              const pendingCount =
-                item.badge === "pendingApprovals"
-                  ? propStats.pending
-                  : item.badge === "pendingKyc"
-                  ? userStats.pendingKyc
-                  : item.badge === "openEnquiries"
-                  ? enquiryStats.active
-                  : 0;
+              const pendingCount = item.badge ? badgeCount[item.badge] : 0;
 
               if (item.href && !item.planned) {
                 return (
@@ -142,7 +145,7 @@ function SidebarNavContent({ onClose }: { onClose: () => void }) {
                         className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
                           active
                             ? "bg-white/25 text-white"
-                            : item.label === "Approvals" || item.label === "Users"
+                            : item.badge === "pendingApprovals" || item.badge === "expiringSubs"
                             ? "bg-[#fef3c7] text-[#b45309]"
                             : item.label === "Enquiries"
                             ? "bg-sky-100 text-[#087ed9]"
@@ -151,6 +154,9 @@ function SidebarNavContent({ onClose }: { onClose: () => void }) {
                       >
                         {pendingCount}
                       </span>
+                    )}
+                    {item.isNew && !active && pendingCount === 0 && (
+                      <span className="rounded-full bg-[#eaf9f0] px-1.5 py-0.5 text-[9px] font-extrabold text-[#1ca569]">New</span>
                     )}
                     {active && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
                   </Link>

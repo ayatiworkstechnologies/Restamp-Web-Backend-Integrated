@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import { Manrope } from 'next/font/google';
 import './globals.css';
+import { WishlistLimitNotice } from '@/components/common/wishlist-limit-notice';
+import { AppToaster } from '@/components/common/app-toaster';
+import { ConfirmDialogHost } from '@/components/common/confirm-dialog';
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -28,7 +31,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={manrope.variable}>
-      <body className={manrope.className}>{children}</body>
+      <body className={manrope.className}>
+        {children}
+        <WishlistLimitNotice />
+        <AppToaster />
+        <ConfirmDialogHost />
+      </body>
     </html>
   );
 }

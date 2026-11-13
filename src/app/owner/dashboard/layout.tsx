@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearProfile, getProfile, type Profile } from '@/lib/profile';
+import { NotificationBell } from '@/components/common/notification-bell';
 import { getSubscription, type OwnerSubscription } from '@/lib/ownerPlan';
 import { Building2, CalendarCheck, CreditCard, MessageSquareText, Crown, Headset, LayoutDashboard, LogOut, Menu, PlusCircle, UserRound, X, type LucideIcon } from 'lucide-react';
 
@@ -113,9 +114,12 @@ export default function OwnerDashboardLayout({ children }: { children: React.Rea
           <p className="text-sm text-slate-500">
             Welcome back, <span className="font-semibold text-slate-900">{me.name || `+91 ${me.mobile}`}</span>
           </p>
-          <Link href="/owner/dashboard/profile" className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sm font-bold text-[#087ed9]">
-            {(me.name || 'O').charAt(0).toUpperCase()}
-          </Link>
+          <div className="flex items-center gap-2">
+            <NotificationBell profile={me} />
+            <Link href="/owner/dashboard/profile" className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sm font-bold text-[#087ed9]">
+              {(me.name || 'O').charAt(0).toUpperCase()}
+            </Link>
+          </div>
         </header>
         <main className="px-4 py-6 sm:px-8 sm:py-8">{children}</main>
       </div>

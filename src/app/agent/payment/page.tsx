@@ -7,7 +7,8 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { getProfile } from '@/lib/profile';
 import {
-  locationPackages,
+  useLocationPackages,
+  PLACEHOLDER_PACKAGE,
   getDraftPackage,
   activateAgentPackage,
   hasActiveAgentSubscription,
@@ -45,7 +46,14 @@ export default function AgentPaymentPage() {
   const [profile, setProfile] = useState<any>(null);
 
   // Selected package and locations from draft
-  const [pkg, setPkg] = useState<LocationPackage>(locationPackages[1]); // default: 10
+  // Live admin-managed price list; checkout always charges the current price.
+  const locationPackages = useLocationPackages();
+  const [pkgId, setPkgId] = useState<string>('');
+  const pkg: LocationPackage =
+    locationPackages.find((p) => p.id === pkgId) ??
+    locationPackages.find((p) => p.popular) ??
+    locationPackages[0] ??
+    PLACEHOLDER_PACKAGE;
   const [selectedLocations, setSelectedLocations] = useState<string[]>([
     'OMR IT Corridor',
     'Sholinganallur',
@@ -94,8 +102,7 @@ export default function AgentPaymentPage() {
     // Retrieve draft selection
     const draft = getDraftPackage();
     if (draft) {
-      const foundPkg = locationPackages.find((p) => p.id === draft.packageId);
-      if (foundPkg) setPkg(foundPkg);
+      setPkgId(draft.packageId);
       if (draft.selectedLocations && draft.selectedLocations.length > 0) {
         setSelectedLocations(draft.selectedLocations);
       }
@@ -156,6 +163,10 @@ export default function AgentPaymentPage() {
   const handleProcessPayment = () => {
     // Prevent duplicate activation / double charges
     if (isSubmittingRef.current || paymentState === 'processing') return;
+    if (!pkg.id) {
+      setErrorMessage('Plans are still loading. Please try again in a moment.');
+      return;
+    }
 
     // Validate based on payment method
     if (method === 'upi') {
@@ -190,7 +201,7 @@ export default function AgentPaymentPage() {
     // Process payment and activate subscription
     setTimeout(() => {
 
-      // Success flow: Activate Subscription with verified confirmation
+      // Simulated success: no gateway is integrated, so the payment is recorded as unverified (see PAYMENTS.md)
       const methodLabel =
         method === 'upi'
           ? `UPI (${upiId ? upiId.trim() : upiApp})`
@@ -209,6 +220,7 @@ export default function AgentPaymentPage() {
         agentName: profile?.name || 'Verified Agent',
         firmName: 'Royal Realty Associates',
         reraNumber: 'TN/AGENT/0491/2023',
+        idempotencyKey: idempotencyKeyRef.current,
       });
 
       isSubmittingRef.current = false;

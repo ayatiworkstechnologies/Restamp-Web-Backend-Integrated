@@ -1,8 +1,11 @@
 "use client";
 
+import { toast as notify } from "@/lib/notify";
+
 import React, { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { Property, PropertyStatus, AdminChecklist } from "@/types/property";
 import { initialProperties } from "@/lib/properties-data";
+import { AUTO_VERIFY_MINUTES, msUntilVerified } from "@/lib/auto-verify";
 
 interface ToastMessage {
   id: number;
@@ -19,20 +22,10 @@ interface PropertyContextType {
     rejected: number;
     draft: number;
     totalValue: number;
-    pendingApprovalProperties: Property[];
   };
   toast: ToastMessage | null;
   showToast: (message: string, type?: "success" | "error" | "info") => void;
   hideToast: () => void;
-  approveProperty: (
-    id: string,
-    notes?: string,
-    makeFeatured?: boolean,
-    makeVerified?: boolean
-  ) => void;
-  rejectProperty: (id: string, reason: string, category?: string) => void;
-  batchApprove: (ids: string[]) => void;
-  batchReject: (ids: string[], reason: string, category?: string) => void;
   updateProperty: (id: string, updates: Partial<Property>) => void;
   deleteProperty: (id: string) => void;
   addProperty: (newProp: Omit<Property, "id" | "submittedAt" | "updatedAt" | "auditLog">) => string;
@@ -49,7 +42,7 @@ const STORAGE_KEY = "restamp_admin_properties_v1";
 export function PropertyProvider({ children }: { children: React.ReactNode }) {
   const [properties, setProperties] = useState<Property[]>(initialProperties);
   const [isHydrated, setIsHydrated] = useState(false);
-  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const toast: ToastMessage | null = null;
 
   // Load from localStorage on client mount
   useEffect(() => {
@@ -78,15 +71,40 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [properties, isHydrated]);
 
+  // Automatic verification: Pending listings go live AUTO_VERIFY_MINUTES after submission.
+  useEffect(() => {
+    if (!isHydrated) return;
+    const tick = () => {
+      const now = Date.now();
+      setProperties((prev) => {
+        let changed = 0;
+        const next = prev.map((p) => {
+          if (p.status !== "Pending" || msUntilVerified(p.submittedAt, now) > 0) return p;
+          changed++;
+          const ts = new Date(now).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+          return {
+            ...p,
+            status: "Active" as PropertyStatus,
+            updatedAt: ts,
+            auditLog: [
+              { id: `LOG-${now.toString().slice(-6)}-${p.id}`, action: "Auto-verified", actor: "System", role: "Automatic", timestamp: ts, notes: `Went live automatically ${AUTO_VERIFY_MINUTES} minutes after submission.` },
+              ...(p.auditLog || []),
+            ],
+          };
+        });
+        return changed ? next : prev;
+      });
+    };
+    tick();
+    const t = setInterval(tick, 15000);
+    return () => clearInterval(t);
+  }, [isHydrated]);
+
   const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
-    const id = Date.now();
-    setToast({ id, message, type });
-    setTimeout(() => {
-      setToast((current) => (current?.id === id ? null : current));
-    }, 4000);
+    notify[type](message);
   };
 
-  const hideToast = () => setToast(null);
+  const hideToast = () => notify.dismiss();
 
   const stats = useMemo(() => {
     const total = properties.length;
@@ -95,200 +113,8 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
     const rejected = properties.filter((p) => p.status === "Rejected").length;
     const draft = properties.filter((p) => p.status === "Draft").length;
     const totalValue = properties.reduce((acc, curr) => acc + curr.price, 0);
-    const pendingApprovalProperties = properties.filter((p) => p.status === "Pending");
-    return { total, active, pending, rejected, draft, totalValue, pendingApprovalProperties };
+    return { total, active, pending, rejected, draft, totalValue };
   }, [properties]);
-
-  const approveProperty = (
-    id: string,
-    notes?: string,
-    makeFeatured?: boolean,
-    makeVerified: boolean = true
-  ) => {
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-    const formattedTime = now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const timestamp = `${formattedDate}, ${formattedTime}`;
-
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-
-        const updatedChecklist = {
-          ...item.adminChecklist,
-          legalDocumentsVerified: true,
-          pricingValidated: true,
-          ownerIdentityConfirmed: true,
-        };
-
-        const updatedAuditLog = [
-          {
-            id: `LOG-${Date.now().toString().slice(-4)}`,
-            action: "Listing Approved",
-            actor: "Admin (Current Session)",
-            role: "Administrator",
-            timestamp,
-            notes: notes || "Property approved and published to RESTAMP marketplace.",
-          },
-          ...(item.auditLog || []),
-        ];
-
-        return {
-          ...item,
-          status: "Active" as PropertyStatus,
-          reviewedAt: timestamp,
-          reviewedBy: "RESTAMP Admin",
-          approvalNotes: notes || "Approved for marketplace listing.",
-          rejectionReason: undefined,
-          rejectionCategory: undefined,
-          featured: makeFeatured !== undefined ? makeFeatured : item.featured,
-          verifiedBadge: makeVerified,
-          adminChecklist: updatedChecklist,
-          auditLog: updatedAuditLog,
-          updatedAt: timestamp,
-        };
-      })
-    );
-
-    showToast(`Property ${id} approved successfully! Listing is now Active.`);
-  };
-
-  const rejectProperty = (
-    id: string,
-    reason: string,
-    category: string = "Compliance & Verification"
-  ) => {
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-    const formattedTime = now.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const timestamp = `${formattedDate}, ${formattedTime}`;
-
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-
-        const updatedAuditLog = [
-          {
-            id: `LOG-${Date.now().toString().slice(-4)}`,
-            action: "Listing Rejected",
-            actor: "Admin (Current Session)",
-            role: "Administrator",
-            timestamp,
-            notes: `Rejected with reason: ${reason} (${category})`,
-          },
-          ...(item.auditLog || []),
-        ];
-
-        return {
-          ...item,
-          status: "Rejected" as PropertyStatus,
-          reviewedAt: timestamp,
-          reviewedBy: "RESTAMP Admin",
-          rejectionReason: reason,
-          rejectionCategory: category,
-          approvalNotes: undefined,
-          auditLog: updatedAuditLog,
-          updatedAt: timestamp,
-        };
-      })
-    );
-
-    showToast(`Property ${id} was rejected. Owner notification generated.`, "error");
-  };
-
-  const batchApprove = (ids: string[]) => {
-    if (ids.length === 0) return;
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-    const timestamp = `${formattedDate}, Batch Action`;
-
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (!ids.includes(item.id)) return item;
-        return {
-          ...item,
-          status: "Active" as PropertyStatus,
-          reviewedAt: timestamp,
-          reviewedBy: "RESTAMP Admin",
-          approvalNotes: "Batch approved by administrator.",
-          verifiedBadge: true,
-          auditLog: [
-            {
-              id: `LOG-${Date.now().toString().slice(-4)}`,
-              action: "Batch Approval",
-              actor: "Admin",
-              role: "Administrator",
-              timestamp,
-              notes: "Approved via bulk action toolbar.",
-            },
-            ...(item.auditLog || []),
-          ],
-          updatedAt: timestamp,
-        };
-      })
-    );
-
-    showToast(`${ids.length} properties approved in batch!`, "success");
-  };
-
-  const batchReject = (ids: string[], reason: string, category: string = "Administrative") => {
-    if (ids.length === 0) return;
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-    const timestamp = `${formattedDate}, Batch Action`;
-
-    setProperties((prev) =>
-      prev.map((item) => {
-        if (!ids.includes(item.id)) return item;
-        return {
-          ...item,
-          status: "Rejected" as PropertyStatus,
-          reviewedAt: timestamp,
-          reviewedBy: "RESTAMP Admin",
-          rejectionReason: reason,
-          rejectionCategory: category,
-          auditLog: [
-            {
-              id: `LOG-${Date.now().toString().slice(-4)}`,
-              action: "Batch Rejection",
-              actor: "Admin",
-              role: "Administrator",
-              timestamp,
-              notes: `Batch rejected: ${reason}`,
-            },
-            ...(item.auditLog || []),
-          ],
-          updatedAt: timestamp,
-        };
-      })
-    );
-
-    showToast(`${ids.length} properties marked as Rejected.`, "error");
-  };
 
   const updateProperty = (id: string, updates: Partial<Property>) => {
     const now = new Date();
@@ -422,10 +248,6 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
         toast,
         showToast,
         hideToast,
-        approveProperty,
-        rejectProperty,
-        batchApprove,
-        batchReject,
         updateProperty,
         deleteProperty,
         addProperty,

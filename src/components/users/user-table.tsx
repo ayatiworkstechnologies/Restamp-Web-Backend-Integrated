@@ -1,27 +1,29 @@
 "use client";
 
+import { confirmDialog } from "@/components/common/confirm-dialog";
 import React, { useState } from "react";
 import {
-  ShieldCheck,
-  ShieldAlert,
-  Eye,
-  MoreVertical,
-  Edit,
-  Trash2,
-  CheckCircle2,
-  XCircle,
-  FileText,
-  UserCheck,
   Building,
+  CheckCircle2,
   Clock,
+  Edit,
+  Eye,
+  FileText,
+  Mail,
+  MoreVertical,
+  Phone,
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+  XCircle,
 } from "lucide-react";
-import { User, UserStatus, KycStatus } from "@/types/user";
+import { User, UserStatus } from "@/types/user";
 import { useUserStore } from "@/context/user-context";
 
 interface UserTableProps {
   users: User[];
   onInspect: (user: User) => void;
-  onVerifyKyc: (user: User) => void;
   onSuspend: (user: User) => void;
   onEdit: (user: User) => void;
 }
@@ -29,14 +31,13 @@ interface UserTableProps {
 export function UserTable({
   users,
   onInspect,
-  onVerifyKyc,
   onSuspend,
   onEdit,
 }: UserTableProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
-  const { batchVerifyKyc, batchSuspend, deleteUser } = useUserStore();
+  const { batchSuspend, deleteUser } = useUserStore();
 
   const handleSelectAll = () => {
     if (selectedIds.length === users.length) {
@@ -54,12 +55,6 @@ export function UserTable({
     }
   };
 
-  const handleBatchVerify = () => {
-    if (selectedIds.length === 0) return;
-    batchVerifyKyc(selectedIds);
-    setSelectedIds([]);
-  };
-
   const handleBatchSuspend = () => {
     if (selectedIds.length === 0) return;
     batchSuspend(selectedIds, "Administrative bulk compliance suspension.");
@@ -68,32 +63,8 @@ export function UserTable({
 
   const statusPills: Record<UserStatus, { bg: string; text: string; dot: string }> = {
     Active: { bg: "bg-[#e7f8ee]", text: "text-[#199864]", dot: "bg-[#21b879]" },
-    "Pending KYC": { bg: "bg-[#fff5e3]", text: "text-[#bf811a]", dot: "bg-[#eca42d]" },
     Suspended: { bg: "bg-[#ffeaeb]", text: "text-[#d45561]", dot: "bg-[#e66a74]" },
     Inactive: { bg: "bg-[#f1f4f9]", text: "text-[#62738b]", dot: "bg-[#94a3b8]" },
-  };
-
-  const kycBadges: Record<KycStatus, { bg: string; text: string; icon: React.ReactNode }> = {
-    Verified: {
-      bg: "bg-[#ecfdf5] text-[#059669]",
-      text: "KYC Verified",
-      icon: <ShieldCheck size={11} />,
-    },
-    Pending: {
-      bg: "bg-[#fffbeb] text-[#d97706]",
-      text: "KYC Pending",
-      icon: <Clock size={11} />,
-    },
-    Rejected: {
-      bg: "bg-[#fef2f2] text-[#dc2626]",
-      text: "KYC Rejected",
-      icon: <ShieldAlert size={11} />,
-    },
-    "Not Submitted": {
-      bg: "bg-[#f1f4f9] text-[#6b7b92]",
-      text: "No KYC",
-      icon: null,
-    },
   };
 
   return (
@@ -112,7 +83,6 @@ export function UserTable({
               </th>
               <th className="px-4 py-3.5">User Profile</th>
               <th className="px-3 py-3.5">Role & Type</th>
-              <th className="px-3 py-3.5">KYC Status</th>
               <th className="px-3 py-3.5">Platform Activity</th>
               <th className="px-3 py-3.5">Location</th>
               <th className="px-3 py-3.5">Status</th>
@@ -125,7 +95,6 @@ export function UserTable({
               users.map((user) => {
                 const isSelected = selectedIds.includes(user.id);
                 const pill = statusPills[user.status];
-                const kyc = kycBadges[user.kycStatus];
 
                 return (
                   <tr
@@ -161,11 +130,12 @@ export function UserTable({
                           >
                             {user.name}
                           </div>
-                          <div className="mt-0.5 text-[11px] text-[#7d8ea5]">
-                            {user.email}
+                          <span className="mt-1 inline-block rounded-md bg-[#eef3fc] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#1B459B]">{user.id}</span>
+                          <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[11px] text-[#6b7b93]">
+                            <Mail size={12} className="shrink-0 text-[#9aa7bb]" /><span className="truncate">{user.email}</span>
                           </div>
-                          <div className="mt-0.5 text-[10px] text-[#9ba8bc]">
-                            {user.phone} · <span className="font-mono text-[#2854cb]">{user.id}</span>
+                          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#6b7b93]">
+                            <Phone size={12} className="shrink-0 text-[#9aa7bb]" /><span className="whitespace-nowrap">{user.phone}</span>
                           </div>
                         </div>
                       </div>
@@ -176,35 +146,25 @@ export function UserTable({
                       <div className="flex items-center gap-1.5">
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold capitalize ${
-                            user.role === "owner"
+                            user.role !== "buyer"
                               ? "bg-[#f5f3ff] text-[#7c3aed]"
                               : "bg-[#eff6ff] text-[#2563eb]"
                           }`}
                         >
-                          {user.role === "owner" ? <Building size={11} /> : <UserCheck size={11} />}
+                          {user.role !== "buyer" ? <Building size={11} /> : <UserCheck size={11} />}
                           <span>{user.role}</span>
                         </span>
                       </div>
                       <div className="mt-1 text-[11px] text-[#6d7e96] font-medium">
-                        {user.role === "owner"
+                        {user.role !== "buyer"
                           ? user.companyName || user.ownerType || "Individual"
                           : "Property Seeker"}
                       </div>
                     </td>
 
-                    {/* KYC Status */}
-                    <td className="whitespace-nowrap px-3 py-4">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${kyc.bg}`}
-                      >
-                        {kyc.icon}
-                        <span>{kyc.text}</span>
-                      </span>
-                    </td>
-
                     {/* Activity */}
                     <td className="whitespace-nowrap px-3 py-4 text-xs">
-                      {user.role === "owner" ? (
+                      {user.role !== "buyer" ? (
                         <div>
                           <div className="font-bold text-[#23334d]">
                             {user.totalListingsCount || 0} Listed
@@ -249,17 +209,6 @@ export function UserTable({
                     {/* Actions */}
                     <td className="whitespace-nowrap px-4 py-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {user.kycStatus === "Pending" && (
-                          <button
-                            type="button"
-                            onClick={() => onVerifyKyc(user)}
-                            className="rounded-lg bg-[#10b981]/10 p-1.5 text-[#10b981] hover:bg-[#10b981] hover:text-white transition-colors"
-                            title="Verify KYC Documents"
-                          >
-                            <ShieldCheck size={16} />
-                          </button>
-                        )}
-
                         <button
                           type="button"
                           onClick={() => onInspect(user)}
@@ -296,16 +245,6 @@ export function UserTable({
                                 type="button"
                                 onClick={() => {
                                   setActiveMenuId(null);
-                                  onVerifyKyc(user);
-                                }}
-                                className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-medium text-[#384962] hover:bg-[#f6f8fb]"
-                              >
-                                <ShieldCheck size={14} className="text-[#10b981]" /> KYC Review
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveMenuId(null);
                                   onEdit(user);
                                 }}
                                 className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-medium text-[#384962] hover:bg-[#f6f8fb]"
@@ -333,9 +272,9 @@ export function UserTable({
                               <div className="my-1 border-t border-[#f0f3f8]" />
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={async () => {
                                   setActiveMenuId(null);
-                                  if (confirm(`Are you sure you want to delete user ${user.id}?`)) {
+                                  if (await confirmDialog({ title: "Delete user", body: `Are you sure you want to delete ${user.name} (${user.id})? This action cannot be undone.` })) {
                                     deleteUser(user.id);
                                   }
                                 }}
@@ -353,7 +292,7 @@ export function UserTable({
               })
             ) : (
               <tr>
-                <td colSpan={9} className="py-16 text-center text-sm text-[#93a2b7]">
+                <td colSpan={8} className="py-16 text-center text-sm text-[#93a2b7]">
                   No users found matching your filter criteria.
                 </td>
               </tr>
@@ -369,14 +308,6 @@ export function UserTable({
             {selectedIds.length} users selected
           </span>
           <div className="h-4 w-px bg-white/20" />
-          <button
-            type="button"
-            onClick={handleBatchVerify}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[#10b981] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#059669] transition-all"
-          >
-            <ShieldCheck size={14} />
-            <span>Verify Selected KYC</span>
-          </button>
           <button
             type="button"
             onClick={handleBatchSuspend}

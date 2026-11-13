@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmDialog } from "@/components/common/confirm-dialog";
 import { useState } from 'react';
 import { formatVisit, updateVisitStatus, useOwnerLeads, visitBucket, type OwnerVisit, type VisitStatus } from '@/lib/ownerLeads';
 import { card } from '../ui';
@@ -89,7 +90,10 @@ export default function OwnerVisitsPage() {
                   <button
                     key={a.label}
                     type="button"
-                    onClick={() => confirm(a.confirm) && updateVisitStatus(v.id, a.next)}
+                    onClick={async () => {
+                      const destructive = a.next === 'CANCELLED' || a.next === 'DECLINED';
+                      if (await confirmDialog({ title: a.label === 'Complete' ? 'Complete visit' : `${a.label}${a.label.endsWith('Visit') ? '' : ' visit'}`, body: a.confirm, confirmLabel: a.label, tone: destructive ? 'danger' : 'default' })) updateVisitStatus(v.id, a.next);
+                    }}
                     className={`inline-flex h-[53px] flex-1 cursor-pointer items-center justify-center rounded-[16px] px-4 text-sm font-semibold transition ${
                       a.primary ? 'bg-[#087ed9] text-white hover:bg-sky-600' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
                     }`}
