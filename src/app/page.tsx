@@ -20,7 +20,7 @@ import HomeAnimations from '@/components/home/HomeAnimations';
 import RecentlyAddedSection, { VerifiedPropertiesSection } from '@/components/home/RecentlyAddedSection';
 
 const HERO_ALT =
-  'Your property journey starts here. Buy and resale, rent and lease, explore new projects, post property for free, search by location, owner and agent portal. Search smart, find better.';
+  'Your property journey starts here. Easy-ah vithudunga. Buy and resale, rent and lease, explore new projects, post property for free, search by location, owner and agent portal.';
 /** Above 1440px: 2048x600 artwork. */
 const { props: { srcSet: heroWideSrcSet } } = getImageProps({ src: '/images/restamp-web-banner-12.png', alt: '', width: 2048, height: 600, sizes: '100vw', quality: 85 });
 /** 1440px and below: 1440x600 artwork. */
@@ -74,9 +74,9 @@ export default function HomePage() {
       <Header />
       <main className="bg-slate-50">
         {/* Hero Section: art-directed banner.
-            Up to 1440px wide: 1440x600 artwork, scaled to fit so nothing is cropped.
+            Up to 1440px wide: 1440x600 artwork (600px tall from 768px up; phones scale to fit).
             Above 1440px: 2048x600 artwork at a fixed 600px height. */}
-        <section className="relative w-full overflow-hidden bg-[#bcd9f2] aspect-[1440/600] min-[1441px]:aspect-auto min-[1441px]:h-[600px]">
+        <section className="relative w-full overflow-hidden bg-[#bcd9f2] aspect-[1440/600] md:aspect-auto md:h-[600px]">
           <picture>
             <source media="(min-width: 1441px)" srcSet={heroWideSrcSet} />
             <img {...heroStd} alt={HERO_ALT} className="absolute inset-0 h-full w-full object-cover object-center" />

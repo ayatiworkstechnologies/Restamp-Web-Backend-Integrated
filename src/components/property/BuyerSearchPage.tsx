@@ -385,7 +385,7 @@ export default function BuyerSearchPage() {
 
       <main className="flex-1">
         {/* Blue Search Hero Section */}
-        <section className="bg-[#087ed9] text-white pt-6 pb-10">
+        <section className={`relative bg-[#087ed9] text-white pt-6 pb-10 ${isSearchFocused ? "z-[45]" : ""}`}>
           <div className="container-site">
             {/* Breadcrumb */}
             <nav className="text-white/80 text-xs flex items-center gap-2 font-medium mb-3">
