@@ -21,8 +21,9 @@ import RecentlyAddedSection, { VerifiedPropertiesSection } from '@/components/ho
 
 const HERO_ALT =
   'Your property journey starts here. Buy and resale, rent and lease, explore new projects, post property for free, search by location, owner and agent portal. Search smart, find better.';
-/** Above 1440px: 2048x600 artwork served from Cloudinary (auto format + quality). */
-const HERO_WIDE_URL = 'https://res.cloudinary.com/fslj54wj/image/upload/f_auto,q_auto/v1794476498/restamp-web-banner.png';
+/** Above 1440px: 2048x600 artwork. */
+const { props: { srcSet: heroWideSrcSet } } = getImageProps({ src: '/images/restamp-web-banner-12.png', alt: '', width: 2048, height: 600, sizes: '100vw', quality: 85 });
+/** 1440px and below: 1440x600 artwork. */
 const { props: heroStd } = getImageProps({ src: '/images/restamp-web-banner-2.png', alt: HERO_ALT, width: 1440, height: 600, sizes: '100vw', quality: 85, priority: true });
 
 const categories = [
@@ -77,7 +78,7 @@ export default function HomePage() {
             Above 1440px: 2048x600 artwork at a fixed 600px height. */}
         <section className="relative w-full overflow-hidden bg-[#bcd9f2] aspect-[1440/600] min-[1441px]:aspect-auto min-[1441px]:h-[600px]">
           <picture>
-            <source media="(min-width: 1441px)" srcSet={HERO_WIDE_URL} />
+            <source media="(min-width: 1441px)" srcSet={heroWideSrcSet} />
             <img {...heroStd} alt={HERO_ALT} className="absolute inset-0 h-full w-full object-cover object-center" />
           </picture>
           <h1 className="sr-only">Restamp: your property journey starts here. Search smart, find better.</h1>
