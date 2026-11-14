@@ -4,6 +4,7 @@ import './globals.css';
 import { WishlistLimitNotice } from '@/components/common/wishlist-limit-notice';
 import { AppToaster } from '@/components/common/app-toaster';
 import { ConfirmDialogHost } from '@/components/common/confirm-dialog';
+import { RevaChatbot } from '@/components/reva/RevaChatbot';
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -36,6 +37,7 @@ export default function RootLayout({
         <WishlistLimitNotice />
         <AppToaster />
         <ConfirmDialogHost />
+        <RevaChatbot />
       </body>
     </html>
   );

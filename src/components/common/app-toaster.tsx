@@ -27,7 +27,7 @@ export function AppToaster() {
         position="bottom-center"
         visibleToasts={1}
         offset={{ bottom: 24 }}
-        mobileOffset={{ bottom: 16, left: 16, right: 16 }}
+        mobileOffset={{ bottom: 92, left: 16, right: 16 }}
         toastOptions={{
           unstyled: true,
           classNames: {
