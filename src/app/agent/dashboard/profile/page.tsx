@@ -162,8 +162,8 @@ export default function AgentProfilePage() {
         </div>
 
         <div className="space-y-6">
-          <Section title="KYC / Verification">
-            <Row icon={ShieldCheck} label="RERA & Identity Verification" detail="Agent verification is not available online yet" />
+          <Section title="RERA Registration">
+            <Row icon={ShieldCheck} label="RERA ID" detail="RERA verification is not available online yet" />
           </Section>
 
           <Section title="Payments">

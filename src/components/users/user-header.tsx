@@ -5,7 +5,7 @@ import {
   Users,
   UserCheck,
   Building,
-  Clock,
+  Briefcase,
   ShieldAlert,
   Download,
   RotateCcw,
@@ -127,7 +127,7 @@ export function UserHeader({ totalCount }: UserHeaderProps) {
         <div className="rounded-[16px] border border-[#e8ecf4] bg-white p-4 shadow-sm transition-all hover:border-[#d4dded]">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#9aa7bb]">
-              Owners & Agents
+              Owners
             </span>
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#f5f3ff] text-[#7c3aed]">
               <Building size={16} />
@@ -139,20 +139,18 @@ export function UserHeader({ totalCount }: UserHeaderProps) {
           </div>
         </div>
 
-        {/* Pending KYC Verifications */}
-        <div className="rounded-[16px] border border-[#fde68a] bg-[#fffef9] p-4 shadow-sm opacity-70" title="Not available yet">
+        {/* Agents */}
+        <div className="rounded-[16px] border border-[#e8ecf4] bg-white p-4 shadow-sm transition-all hover:border-[#d4dded]">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#b45309]">
-              Pending KYC
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#9aa7bb]">
+              Agents
             </span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#fef3c7] text-[#d97706]">
-              <Clock size={16} />
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#ecfeff] text-[#0e7490]">
+              <Briefcase size={16} />
             </span>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-[22px] font-extrabold text-[#92400e]">—</span>
-          </div>
-          <div className="mt-1 text-[11px] text-[#b45309] font-medium">KYC is not available yet</div>
+          <div className="mt-2 text-[22px] font-extrabold text-[#1a2942]">{stats.agents}</div>
+          <div className="mt-1 text-[11px] text-[#0e7490] font-semibold">Managing listings</div>
         </div>
 
         {/* Suspended Accounts */}

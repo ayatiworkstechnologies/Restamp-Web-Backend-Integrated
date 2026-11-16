@@ -162,7 +162,9 @@ export function PropertyHeader({ onFilterPending, totalCount, currentFilterStatu
             </span>
           </div>
           <div className="mt-2 text-[22px] font-extrabold text-[#1a2942]">{stats.active}</div>
-          <div className="mt-1 text-[11px] text-[#16a34a] font-semibold">Verified and available to buyers</div>
+          <div className="mt-1 text-[11px] text-[#16a34a] font-semibold">
+            {stats.total > 0 ? `${Math.round((stats.active / stats.total) * 100)}% of listings live` : "0%"}
+          </div>
         </div>
 
         {/* Rejected Listings */}

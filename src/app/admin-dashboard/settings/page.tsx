@@ -52,7 +52,7 @@ function SettingsManagementContent() {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <div className="flex-1 lg:pl-[272px] flex flex-col min-w-0">
         {/* Top Navbar */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#e8ecf4] bg-white/95 px-4 sm:px-6 lg:px-8 backdrop-blur">
           <div className="flex items-center gap-3">
@@ -92,7 +92,7 @@ function SettingsManagementContent() {
         </header>
 
         {/* Page Main */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
+        <main className="min-w-0 w-full flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
           {/* Header Title & Summary */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -188,75 +188,48 @@ function SettingsManagementContent() {
           </div>
 
           {/* Navigation Tabs Bar */}
-          <div className="flex items-center gap-1.5 border-b border-[#e8ecf4] bg-white p-1 rounded-2xl shadow-sm">
-            <button
-              type="button"
-              onClick={() => setActiveTab("staff")}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
-                activeTab === "staff"
-                  ? "bg-[#162d66] text-white shadow-sm"
-                  : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#101828]"
-              }`}
-            >
-              <Users className="h-3.5 w-3.5" />
-              <span>Admin Staff & Team</span>
-              <span className="rounded-full bg-white/20 px-1.5 py-0.2 text-[10px]">
-                {staff.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("roles")}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
-                activeTab === "roles"
-                  ? "bg-[#162d66] text-white shadow-sm"
-                  : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#101828]"
-              }`}
-            >
-              <ShieldCheck className="h-3.5 w-3.5" />
-              <span>Roles & Permissions (RBAC)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("config")}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
-                activeTab === "config"
-                  ? "bg-[#162d66] text-white shadow-sm"
-                  : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#101828]"
-              }`}
-            >
-              <Sliders className="h-3.5 w-3.5" />
-              <span>Platform Configuration</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("audit")}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
-                activeTab === "audit"
-                  ? "bg-[#162d66] text-white shadow-sm"
-                  : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#101828]"
-              }`}
-            >
-              <FileText className="h-3.5 w-3.5" />
-              <span>Security Audit Trail</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("email")}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
-                activeTab === "email"
-                  ? "bg-[#162d66] text-white shadow-sm"
-                  : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#101828]"
-              }`}
-            >
-              <Mail className="h-3.5 w-3.5" />
-              <span>Email Deliveries</span>
-            </button>
-          </div>
+          <nav aria-label="Settings sections" className="-mx-4 overflow-x-auto border-b border-[#e4e9f2] px-4 sm:mx-0 sm:px-0">
+            <div role="tablist" className="flex min-w-max gap-1">
+              {(
+                [
+                  { id: "staff", label: "Admin Staff & Team", icon: Users, count: staff.length },
+                  { id: "roles", label: "Roles & Permissions", icon: ShieldCheck, count: roles.length },
+                  { id: "config", label: "Platform Configuration", icon: Sliders },
+                  { id: "audit", label: "Security Audit Trail", icon: FileText },
+                  { id: "email", label: "Email Deliveries", icon: Mail },
+                ] as const
+              ).map((t) => {
+                const active = activeTab === t.id;
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveTab(t.id)}
+                    className={`-mb-px flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-[13px] font-semibold transition-colors ${
+                      active
+                        ? "border-[#1B459B] text-[#1B459B]"
+                        : "border-transparent text-[#64748b] hover:border-[#cbd5e1] hover:text-[#101828]"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{t.label}</span>
+                    {"count" in t && (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          active ? "bg-[#1B459B] text-white" : "bg-[#eef2f7] text-[#64748b]"
+                        }`}
+                      >
+                        {t.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
 
           {loadError && (
             <div className="rounded-2xl border border-[#fee2e2] bg-[#fef2f2] p-4 text-sm text-[#991b1b]" role="alert">

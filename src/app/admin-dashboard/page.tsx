@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  Briefcase,
   Activity,
   ArrowRight,
   BarChart3,
@@ -316,7 +317,7 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1650px] space-y-6 px-4 py-7 sm:px-7 xl:px-9 xl:py-9">
+        <main className="min-w-0 w-full space-y-6 px-4 py-7 sm:px-7 xl:px-9 xl:py-9">
           <div className="animate-fade-in flex flex-wrap items-end justify-between gap-4">
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
@@ -685,10 +686,10 @@ export default function DashboardPage() {
                     text: "#d8a24e",
                   },
                   {
-                    label: "Pending KYC (not available yet)",
-                    value: "—",
-                    href: "",
-                    icon: ClipboardCheck,
+                    label: "Registered agents",
+                    value: n(dash?.brokers),
+                    href: "/admin-dashboard/users/agents",
+                    icon: Briefcase,
                     color: "#f3edff",
                     text: "#9469dc",
                   },

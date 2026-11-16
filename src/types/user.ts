@@ -1,4 +1,4 @@
-export type UserRole = "buyer" | "owner";
+export type UserRole = "buyer" | "owner" | "agent";
 
 export type UserStatus = "Active" | "Pending KYC" | "Suspended" | "Inactive";
 

@@ -113,6 +113,14 @@ export default function SavedPage() {
               <h1 className="section-title mt-3">Saved homes</h1>
               <p className="mt-2 text-sm text-slate-500">
                 {loading ? 'Loading…' : `${saved.length} ${saved.length === 1 ? 'property' : 'properties'} saved`}
+                {!loading && (
+                  <>
+                    {' · '}
+                    <Link href="/buy/plans" className="font-semibold text-[#087ed9] hover:underline">
+                      Buyer plans
+                    </Link>
+                  </>
+                )}
               </p>
             </div>
 

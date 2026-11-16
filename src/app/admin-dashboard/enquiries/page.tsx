@@ -125,7 +125,7 @@ function EnquiryManagementContent() {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <div className="flex-1 lg:pl-[272px] flex flex-col min-w-0">
         {/* Top Navbar */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#e8ecf4] bg-white/95 px-4 sm:px-6 lg:px-8 backdrop-blur">
           <div className="flex items-center gap-3">
@@ -242,7 +242,7 @@ function EnquiryManagementContent() {
         </header>
 
         {/* Page Body */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
+        <main className="min-w-0 w-full flex-1 p-4 sm:p-6 lg:p-8 space-y-6">
           {/* Header with KPI cards and CTA */}
           <EnquiryHeader
             onFilterActive={() =>

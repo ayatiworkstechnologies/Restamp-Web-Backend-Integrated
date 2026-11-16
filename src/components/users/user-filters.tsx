@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
-import { Search, X, Users, UserCheck, Building } from "lucide-react";
-import { UserFilters, UserRole, UserStatus, KycStatus, OwnerType } from "@/types/user";
+import { Search, X, Users, UserCheck, Building, Briefcase } from "lucide-react";
+import { UserFilters, UserRole, UserStatus, OwnerType } from "@/types/user";
 
 interface UserFiltersProps {
   filters: UserFilters;
@@ -11,6 +11,7 @@ interface UserFiltersProps {
     all: number;
     buyers: number;
     owners: number;
+    agents: number;
   };
 }
 
@@ -23,6 +24,7 @@ export function UserFiltersBar({
     { label: "All Users", value: "all", count: roleCounts.all, icon: <Users size={14} /> },
     { label: "Buyers", value: "buyer", count: roleCounts.buyers, icon: <UserCheck size={14} /> },
     { label: "Owners & Sellers", value: "owner", count: roleCounts.owners, icon: <Building size={14} /> },
+    { label: "Agents", value: "agent", count: roleCounts.agents, icon: <Briefcase size={14} /> },
   ];
 
   return (
@@ -95,24 +97,6 @@ export function UserFiltersBar({
             <option value="Active">Active</option>
             <option value="Suspended">Suspended</option>
             <option value="Inactive">Closed</option>
-          </select>
-        </div>
-
-        {/* KYC Status Dropdown */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-bold text-[#98a6bb]">KYC:</span>
-          <select
-            value="all"
-            disabled
-            title="Not available yet: KYC is not supported by the backend"
-            onChange={(e) => onFilterChange({ kycStatus: e.target.value as any })}
-            className="rounded-xl border border-[#e2e8f2] bg-[#fbfcfe] px-3 py-2 text-xs font-semibold text-[#324564] outline-none transition-all hover:bg-white focus:border-[#2854cb] cursor-pointer"
-          >
-            <option value="all">All KYC</option>
-            <option value="Verified">Verified</option>
-            <option value="Pending">Pending Review</option>
-            <option value="Rejected">Rejected</option>
-            <option value="Not Submitted">Not Submitted</option>
           </select>
         </div>
 

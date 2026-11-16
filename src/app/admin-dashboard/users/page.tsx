@@ -104,6 +104,7 @@ function UserManagementContent() {
       all: users.length,
       buyers: users.filter((u) => u.role === "buyer").length,
       owners: users.filter((u) => u.role === "owner").length,
+      agents: users.filter((u) => u.role === "agent").length,
     };
   }, [users]);
 
