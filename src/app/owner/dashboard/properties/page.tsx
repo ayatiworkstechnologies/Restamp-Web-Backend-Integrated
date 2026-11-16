@@ -11,6 +11,8 @@ import {
   type OwnerListingOut,
 } from '@/lib/api/owner';
 import { errorMessage } from '@/lib/api/client';
+import { confirmDialog } from '@/components/common/confirm-dialog';
+import { toast } from '@/lib/notify';
 import { cleanImageUrl, DEAL_LABELS, typeLabel } from '@/lib/api/mappers';
 import { clearDraft, getDraft, type OwnerListing } from '@/lib/ownerListings';
 import { card, rupees, shortDate } from '../ui';
@@ -61,7 +63,7 @@ export default function OwnerPropertiesPage() {
     };
   }, [attempt]);
 
-  const run = async (l: OwnerListingOut, action: () => Promise<OwnerListingOut | void>) => {
+  const run = async (l: OwnerListingOut, action: () => Promise<OwnerListingOut | void>, done: string) => {
     setBusyId(l.listing_id);
     setActionError(null);
     try {
@@ -69,22 +71,39 @@ export default function OwnerPropertiesPage() {
       setListings((prev) =>
         updated ? prev.map((x) => (x.listing_id === l.listing_id ? updated : x)) : prev.filter((x) => x.listing_id !== l.listing_id)
       );
+      // Reached only when the backend accepted the change.
+      toast.success(done);
     } catch (e) {
-      setActionError({ id: l.listing_id, text: errorMessage(e, 'That change could not be saved. Please try again.') });
+      const text = errorMessage(e, 'That change could not be saved. Please try again.');
+      setActionError({ id: l.listing_id, text });
+      // Short title only: the detailed reason is shown inline on the listing card.
+      toast.error('Listing action failed');
     } finally {
       setBusyId(null);
     }
   };
 
-  const remove = (l: OwnerListingOut) => {
-    if (!confirm('Remove this listing? Buyers will no longer see it.')) return;
-    void run(l, () => deleteOwnerListing(l.listing_id));
+  const remove = async (l: OwnerListingOut) => {
+    const ok = await confirmDialog({
+      title: 'Delete listing',
+      body: 'Delete this listing? Buyers will no longer see it.',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
+    void run(l, () => deleteOwnerListing(l.listing_id), 'Listing deleted');
   };
 
-  const removeDraft = () => {
-    if (!confirm('Delete this draft? Your saved progress will be permanently removed.')) return;
+  const removeDraft = async () => {
+    const ok = await confirmDialog({
+      title: 'Delete draft',
+      body: 'Delete this draft? Your saved progress will be permanently removed.',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
+    // The draft lives only on this device, so clearing it cannot fail remotely.
     clearDraft();
     setDraft(null);
+    toast.success('Draft deleted');
   };
 
   const q = query.trim().toLowerCase();
@@ -200,7 +219,7 @@ export default function OwnerPropertiesPage() {
                 <p className="mt-3 text-xs text-slate-500">Saved on this device; not submitted yet.</p>
                 <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
                   <Link href="/owner/dashboard/add-property" className="text-xs font-semibold text-[#087ed9] hover:underline">Continue draft →</Link>
-                  <button type="button" onClick={removeDraft} className="flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600 cursor-pointer">
+                  <button type="button" onClick={() => void removeDraft()} className="flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600 cursor-pointer">
                     <Trash2 size={13} /> Delete Draft
                   </button>
                 </div>
@@ -259,17 +278,17 @@ export default function OwnerPropertiesPage() {
                     <div className="flex items-center gap-3">
                       {busy && <Loader2 size={13} className="animate-spin text-slate-400" />}
                       {l.verification_status === 'REJECTED' && (
-                        <button type="button" disabled={busy} onClick={() => void run(l, () => resubmitOwnerListing(l.listing_id))} className="text-xs font-semibold text-[#087ed9] hover:underline disabled:opacity-50 cursor-pointer">
+                        <button type="button" disabled={busy} onClick={() => void run(l, () => resubmitOwnerListing(l.listing_id), 'Listing resubmitted for verification')} className="text-xs font-semibold text-[#087ed9] hover:underline disabled:opacity-50 cursor-pointer">
                           Resubmit
                         </button>
                       )}
                       {verified && l.listing_status === 'AVAILABLE' && (
-                        <button type="button" disabled={busy} onClick={() => void run(l, () => archiveOwnerListing(l.listing_id))} className="text-xs font-semibold text-slate-600 hover:underline disabled:opacity-50 cursor-pointer">
+                        <button type="button" disabled={busy} onClick={() => void run(l, () => archiveOwnerListing(l.listing_id), 'Listing hidden from buyers')} className="text-xs font-semibold text-slate-600 hover:underline disabled:opacity-50 cursor-pointer">
                           Hide
                         </button>
                       )}
                       {verified && l.listing_status === 'CLOSED' && (
-                        <button type="button" disabled={busy} onClick={() => void run(l, () => publishOwnerListing(l.listing_id))} className="text-xs font-semibold text-[#087ed9] hover:underline disabled:opacity-50 cursor-pointer">
+                        <button type="button" disabled={busy} onClick={() => void run(l, () => publishOwnerListing(l.listing_id), 'Listing visible to buyers again')} className="text-xs font-semibold text-[#087ed9] hover:underline disabled:opacity-50 cursor-pointer">
                           Show to buyers
                         </button>
                       )}
@@ -278,7 +297,7 @@ export default function OwnerPropertiesPage() {
                           View
                         </Link>
                       )}
-                      <button type="button" disabled={busy} onClick={() => remove(l)} className="flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600 disabled:opacity-50 cursor-pointer">
+                      <button type="button" disabled={busy} onClick={() => void remove(l)} className="flex items-center gap-1 text-xs font-semibold text-red-500 hover:text-red-600 disabled:opacity-50 cursor-pointer">
                         <Trash2 size={13} /> Delete
                       </button>
                     </div>

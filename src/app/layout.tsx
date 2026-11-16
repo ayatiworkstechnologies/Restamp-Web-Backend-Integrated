@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import { Manrope } from 'next/font/google';
 import './globals.css';
+import { AppToaster } from '@/components/common/app-toaster';
+import { ConfirmDialogHost } from '@/components/common/confirm-dialog';
+import { RevaAssistant } from '@/components/reva/RevaAssistant';
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -28,7 +31,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={manrope.variable}>
-      <body className={manrope.className}>{children}</body>
+      <body className={manrope.className}>
+        {children}
+        {/* Site-wide toasts/snackbars and the confirmation dialog host (mounted once). */}
+        <AppToaster />
+        <ConfirmDialogHost />
+        {/* Site-wide Reva AI assistant (floating chat widget, mounted once). */}
+        <RevaAssistant />
+      </body>
     </html>
   );
 }

@@ -8,6 +8,9 @@ import { errorMessage } from '@/lib/api/client';
 import { isPlaceholderName, useSession } from '@/lib/api/session';
 import { getInitials } from '@/lib/initials';
 import { card } from '../ui';
+import EmailSettingsCard from '@/components/settings/EmailSettingsCard';
+import PushSettingsCard from '@/components/settings/PushSettingsCard';
+import { emailFieldText, type EmailStatus } from '@/lib/emailSettings';
 import {
   User,
   Smartphone,
@@ -32,6 +35,8 @@ const roleOptions: { value: RoleValue; label: string; available: boolean }[] = [
 ];
 
 export default function OwnerProfilePage() {
+  // Server-confirmed contact email, reported by the Email & notifications card.
+  const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
   const router = useRouter();
   const { session } = useSession();
   const [name, setName] = useState('');
@@ -193,8 +198,9 @@ export default function OwnerProfilePage() {
                 <input
                   type="email"
                   disabled
-                  placeholder="Not available yet"
-                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 cursor-not-allowed"
+                  value={emailStatus?.email ? emailFieldText(emailStatus, '') : ''}
+                  placeholder="Add it under Email & notifications"
+                  className="w-full bg-transparent text-sm text-slate-500 outline-none placeholder:text-slate-400 cursor-not-allowed"
                 />
               </Field>
 
@@ -252,6 +258,9 @@ export default function OwnerProfilePage() {
             </div>
           </form>
 
+          <EmailSettingsCard className={`${card} p-6 sm:p-7`} onStatus={setEmailStatus} />
+
+          <PushSettingsCard className={`${card} p-6 sm:p-7`} />
         </div>
       </div>
     </div>

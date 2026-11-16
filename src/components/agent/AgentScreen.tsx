@@ -534,7 +534,7 @@ export default function AgentScreen() {
 
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200/80 text-xs font-semibold text-slate-700 shadow-2xs">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span>90-Day Syndication Access · 0% Commission</span>
+              <span>30-Day Syndication Access · 0% Commission</span>
             </div>
           </div>
 
@@ -595,7 +595,7 @@ export default function AgentScreen() {
                           ₹{pkg.monthlyEquivalent.toLocaleString('en-IN')} / mo eq.
                         </span>
                         <span className="block text-slate-400">
-                          billed quarterly (90 days)
+                          billed every 30 days
                         </span>
                       </div>
                     </div>

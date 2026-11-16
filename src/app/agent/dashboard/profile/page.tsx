@@ -6,6 +6,8 @@ import { isPlaceholderName } from '@/lib/api/session';
 import { getBrokerPlan, getBrokerProfile, planActive, type BrokerPlan, type BrokerProfile } from '@/lib/api/broker';
 import { errorMessage } from '@/lib/api/client';
 import { agentCard } from '../ui';
+import EmailSettingsCard from '@/components/settings/EmailSettingsCard';
+import PushSettingsCard from '@/components/settings/PushSettingsCard';
 import {
   Bell,
   Building2,
@@ -171,6 +173,10 @@ export default function AgentProfilePage() {
           <Section title="Notifications">
             <Row icon={Bell} label="Lead Alerts & Visit Reminders" detail="Get notified about new enquiries and upcoming visits" />
           </Section>
+
+          <EmailSettingsCard className={`${agentCard} p-6`} />
+
+          <PushSettingsCard className={`${agentCard} p-6`} />
 
           <Section title="Help & Support">
             <Row icon={Headphones} label="Agent Support Desk" detail="Contact Restamp support" href="/agent/dashboard/contact" />

@@ -1,20 +1,30 @@
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { recordCall, revealContact } from '@/lib/api/buyer';
+import { recordCall, revealContact, isBuyerPlanRequired } from '@/lib/api/buyer';
 import { errorMessage, isApiError } from '@/lib/api/client';
 import { getSession, loginHref } from '@/lib/api/session';
 
 /**
  * "View Number" for one listing: reveals the owner's phone through the
  * audited contact endpoint (signed-in buyers only; guests are sent to log
- * in). Calling the revealed number records a call event for Activity.
+ * in). The reveal also names the owner (public-safe, from the backend);
+ * `ownerName` is null when the owner has no saved display name, in which
+ * case callers show their existing neutral label. Calling the revealed
+ * number records a call event for Activity.
+ *
+ * When the buyer's free lead quota is used up the backend answers 402
+ * BUYER_PLAN_REQUIRED: `planRequired` turns true and `error` carries the
+ * backend's own message, so callers can offer the buyer plans page
+ * (/buy/plans) instead of a generic failure.
  */
 export function useOwnerContact(listingId: number) {
   const router = useRouter();
   const pathname = usePathname();
   const [phone, setPhone] = useState<string | null>(null);
+  const [ownerName, setOwnerName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [planRequired, setPlanRequired] = useState(false);
 
   const reveal = async () => {
     if (phone || loading) return;
@@ -24,14 +34,27 @@ export function useOwnerContact(listingId: number) {
     }
     setLoading(true);
     setError('');
+    setPlanRequired(false);
     try {
-      setPhone(await revealContact(listingId));
+      const revealed = await revealContact(listingId);
+      setPhone(revealed.phone);
+      setOwnerName(revealed.ownerName);
     } catch (e) {
-      setError(
-        isApiError(e, 'missing')
-          ? 'The owner has not shared a contact number for this listing.'
-          : errorMessage(e, 'Could not load the number. Please try again.')
-      );
+      if (isBuyerPlanRequired(e)) {
+        setPlanRequired(true);
+        // The backend's own quota message when it sent one; otherwise the plain case.
+        setError(
+          e.detail && e.detail !== 'Invalid request'
+            ? e.detail
+            : "You've used all the free owner-number reveals on your current plan."
+        );
+      } else {
+        setError(
+          isApiError(e, 'missing')
+            ? 'The owner has not shared a contact number for this listing.'
+            : errorMessage(e, 'Could not load the number. Please try again.')
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -42,7 +65,7 @@ export function useOwnerContact(listingId: number) {
     recordCall(listingId).catch(() => undefined);
   };
 
-  return { phone, loading, error, reveal, onCall };
+  return { phone, ownerName, loading, error, planRequired, reveal, onCall };
 }
 
 /** "+919876543210" -> "+91 98765 43210" for display. */

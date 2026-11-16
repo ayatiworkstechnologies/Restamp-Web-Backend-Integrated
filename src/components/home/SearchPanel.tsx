@@ -6,8 +6,23 @@ import Link from 'next/link';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Location01Icon, SearchIcon } from '@hugeicons/core-free-icons';
 import { ChevronDown, X, MapPin, Building2, Briefcase, Home } from 'lucide-react';
+import {
+  addRecentSearch,
+  loadRecentSearches,
+  removeRecentSearch,
+  saveRecentSearches,
+  type RecentSearch,
+} from '@/lib/recentSearches';
 
 const tabs = ['Buy', 'Resale', 'Rent', 'Lease'];
+
+/** Icon for a recent search, from the property type the visitor picked. */
+function recentIcon(category: string) {
+  if (category === 'Commercial') return <Briefcase size={15} />;
+  if (category === 'Apartments') return <Building2 size={15} />;
+  if (category === 'Villas' || category === 'Plots') return <MapPin size={15} />;
+  return <Home size={15} />;
+}
 
 export default function SearchPanel() {
   const [activeTab, setActiveTab] = useState('Buy');
@@ -17,11 +32,16 @@ export default function SearchPanel() {
   const router = useRouter();
   const containerRef = useRef<HTMLFormElement>(null);
 
-  const [recentSearches, setRecentSearches] = useState([
-    { id: 1, title: 'Alwarpet, Chennai', subtitle: 'Prime Residential', category: 'Home', query: 'Alwarpet', icon: 'home' },
-    { id: 2, title: 'OMR Cyber Hub, Sholinganallur', subtitle: 'Commercial IT', category: 'Commercial', query: 'OMR', icon: 'briefcase' },
-    { id: 3, title: 'ECR Beach Enclave, Injambakkam', subtitle: 'Villas & Plots', category: 'Villas', query: 'ECR', icon: 'map-pin' },
-  ]);
+  // Only searches this visitor submitted (this browser); none are preset.
+  // Loaded after mount so the server render and first client render match.
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
+  useEffect(() => {
+    setRecentSearches(loadRecentSearches());
+  }, []);
+  const updateRecent = (next: RecentSearch[]) => {
+    setRecentSearches(next);
+    saveRecentSearches(next);
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -42,6 +62,7 @@ export default function SearchPanel() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    updateRecent(addRecentSearch(recentSearches, { query, purpose: activeTab, category: propertyType }));
     router.push(
       `/buy?purpose=${encodeURIComponent(activeTab)}&type=${encodeURIComponent(
         propertyType
@@ -50,7 +71,7 @@ export default function SearchPanel() {
   };
 
   return (
-    <div className={`bg-white rounded-2xl shadow-[0_12px_45px_-10px_rgba(0,0,0,0.1)] hover:shadow-[0_20px_50px_-10px_rgba(8,126,217,0.14)] transition-shadow duration-300 border border-slate-100 p-4 sm:p-6 md:p-8 max-w-4xl mx-auto -mt-16 relative ${isFocused ? 'z-40' : 'z-30'}`}>
+    <div className={`bg-white rounded-2xl shadow-[0_12px_45px_-10px_rgba(0,0,0,0.1)] hover:shadow-[0_20px_50px_-10px_rgba(8,126,217,0.14)] transition-shadow duration-300 border border-slate-100 p-4 sm:p-6 md:p-8 max-w-4xl mx-auto mt-5 md:-mt-16 relative ${isFocused ? 'z-40' : 'z-30'}`}>
       {/* Navigation Tabs */}
       <div className="flex items-center justify-between gap-3 sm:gap-6 mb-4 sm:mb-6 border-b border-slate-100 sm:border-0 pb-1 sm:pb-0">
         <div className="flex items-center gap-5 sm:gap-8 overflow-x-auto no-scrollbar scrollbar-none py-0.5">
@@ -191,7 +212,7 @@ export default function SearchPanel() {
                 {recentSearches.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setRecentSearches([])}
+                    onClick={() => updateRecent([])}
                     className="text-xs text-slate-400 hover:text-slate-700 font-medium transition cursor-pointer"
                   >
                     Clear All
@@ -203,10 +224,11 @@ export default function SearchPanel() {
                 <div className="space-y-1">
                   {recentSearches.map((item, idx) => (
                     <div
-                      key={item.id}
+                      key={`${item.at}-${item.query}`}
                       onClick={() => {
                         setQuery(item.query);
                         if (item.category) setPropertyType(item.category);
+                        if (tabs.includes(item.purpose)) setActiveTab(item.purpose);
                         setIsFocused(false);
                       }}
                       className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition ${
@@ -215,17 +237,14 @@ export default function SearchPanel() {
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="w-8 h-8 rounded-lg bg-[#087ed9] text-white flex items-center justify-center shrink-0">
-                          {item.icon === 'home' && <Home size={15} />}
-                          {item.icon === 'building' && <Building2 size={15} />}
-                          {item.icon === 'map-pin' && <MapPin size={15} />}
-                          {item.icon === 'briefcase' && <Briefcase size={15} />}
+                          {recentIcon(item.category)}
                         </span>
                         <div className="flex items-center gap-2 truncate">
-                          <span className="text-xs sm:text-sm font-semibold text-slate-800">
-                            {item.title}
+                          <span className="text-xs sm:text-sm font-semibold text-slate-800 truncate">
+                            {item.query}
                           </span>
-                          <span className="text-xs text-slate-400">
-                            {item.subtitle}
+                          <span className="text-xs text-slate-400 shrink-0">
+                            {item.purpose} · {item.category}
                           </span>
                         </div>
                       </div>
@@ -235,7 +254,7 @@ export default function SearchPanel() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setRecentSearches(recentSearches.filter((s) => s.id !== item.id));
+                            updateRecent(removeRecentSearch(recentSearches, item));
                           }}
                           className="text-slate-300 hover:text-slate-600 p-1 rounded-full transition cursor-pointer"
                           aria-label="Remove recent item"

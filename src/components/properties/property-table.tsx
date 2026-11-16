@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { CheckCircle2, XCircle, Eye, Clock, ImageOff, Loader2 } from "lucide-react";
 import { PropertyStatus } from "@/types/property";
 import { AdminProperty, usePropertyStore } from "@/context/property-context";
+import { confirmDialog } from "@/components/common/confirm-dialog";
 import { useAdminAuth } from "@/context/admin-auth-context";
 
 interface PropertyTableProps {
@@ -37,7 +38,13 @@ export function PropertyTable({ properties, onInspect, onApprove, onReject }: Pr
 
   const handleBatchApprove = async () => {
     if (selectedIds.length === 0 || batching) return;
-    if (!confirm(`Verify ${selectedIds.length} pending listing(s)? They become visible to buyers.`)) return;
+    const ok = await confirmDialog({
+      title: "Verify listings",
+      body: `Verify ${selectedIds.length} pending listing(s)? They become visible to buyers.`,
+      confirmLabel: "Verify",
+      tone: "default",
+    });
+    if (!ok) return;
     setBatching(true);
     try {
       await batchApprove(selectedIds);

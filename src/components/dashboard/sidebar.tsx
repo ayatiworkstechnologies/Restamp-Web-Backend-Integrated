@@ -7,15 +7,20 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   BarChart3,
   Bell,
+  Briefcase,
   Building2,
   ChevronDown,
   ClipboardCheck,
+  CreditCard,
+  FileText,
+  History,
   LayoutDashboard,
   LifeBuoy,
   LogOut,
   MessageSquareText,
   Settings2,
   ShieldCheck,
+  UserCheck,
   UsersRound,
   ExternalLink,
   X,
@@ -46,15 +51,27 @@ const navGroups: {
       { label: "Overview", href: "/admin-dashboard", icon: LayoutDashboard },
       { label: "Properties", href: "/admin-dashboard/properties", icon: Building2, badge: "pendingApprovals", permission: "properties.view" },
       { label: "Users", href: "/admin-dashboard/users", icon: UsersRound, permission: "users.view" },
+      { label: "Buyers", href: "/admin-dashboard/users/buyers", icon: UserCheck, permission: "users.view" },
+      { label: "Owners", href: "/admin-dashboard/users/owners", icon: Building2, permission: "users.view" },
+      { label: "Agents", href: "/admin-dashboard/users/agents", icon: Briefcase, permission: "users.view" },
       { label: "Enquiries", href: "/admin-dashboard/enquiries", icon: MessageSquareText, badge: "openEnquiries", permission: "enquiries.view" },
       { label: "Approvals", href: "/admin-dashboard/properties?tab=approvals", icon: ClipboardCheck, badge: "pendingApprovals", permission: "properties.view" },
       { label: "Analytics", href: "/admin-dashboard/analytics", icon: BarChart3, permission: "reports.view" },
     ],
   },
   {
+    group: "SUBSCRIPTIONS",
+    links: [
+      { label: "Subscription Plans", href: "/admin-dashboard/subscriptions/plans", icon: CreditCard },
+      { label: "Active Subscriptions", href: "/admin-dashboard/subscriptions/active", icon: UserCheck },
+      { label: "Payments & Invoices", href: "/admin-dashboard/subscriptions/payments", icon: FileText },
+      { label: "Pricing History", href: "/admin-dashboard/subscriptions/pricing-history", icon: History },
+    ],
+  },
+  {
     group: "MANAGEMENT",
     links: [
-      { label: "Notifications", icon: Bell, planned: true },
+      { label: "Notifications", href: "/admin-dashboard/notifications", icon: Bell },
       { label: "Settings", href: "/admin-dashboard/settings", icon: Settings2 },
     ],
   },
@@ -86,7 +103,7 @@ function SidebarNavContent({ onClose }: { onClose: () => void }) {
       );
     }
     if (item.label === "Users") {
-      return pathname.startsWith("/admin-dashboard/users") || pathname.startsWith("/dashboard/users");
+      return pathname === "/admin-dashboard/users" || pathname === "/dashboard/users";
     }
     if (item.label === "Enquiries") {
       return pathname.startsWith("/admin-dashboard/enquiries") || pathname.startsWith("/dashboard/enquiries");

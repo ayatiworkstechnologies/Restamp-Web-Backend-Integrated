@@ -8,7 +8,7 @@
  * are the buyer mode, like the mobile app's buyer tabs. Background calls
  * (recording a view, loading heart state) use auth.inRole and never switch.
  */
-import { apiDelete, apiGet, apiPatch, apiPost, apiRequest, errorMessage, isApiError, Page } from './client';
+import { apiDelete, apiGet, apiPatch, apiPost, apiRequest, errorMessage, isApiError, ApiError, Page } from './client';
 import { inRole, withRole } from './auth';
 
 export type ListingCard = {
@@ -117,10 +117,19 @@ function apiGetPublic<T>(path: string, query: Record<string, string | number | b
 
 // --- signed-in buyer actions ---------------------------------------------------------
 
-/** Reveal the owner's phone (audited by the backend). */
-export async function revealContact(listingId: number): Promise<string> {
-  const res = await withRole('BUYER', () => apiPost<{ phone: string }>(`/buyer/listings/${listingId}/contact`));
-  return res.phone;
+/** Reveal the owner's phone (audited by the backend). Also carries the
+ * owner's public-safe display name when the backend knows one (null when
+ * the owner has no saved name — never a phone number), so the contact card
+ * names the real owner. */
+export type RevealedContact = { phone: string; ownerName: string | null };
+
+export async function revealContact(listingId: number): Promise<RevealedContact> {
+  const res = await withRole('BUYER', () =>
+    apiPost<{ phone: string; owner_name?: string | null }>(`/buyer/listings/${listingId}/contact`)
+  );
+  const ownerName =
+    typeof res.owner_name === 'string' && res.owner_name.trim() !== '' ? res.owner_name.trim() : null;
+  return { phone: res.phone, ownerName };
 }
 
 /** Record that the buyer started a call to the owner (shown in Activity). */
@@ -196,4 +205,46 @@ export async function saveListing(listingId: number): Promise<void> {
 
 export async function unsaveListing(listingId: number): Promise<void> {
   await withRole('BUYER', () => apiDelete(`/buyer/saved/${listingId}`));
+}
+
+// --- buyer plans (lead quota) ---------------------------------------------------
+
+export type BuyerPlanCard = {
+  code: string;
+  name: string;
+  price_paise: number;
+  duration_days: number;
+  lead_limit: number | null;
+  leads_label: string;
+  is_free: boolean;
+};
+
+export type BuyerPlanStatus = {
+  plan_code: string;
+  plan_name: string;
+  is_free: boolean;
+  lead_limit: number | null;
+  leads_used: number;
+  leads_remaining: number | null;
+  valid_until: string | null;
+};
+
+/** Public catalogue of the RESTAMP buyer plans (the backend's real prices). */
+export async function listBuyerPlans(): Promise<BuyerPlanCard[]> {
+  const res = await apiGet<{ items: BuyerPlanCard[] }>('/buyer/plans', undefined, false);
+  return res.items;
+}
+
+/** The signed-in buyer's current plan and lead usage. */
+export async function getBuyerPlanStatus(): Promise<BuyerPlanStatus> {
+  return withRole('BUYER', () => apiGet<BuyerPlanStatus>('/buyer/plan'));
+}
+
+/**
+ * The backend refuses a contact reveal with 402 {code: BUYER_PLAN_REQUIRED}
+ * once the buyer's free lead quota is used up. True only for that case, so
+ * the UI can offer the plans page instead of a generic error.
+ */
+export function isBuyerPlanRequired(e: unknown): e is ApiError {
+  return isApiError(e) && e.status === 402;
 }

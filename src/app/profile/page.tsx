@@ -9,6 +9,9 @@ import { type OwnerSubscription, type Payment } from '@/lib/ownerPlan';
 import { ensureRole, refreshMe, signOut, updateDisplayName } from '@/lib/api/auth';
 import { errorMessage } from '@/lib/api/client';
 import { isPlaceholderName, loginHref, useSession, type BackendRole } from '@/lib/api/session';
+import EmailSettingsCard from '@/components/settings/EmailSettingsCard';
+import PushSettingsCard from '@/components/settings/PushSettingsCard';
+import { emailFieldText, type EmailStatus } from '@/lib/emailSettings';
 import { Smartphone, Mail, MapPin, User, LogOut, Heart, Home, Building2, Check, Activity, Crown, Receipt, Loader2 } from 'lucide-react';
 
 type RoleValue = 'buyer' | 'owner' | 'agent';
@@ -37,6 +40,8 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Server-confirmed contact email, reported by the Email & notifications card.
+  const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
   // Plans and payments are not connected to the backend: nothing is shown as purchased.
   const subscription: OwnerSubscription | null = null;
   const payments: Payment[] = [];
@@ -163,8 +168,9 @@ export default function ProfilePage() {
                   <input
                     type="email"
                     disabled
-                    placeholder="Not available yet"
-                    className="w-full bg-transparent outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+                    value={emailStatus?.email ? emailFieldText(emailStatus, '') : ''}
+                    placeholder="Add it under Email & notifications"
+                    className="w-full bg-transparent text-slate-500 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
                   />
                 </Field>
                 <Field label="City" icon={MapPin}>
@@ -216,6 +222,10 @@ export default function ProfilePage() {
                 )}
               </div>
             </form>
+
+            <EmailSettingsCard onStatus={setEmailStatus} />
+
+            <PushSettingsCard />
 
             {session.role === 'OWNER' && (
               <OwnerPlanCard subscription={subscription} payments={payments} />

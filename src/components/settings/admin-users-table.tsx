@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Trash2, Loader2, ShieldCheck } from "lucide-react";
 import { useSettingsStore } from "@/context/settings-context";
 import { useAdminAuth } from "@/context/admin-auth-context";
+import { confirmDialog } from "@/components/common/confirm-dialog";
 import type { AssignableRole } from "@/lib/api/admin";
 
 interface AdminUsersTableProps {
@@ -108,10 +109,13 @@ export function AdminUsersTable({ onOpenInvite }: AdminUsersTableProps) {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => {
-                            if (confirm(`Revoke admin access for ${s.display_name || `user #${s.user_id}`}?`)) {
-                              void run(s.user_id, () => revokeStaff(s.user_id));
-                            }
+                          onClick={async () => {
+                            const ok = await confirmDialog({
+                              title: "Revoke admin access",
+                              body: `Revoke admin access for ${s.display_name || `user #${s.user_id}`}?`,
+                              confirmLabel: "Revoke",
+                            });
+                            if (ok) void run(s.user_id, () => revokeStaff(s.user_id));
                           }}
                           className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-[#dc2626] hover:bg-[#fef2f2]"
                         >

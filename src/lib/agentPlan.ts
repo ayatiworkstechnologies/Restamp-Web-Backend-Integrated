@@ -13,6 +13,12 @@ export type AgentPlan = {
   features: string[];
 };
 
+/**
+ * LEGACY marketing list — currently unused by any page/component. Its prices
+ * and durations are NOT the backend catalogue (see locationPackages above
+ * and services/agent_plans.py). Do not wire this into purchase flows; the
+ * real plans come from GET /broker/plans.
+ */
 export const agentPlans: Record<'Broker' | 'Agency', AgentPlan[]> = {
   Broker: [
     {
@@ -119,7 +125,13 @@ export const agentPlans: Record<'Broker' | 'Agency', AgentPlan[]> = {
   ],
 };
 
-/* --- LOCATION PACKAGES (Step 2 Requirements) --- */
+/* --- LOCATION PACKAGES (Step 2 Requirements) ---
+ * NOTE: prices, duration and locality limits mirror the REAL backend agent
+ * catalogue (services/agent_plans.py): ₹2,999 / ₹6,999 / ₹14,999 for 30 days
+ * covering 5 / 10 / 15 localities. Keep these in sync with the backend —
+ * the live /agent/packages page reads the catalogue directly, so only the
+ * marketing cards below rely on these constants.
+ */
 export type LocationPackage = {
   id: 'loc-5' | 'loc-10' | 'loc-15';
   name: string;
@@ -129,7 +141,6 @@ export type LocationPackage = {
   price: number;
   monthlyEquivalent: number;
   validityDays: number;
-  mandateLimit: number;
   popular?: boolean;
   commissionCut: string;
   features: string[];
@@ -143,17 +154,15 @@ export const locationPackages: LocationPackage[] = [
     badge: 'Starter Hub',
     locationLimit: 5,
     price: 2999,
-    monthlyEquivalent: 999,
-    validityDays: 90,
-    mandateLimit: 10,
+    monthlyEquivalent: 2999,
+    validityDays: 30,
     commissionCut: '0% Restamp commission',
     features: [
-      'Coverage across 5 chosen high-intent micro-markets',
-      'Post up to 10 active exclusive mandates',
-      'Direct buyer WhatsApp & push lead notifications',
-      'Verified RERA Agent badge on all listings',
-      'Standard search ranking in your 5 zones',
-      'Retain 100% of your buyer & seller brokerage',
+      'Coverage across 5 chosen Chennai localities',
+      '30 days of access from activation',
+      'Direct buyer enquiries in your covered localities',
+      'Agent dashboard with your live coverage list',
+      'Retain 100% of your brokerage — 0% platform commission',
     ],
   },
   {
@@ -162,39 +171,35 @@ export const locationPackages: LocationPackage[] = [
     tagline: 'Best for active full-time agents & mid-size teams',
     badge: 'Growth Agent',
     locationLimit: 10,
-    price: 4999,
-    monthlyEquivalent: 1666,
-    validityDays: 90,
-    mandateLimit: 25,
+    price: 6999,
+    monthlyEquivalent: 6999,
+    validityDays: 30,
     popular: true,
     commissionCut: '0% Restamp commission',
     features: [
-      'Coverage across 10 prime micro-markets',
-      'Post up to 25 active prime mandates',
-      'Instant buyer phone unmasking & WhatsApp CRM sync',
-      'Top 10% search placement in your 10 zones',
-      'Access to Restamp Co-Broking Syndicate (50:50 splits)',
-      'Quarterly deal closing analytics & price movement insights',
+      'Coverage across 10 chosen Chennai localities',
+      '30 days of access from activation',
+      'Direct buyer enquiries in your covered localities',
+      'Agent dashboard with your live coverage list',
+      'Retain 100% of your brokerage — 0% platform commission',
     ],
   },
   {
     id: 'loc-15',
     name: '15 Micro-Markets',
-    tagline: 'Full metro-wide dominance for top-producing agencies',
+    tagline: 'Full metro-wide coverage for top-producing agents',
     badge: 'Enterprise Syndicate',
     locationLimit: 15,
-    price: 7999,
-    monthlyEquivalent: 2666,
-    validityDays: 90,
-    mandateLimit: 50,
+    price: 14999,
+    monthlyEquivalent: 14999,
+    validityDays: 30,
     commissionCut: '0% Restamp commission',
     features: [
-      'City-wide dominance across 15 prime micro-markets',
-      'Post up to 50 active high-value mandates',
-      'Exclusive developer pre-launch mandate rights',
-      'Dedicated Key Account Manager & fast RERA compliance desk',
-      'Pre-approved mortgage assistance desk for your buyers',
-      'Priority showcase in weekly Restamp HNI Buyer Digest',
+      'Coverage across 15 chosen Chennai localities',
+      '30 days of access from activation',
+      'Direct buyer enquiries in your covered localities',
+      'Agent dashboard with your live coverage list',
+      'Retain 100% of your brokerage — 0% platform commission',
     ],
   },
 ];
@@ -672,7 +677,9 @@ export function activateAgentPackage(
     category: 'Agent',
     locationLimit: pkg.locationLimit,
     selectedLocations,
-    listingLimit: pkg.mandateLimit,
+    // No backend listing cap is tied to agent plans; keep the simulated
+    // subscription struct compatible without inventing a mandate limit.
+    listingLimit: 0,
     price: payment.amount,
     discount: payment.discount,
     gst: payment.gst,

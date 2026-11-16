@@ -1,3 +1,4 @@
+import { getImageProps } from 'next/image';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -17,6 +18,13 @@ import FeaturedHomesSection from '@/components/home/FeaturedHomesSection';
 import ExploreLinksSection from '@/components/home/ExploreLinksSection';
 import HomeAnimations from '@/components/home/HomeAnimations';
 import RecentlyAddedSection, { VerifiedPropertiesSection } from '@/components/home/RecentlyAddedSection';
+
+const HERO_ALT =
+  'Your property journey starts here. Easy-ah vithudunga. Buy and resale, rent and lease, explore new projects, post property for free, search by location, owner and agent portal.';
+/** Above 1440px: 2048x600 artwork. */
+const { props: { srcSet: heroWideSrcSet } } = getImageProps({ src: '/images/restamp-web-banner-12.png', alt: '', width: 2048, height: 600, sizes: '100vw', quality: 85 });
+/** 1440px and below: 1440x600 artwork. */
+const { props: heroStd } = getImageProps({ src: '/images/restamp-web-banner-2.png', alt: HERO_ALT, width: 1440, height: 600, sizes: '100vw', quality: 85, priority: true });
 
 const categories = [
   { name: 'Buy a home', url: '/buy', img: '/images/cat-buy.jpg' },
@@ -65,34 +73,15 @@ export default function HomePage() {
     <>
       <Header />
       <main className="bg-slate-50">
-        {/* Hero Section */}
-        <section
-          className="h-[600px] bg-cover bg-center flex items-start justify-center text-center pt-16 md:pt-20 relative overflow-hidden"
-          style={{
-            backgroundImage: 'url(/images/hero-bg.jpg)',
-          }}
-        >
-          {/* Luminous Animated Radial Ambient Orbs */}
-          <div className="absolute -top-32 -left-32 w-96 h-96 bg-sky-500/20 rounded-full blur-3xl pointer-events-none animate-ambient-glow" />
-          <div className="absolute top-1/2 -right-32 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none animate-ambient-glow delay-300" />
-
-
-          <div className="text-white px-5 z-10 max-w-3xl mx-auto">
-            <div className="animate-hero-fade-up inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 text-white text-[11px] sm:text-xs font-bold tracking-[0.22em] px-3.5 py-1.5 rounded-full mb-4 shadow-sm transition">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-glow" />
-              WELCOME TO RESTAMP
-            </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-[54px] font-extrabold leading-[1.15] sm:leading-[1.12] tracking-tight text-white animate-hero-fade-up delay-150">
-              Find your next home.
-              <br />
-              <span className="bg-gradient-to-r from-white via-sky-100 to-sky-200 bg-clip-text text-transparent">
-                Make it your own.
-              </span>
-            </h1>
-            <p className="mt-3.5 sm:mt-4 text-sm sm:text-base text-white/95 max-w-lg mx-auto font-medium leading-relaxed animate-hero-fade-up delay-300">
-              A place to live. A space to grow. A home to love.
-            </p>
-          </div>
+        {/* Hero Section: art-directed banner.
+            Up to 1440px wide: 1440x600 artwork (600px tall from 768px up; phones scale to fit).
+            Above 1440px: 2048x600 artwork at a fixed 600px height. */}
+        <section className="relative w-full overflow-hidden bg-[#bcd9f2] aspect-[1440/600] md:aspect-auto md:h-[600px]">
+          <picture>
+            <source media="(min-width: 1441px)" srcSet={heroWideSrcSet} />
+            <img {...heroStd} alt={HERO_ALT} className="absolute inset-0 h-full w-full object-cover object-center" />
+          </picture>
+          <h1 className="sr-only">Restamp: your property journey starts here. Search smart, find better.</h1>
         </section>
 
         {/* Search Panel */}

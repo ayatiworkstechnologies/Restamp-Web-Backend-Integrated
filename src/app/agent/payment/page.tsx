@@ -1,164 +1,193 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useRef } from 'react';
+/**
+ * Agent plan payment — the real Razorpay flow through the backend.
+ *
+ * The order comes from POST /payments/checkout (amount decided by the
+ * server), Razorpay's hosted window collects the payment, and POST
+ * /payments/verify checks the signature server-side BEFORE the plan is
+ * activated. This page never activates anything from a click: with the
+ * provider unconfigured the button is disabled and says so; when activation
+ * lags the payment (paid first, webhook later) the success screen says
+ * "activation pending" instead of claiming a plan that is not active yet.
+ *
+ * There are no discount codes or added-fee rows here —
+ * the backend sells each plan for its price, full stop.
+ */
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { getSession, isPlaceholderName, loginHref } from '@/lib/api/session';
+import { loginHref, useSession } from '@/lib/api/session';
+import { listAgentPlans, type AgentPlanCard } from '@/lib/api/broker';
 import {
-  locationPackages,
-  getDraftPackage,
-  hasActiveAgentSubscription,
-  AGENT_PROMO_CODES,
-  calculateAgentPackageBill,
-  type LocationPackage,
-} from '@/lib/agentPlan';
+  createCheckout,
+  formatPaise,
+  getPaymentConfig,
+  loadRazorpay,
+  openRazorpayCheckout,
+  verifyPayment,
+} from '@/lib/api/payments';
+import { ApiError, errorMessage, isApiError } from '@/lib/api/client';
+import { clearAgentCheckoutDraft, getAgentCheckoutDraft } from '@/lib/agentCheckout';
 import {
-  ShieldCheck,
-  CreditCard,
-  Smartphone,
-  Building,
-  CheckCircle2,
-  Check,
-  Lock,
-  ArrowRight,
-  ArrowLeft,
-  Tag,
+  AlertCircle,
   AlertTriangle,
-  RotateCcw,
-  Sparkles,
-  MapPin,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  CheckCircle2,
   Clock,
-  Download,
-  X,
+  Loader2,
+  Lock,
+  MapPin,
+  ShieldCheck,
 } from 'lucide-react';
 
-type PaymentMethod = 'upi' | 'card' | 'netbanking';
-type PaymentState = 'idle' | 'processing' | 'success' | 'failed' | 'cancelled';
+type Stage = 'summary' | 'processing' | 'success';
+type Result = { planName: string; amount: string; reference: string; activated: boolean; localities: number };
+
+/** The backend's detail strings are user-facing by design; prefer them so a
+ * 503 ("not configured yet") or 409 ("already recorded") reads exactly right. */
+function payErrorMessage(e: unknown, fallback: string): string {
+  if (e instanceof ApiError && e.detail) return e.detail;
+  return errorMessage(e, fallback);
+}
 
 export default function AgentPaymentPage() {
   const router = useRouter();
+  const { session, ready } = useSession();
 
-  // Authentication check
-  const [profile, setProfile] = useState<{ name: string; mobile?: string } | null>(null);
+  const [plans, setPlans] = useState<AgentPlanCard[] | null>(null);
+  const [provider, setProvider] = useState<'razorpay' | 'none' | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
-  // Selected package and locations from draft
-  const [pkg, setPkg] = useState<LocationPackage>(locationPackages[1]); // default: 10
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([
-    'OMR IT Corridor',
-    'Sholinganallur',
-    'Velachery',
-    'Adyar & Besant Nagar',
-    'Anna Nagar',
-  ]);
+  const [stage, setStage] = useState<Stage>('summary');
+  const [payError, setPayError] = useState('');
+  const [choiceWarnings, setChoiceWarnings] = useState<string[]>([]);
+  const [result, setResult] = useState<Result | null>(null);
 
-  // Promo code & discount
-  const [promoCode, setPromoCode] = useState('');
-  const [discount, setDiscount] = useState(0);
-  const [promoMessage, setPromoMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  // The draft (plan code + localities) written by /agent/packages.
+  const [draft, setDraft] = useState<{ plan_code: string; localities: string[] } | null>(null);
 
-  // Payment method selection
-  const [method, setMethod] = useState<PaymentMethod>('upi');
-  const [upiApp, setUpiApp] = useState('Google Pay');
-  const [upiId, setUpiId] = useState('');
+  // Signed-in agents only: the checkout order belongs to an account.
+  useEffect(() => {
+    if (ready && !session) router.replace(loginHref('/agent/payment', 'agent'));
+  }, [ready, session, router]);
 
-  // Card fields
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardHolder, setCardHolder] = useState('');
-  const [expiry, setExpiry] = useState('');
-  const [cvv, setCvv] = useState('');
-
-  // Net banking bank
-  const [selectedBank, setSelectedBank] = useState('HDFC Bank');
-
-  // Payment submission state
-  const [paymentState, setPaymentState] = useState<PaymentState>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [paymentResult, setPaymentResult] = useState<any>(null);
-  const [redirectCountdown, setRedirectCountdown] = useState(10);
-
-  // Duplicate charge protection flag & idempotency key
-  const isSubmittingRef = useRef(false);
-  const idempotencyKeyRef = useRef<string>(`IDEMP_${Date.now()}_${Math.random()}`);
+  // Read the draft after mount (sessionStorage is browser-only).
+  useEffect(() => {
+    const d = getAgentCheckoutDraft();
+    setDraft(d ? { plan_code: d.plan_code, localities: d.localities } : null);
+  }, []);
 
   useEffect(() => {
-    // Signed-in Restamp account (real session); no phone number is exposed by the backend profile.
-    const session = getSession();
-    if (!session) {
-      router.replace(loginHref('/agent/payment', 'agent'));
-      return;
-    }
-    setProfile({ name: isPlaceholderName(session.displayName) ? '' : session.displayName });
+    let cancelled = false;
+    setLoadError('');
+    Promise.all([listAgentPlans(), getPaymentConfig()])
+      .then(([items, config]) => {
+        if (cancelled) return;
+        setPlans(items);
+        setProvider(config.provider);
+      })
+      .catch((e) => !cancelled && setLoadError(errorMessage(e, 'Could not load the payment details. Please try again.')));
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
 
-    // Retrieve draft selection
-    const draft = getDraftPackage();
-    if (draft) {
-      const foundPkg = locationPackages.find((p) => p.id === draft.packageId);
-      if (foundPkg) setPkg(foundPkg);
-      if (draft.selectedLocations && draft.selectedLocations.length > 0) {
-        setSelectedLocations(draft.selectedLocations);
+  const plan = useMemo(
+    () => (draft && plans ? plans.find((p) => p.code === draft.plan_code) ?? null : null),
+    [draft, plans]
+  );
+
+  const pay = async () => {
+    if (!plan || !draft) return;
+    setPayError('');
+    setChoiceWarnings([]);
+    setStage('processing');
+    try {
+      const checkout = await createCheckout('agent', plan.code, draft.localities);
+      // The server validated the locality choice at checkout; if any chosen
+      // locality could not be covered, stop and let the agent fix it BEFORE
+      // any money moves.
+      const warnings: string[] = [];
+      if (checkout.unmatched_localities?.length) {
+        warnings.push(
+          `Not in the coverage catalogue (excluded): ${checkout.unmatched_localities.join(', ')}`
+        );
       }
-    }
-  }, [router]);
+      if (checkout.unavailable_localities?.length) {
+        warnings.push(
+          `Currently not serviceable (excluded): ${checkout.unavailable_localities.join(', ')}`
+        );
+      }
+      if (warnings.length) {
+        setChoiceWarnings(warnings);
+        setStage('summary');
+        return;
+      }
 
-  // Auto redirect countdown on success
-  useEffect(() => {
-    if (paymentState !== 'success') return;
-    if (redirectCountdown <= 0) {
-      router.push('/agent/dashboard');
-      return;
-    }
-    const timer = setInterval(() => {
-      setRedirectCountdown((prev) => prev - 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [paymentState, redirectCountdown, router]);
-
-  // Apply Promo
-  const handleApplyPromo = () => {
-    const clean = promoCode.trim().toUpperCase();
-    if (AGENT_PROMO_CODES[clean]) {
-      const discountValue = AGENT_PROMO_CODES[clean];
-      setDiscount(discountValue);
-      setPromoMessage({
-        ok: true,
-        text: `Promo code ${clean} applied! You saved ₹${discountValue}.00.`,
+      const scriptReady = await loadRazorpay();
+      if (!scriptReady) {
+        throw new Error('The payment window could not be loaded. Check your connection and try again.');
+      }
+      const response = await openRazorpayCheckout({
+        keyId: checkout.razorpay_key_id,
+        orderId: checkout.razorpay_order_id,
+        amountPaise: checkout.amount_paise,
+        currency: checkout.currency,
+        name: 'RESTAMP',
+        description: plan.name,
       });
-    } else {
-      setDiscount(0);
-      setPromoMessage({
-        ok: false,
-        text: 'Invalid promo code. Try PARTNER500, RERAPRO, or GROWTH300.',
+      // Verified by the backend (signature + order re-fetch) before anything
+      // is activated — this screen only reflects the verification result.
+      const verified = await verifyPayment(
+        response.razorpay_order_id,
+        response.razorpay_payment_id,
+        response.razorpay_signature
+      );
+      setResult({
+        planName: verified.plan_name || plan.name,
+        amount: formatPaise(verified.amount_paise ?? checkout.amount_paise),
+        reference: verified.transaction_id || String(verified.payment_id),
+        activated: verified.activated,
+        localities: draft.localities.length,
       });
+      clearAgentCheckoutDraft();
+      setStage('success');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+      const message =
+        e instanceof Error && e.message === 'dismissed'
+          ? 'The payment window was closed before the payment was completed. Nothing has been charged and no plan was activated.'
+          : e instanceof Error && e.message === 'unavailable'
+          ? 'The payment window could not be opened. Check your connection and try again.'
+          : payErrorMessage(e, 'The payment could not be completed. Please try again.');
+      setPayError(message);
+      setStage('summary');
     }
   };
 
-  // Bill calculations
-  const bill = calculateAgentPackageBill(pkg, discount);
+  // --- Waiting for the session/draft/catalogue -------------------------------
 
-  // Card formatting
-  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, '').slice(0, 16);
-    const formatted = digits.match(/.{1,4}/g)?.join(' ') || digits;
-    setCardNumber(formatted);
-  };
+  if (!ready || !session || !draft || (!plans && !loadError)) {
+    return (
+      <>
+        <Header />
+        <main className="min-h-[70vh] bg-slate-50/80 flex items-center justify-center">
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <Loader2 size={16} className="animate-spin text-[#087ed9]" /> Preparing your payment…
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
-  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let clean = e.target.value.replace(/\D/g, '').slice(0, 4);
-    if (clean.length >= 2) {
-      clean = clean.slice(0, 2) + '/' + clean.slice(2);
-    }
-    setExpiry(clean);
-  };
-
-  // Online payment is not connected to a payment gateway yet, and the
-  // backend's agent plan purchase is a simulation, so nothing is charged,
-  // recorded or activated here: the button is disabled and this only explains
-  // why (never a fake "payment successful").
-  const handleProcessPayment = () => {
-    setErrorMessage('Online payment is not available yet. No payment was taken and no plan was activated.');
-  };
+  const paid = stage === 'success' && result;
 
   return (
     <>
@@ -174,17 +203,15 @@ export default function AgentPaymentPage() {
             <span className="text-slate-300">&rarr;</span>
             <span className="flex items-center gap-1.5 text-emerald-600">
               <CheckCircle2 size={16} className="text-emerald-500" />
-              <span>2. Package &amp; Locations</span>
+              <span>2. Plan &amp; Localities</span>
             </span>
             <span className="text-slate-300">&rarr;</span>
             <span
               className={`flex items-center gap-1.5 ${
-                paymentState === 'success'
-                  ? 'text-emerald-600'
-                  : 'text-[#087ed9] bg-sky-50 px-3 py-1 rounded-full border border-sky-200'
+                paid ? 'text-emerald-600' : 'text-[#087ed9] bg-sky-50 px-3 py-1 rounded-full border border-sky-200'
               }`}
             >
-              {paymentState === 'success' ? (
+              {paid ? (
                 <CheckCircle2 size={16} className="text-emerald-500" />
               ) : (
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#087ed9] text-white text-[11px]">
@@ -196,16 +223,12 @@ export default function AgentPaymentPage() {
             <span className="text-slate-300">&rarr;</span>
             <span
               className={`flex items-center gap-1.5 ${
-                paymentState === 'success'
-                  ? 'text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200'
-                  : 'text-slate-400'
+                paid ? 'text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200' : 'text-slate-400'
               }`}
             >
               <span
                 className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
-                  paymentState === 'success'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-200 text-slate-600'
+                  paid ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
                 }`}
               >
                 4
@@ -214,543 +237,312 @@ export default function AgentPaymentPage() {
             </span>
           </div>
 
-          {/* Heading */}
-          {paymentState !== 'success' && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <Link
-                  href="/agent/packages"
-                  className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-[#087ed9] transition mb-2"
-                >
-                  <ArrowLeft size={14} /> Back to Package Selection
-                </Link>
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-                  Secure Syndicate Payment
-                </h1>
-                <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  Activate your {pkg.name} subscription across {selectedLocations.length} chosen micro-markets.
-                </p>
-              </div>
-
-              {/* Security Badge */}
-              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full self-start sm:self-auto">
-                <ShieldCheck size={16} className="text-emerald-600" />
-                <span>256-Bit Encrypted Payment Desk</span>
-              </div>
-            </div>
-          )}
-
-          {/* SUCCESS STATE - 2 Column Split Layout matching Reference Mockup */}
-          {paymentState === 'success' && paymentResult && (
+          {/* SUCCESS */}
+          {paid ? (
             <div className="max-w-4xl mx-auto bg-white rounded-[32px] sm:rounded-[36px] shadow-2xl shadow-slate-200/80 border border-slate-100 p-6 sm:p-9 lg:p-10 animate-fadeIn">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-10 items-stretch">
-                {/* LEFT COLUMN: Confirmation Icon, Heading, Buttons & Auto-Redirect */}
                 <div className="md:col-span-6 flex flex-col justify-between items-center text-center px-2 sm:px-4 py-2">
                   <div className="w-full flex flex-col items-center">
-                    {/* Glowing Circular Success Icon */}
                     <div className="relative mb-6">
                       <div className="w-20 h-20 rounded-full bg-emerald-100/70 flex items-center justify-center shadow-inner">
-                        <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#10b981] flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
+                        <div className="w-14 h-14 sm:w-14 sm:h-14 rounded-full bg-[#10b981] flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
                           <Check className="w-7 h-7 sm:w-8 sm:h-8 text-white stroke-[3.2]" />
                         </div>
                       </div>
                     </div>
 
-                    {/* Verified Badge */}
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200/80 mb-3 inline-flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Payment Verified &amp; Active
+                    <span
+                      className={`text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border mb-3 inline-flex items-center gap-1.5 ${
+                        result!.activated
+                          ? 'text-emerald-700 bg-emerald-50 border-emerald-200/80'
+                          : 'text-amber-700 bg-amber-50 border-amber-200/80'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          result!.activated ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'
+                        }`}
+                      />
+                      {result!.activated ? 'Payment Verified & Active' : 'Payment Verified · Activation Pending'}
                     </span>
 
-                    {/* Headline */}
                     <h2 className="text-2xl sm:text-[26px] font-extrabold text-slate-900 tracking-tight leading-snug">
-                      Welcome to Restamp Agent Hub!
+                      {result!.activated ? 'Welcome to Restamp Agent Hub!' : 'Payment received'}
                     </h2>
 
-                    {/* Subtitle / Description */}
                     <p className="text-xs sm:text-sm text-slate-500 mt-2.5 max-w-xs mx-auto leading-relaxed">
-                      Your <strong className="text-slate-800 font-semibold">{pkg.name}</strong> subscription has been successfully activated.
+                      {result!.activated
+                        ? `Your ${result!.planName} subscription is now active on your account.`
+                        : `${result!.planName} was paid and confirmed by the payment provider. Activation is completed by the backend shortly — if it does not reflect in your dashboard, contact support.`}
                     </p>
                   </div>
 
-                  {/* Buttons & Countdown */}
                   <div className="w-full max-w-xs space-y-3 mt-8">
-                    {/* Primary Button */}
                     <Link
                       href="/agent/dashboard"
                       className="w-full py-3.5 px-6 rounded-2xl bg-[#005f3e] hover:bg-[#004e33] text-white font-bold text-sm tracking-wide transition duration-150 shadow-md shadow-emerald-950/10 flex items-center justify-center gap-2"
                     >
-                      <span>Open Agent Console Now</span>
+                      <span>Open Agent Console</span>
                       <ArrowRight size={16} />
                     </Link>
-
-                    {/* Secondary Button */}
                     <Link
-                      href="/agent/packages"
+                      href="/agent/dashboard/payments"
                       className="w-full py-3.5 px-6 rounded-2xl bg-[#f3f4f6] hover:bg-slate-200/80 text-slate-700 font-semibold text-sm transition duration-150 flex items-center justify-center"
                     >
-                      <span>View Chennai Micro-Markets</span>
+                      <span>View Payment History</span>
                     </Link>
-
-                    {/* Auto Redirect Banner */}
-                    <div className="pt-2 text-[11px] sm:text-xs text-slate-500 flex items-center justify-center gap-1.5">
-                      <Clock size={13} className="text-emerald-600 animate-spin" />
+                    <div className="pt-2 text-[11px] sm:text-xs text-slate-400 flex items-center justify-center gap-1.5">
+                      <Clock size={13} className="text-slate-400" />
                       <span>
-                        Redirecting to your Agent Portal in{' '}
-                        <strong className="text-slate-800 font-bold">{redirectCountdown} seconds...</strong>
+                        A signed Razorpay webhook can also complete activation if the browser closed early.
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* RIGHT COLUMN: Payment Summary Soft-Gray Card */}
                 <div className="md:col-span-6 bg-[#f8f9fa] rounded-[24px] sm:rounded-[28px] p-6 sm:p-7 border border-slate-200/60 flex flex-col justify-between relative text-left">
-                  {/* Top-Right Close Button */}
-                  <Link
-                    href="/agent/dashboard"
-                    className="absolute top-5 right-5 text-slate-400 hover:text-slate-700 transition p-1.5 rounded-full hover:bg-slate-200/60"
-                    title="Close"
-                  >
-                    <X size={16} />
-                  </Link>
-
                   <div>
-                    {/* Header */}
                     <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight mb-4">
                       Payment Summary
                     </h3>
 
-                    {/* Subscriber & Tier Metadata */}
                     <div className="space-y-3.5 mb-5">
                       <div>
                         <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">
-                          Subscriber
+                          Plan
                         </span>
                         <span className="text-xs sm:text-sm font-semibold text-slate-900 mt-0.5 block">
-                          {profile?.name || 'Verified Agent'}
+                          {result!.planName}
                         </span>
                       </div>
                       <div>
                         <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">
-                          Subscribed Tier
+                          Covered Localities
                         </span>
                         <span className="text-xs sm:text-sm font-semibold text-slate-900 mt-0.5 block">
-                          {pkg.name} ({pkg.badge})
+                          {result!.localities} selected at checkout
                         </span>
                       </div>
                     </div>
 
-                    {/* Inner White Card with Rows & Dividers */}
-                    <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-4.5 space-y-2.5 shadow-xs">
-                      <div className="flex items-center justify-between text-xs py-1 border-b border-slate-100">
-                        <span className="text-slate-500">Transaction ID:</span>
+                    <div className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-2.5 shadow-xs">
+                      <div className="flex items-center justify-between text-xs py-1">
+                        <span className="text-slate-500">Payment reference:</span>
                         <span className="font-mono font-bold text-slate-800 text-[11px] sm:text-xs">
-                          {paymentResult.paymentRecord.transactionRef}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs py-1 border-b border-slate-100">
-                        <span className="text-slate-500">Payment Reference:</span>
-                        <span className="font-mono font-bold text-slate-800 text-[11px] sm:text-xs">
-                          {paymentResult.paymentRecord.id}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs py-1 border-b border-slate-100">
-                        <span className="text-slate-500">Active Micro-Markets:</span>
-                        <span className="font-bold text-[#087ed9] text-[11px] sm:text-xs">
-                          {selectedLocations.length} Locations Activated
+                          {result!.reference}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-xs py-1">
-                        <span className="text-slate-500">Syndication Access:</span>
-                        <span className="font-semibold text-slate-700 text-[11px] sm:text-xs">
-                          90 Days Full Access
-                        </span>
-                      </div>
-                      <div className="pt-2 border-t border-slate-100 flex justify-end">
-                        <span className="text-xs font-bold text-[#059669]">
-                          Total {selectedLocations.length} Micro-Markets
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Bill Breakdown Rows */}
-                    <div className="mt-4 space-y-1.5 text-xs">
-                      <div className="flex justify-between text-slate-600">
-                        <span>Base Subscription</span>
-                        <span className="font-semibold text-slate-900">
-                          ₹{bill.basePrice.toLocaleString('en-IN')}
-                        </span>
-                      </div>
-                      {bill.discount > 0 && (
-                        <div className="flex justify-between text-emerald-600 font-medium">
-                          <span>Promo Discount</span>
-                          <span>- ₹{bill.discount.toLocaleString('en-IN')}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-slate-600">
-                        <span>18% GST (ITC Eligible)</span>
-                        <span className="font-semibold text-slate-900">
-                          + ₹{bill.gst.toLocaleString('en-IN')}
+                        <span className="text-slate-500">Verification:</span>
+                        <span className="font-semibold text-emerald-700 text-[11px] sm:text-xs">
+                          Signature verified by RESTAMP backend
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Bottom Right Amount Paid */}
                   <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col items-end text-right">
-                    <span className="text-xs font-semibold text-[#059669] tracking-wider uppercase">
-                      Amount Paid
-                    </span>
+                    <span className="text-xs font-semibold text-[#059669] tracking-wider uppercase">Amount Paid</span>
                     <span className="text-2xl sm:text-3xl font-extrabold text-[#059669] tracking-tight mt-0.5">
-                      ₹{bill.total.toLocaleString('en-IN')}
+                      {result!.amount}
                     </span>
-                    <span className="text-[10px] text-slate-400 mt-0.5">
-                      (incl. GST)
-                    </span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">No extra fees added by Restamp</span>
                   </div>
                 </div>
               </div>
             </div>
-          )}
-
-          {/* MAIN CHECKOUT FORM (when not in success state) */}
-          {paymentState !== 'success' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              {/* LEFT 7 COLS: PAYMENT METHODS */}
-              <div className="lg:col-span-7 bg-white rounded-[32px] p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+          ) : (
+            <>
+              {/* Heading */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
-                    Select Payment Gateway
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Choose your preferred payment method. Input Tax Credit GST invoice generated automatically.
+                  <Link
+                    href="/agent/packages"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-[#087ed9] transition mb-2"
+                  >
+                    <ArrowLeft size={14} /> Back to Plan Selection
+                  </Link>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+                    Secure Plan Payment
+                  </h1>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                    Pay for your chosen plan and localities — activation happens after the backend verifies the
+                    payment.
                   </p>
                 </div>
 
-                {/* Gateway Tabs */}
-                <div className="grid grid-cols-3 gap-2.5 p-1.5 rounded-2xl bg-slate-100 border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMethod('upi');
-                      setErrorMessage('');
-                    }}
-                    className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                      method === 'upi'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <Smartphone size={16} className={method === 'upi' ? 'text-[#087ed9]' : ''} />
-                    <span>UPI / QR</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMethod('card');
-                      setErrorMessage('');
-                    }}
-                    className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                      method === 'card'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <CreditCard size={16} className={method === 'card' ? 'text-[#087ed9]' : ''} />
-                    <span>Card</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMethod('netbanking');
-                      setErrorMessage('');
-                    }}
-                    className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                      method === 'netbanking'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <Building size={16} className={method === 'netbanking' ? 'text-[#087ed9]' : ''} />
-                    <span>Net Banking</span>
-                  </button>
+                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full self-start sm:self-auto">
+                  <ShieldCheck size={16} className="text-emerald-600" />
+                  <span>Razorpay secured · verified by Restamp</span>
                 </div>
-
-                {/* TAB 1: UPI */}
-                {method === 'upi' && (
-                  <div className="space-y-4 pt-2">
-                    <p className="text-xs font-bold text-slate-700">Choose Instant UPI App:</p>
-                    <div className="grid grid-cols-3 gap-3">
-                      {['Google Pay', 'PhonePe', 'Paytm'].map((app) => (
-                        <div
-                          key={app}
-                          onClick={() => setUpiApp(app)}
-                          className={`p-3 rounded-xl border text-center transition cursor-pointer text-xs font-bold ${
-                            upiApp === app
-                              ? 'border-[#087ed9] bg-sky-50 text-[#087ed9] ring-2 ring-[#087ed9]/20'
-                              : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          {app}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="pt-2">
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Or Enter UPI ID / VPA
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. yourname@okhdfcbank"
-                        value={upiId}
-                        onChange={(e) => setUpiId(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] outline-none transition"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 2: CREDIT / DEBIT CARD */}
-                {method === 'card' && (
-                  <div className="space-y-3.5 pt-2">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Card Number</label>
-                      <input
-                        type="text"
-                        maxLength={19}
-                        placeholder="4532 •••• •••• 8892"
-                        value={cardNumber}
-                        onChange={handleCardNumberChange}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-mono font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] outline-none transition"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Cardholder Name</label>
-                      <input
-                        type="text"
-                        placeholder="Name as printed on card"
-                        value={cardHolder}
-                        onChange={(e) => setCardHolder(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] outline-none transition"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">Expiry (MM/YY)</label>
-                        <input
-                          type="text"
-                          maxLength={5}
-                          placeholder="MM/YY"
-                          value={expiry}
-                          onChange={handleExpiryChange}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-mono font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] outline-none transition"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">CVV / CVC</label>
-                        <input
-                          type="password"
-                          maxLength={4}
-                          placeholder="•••"
-                          value={cvv}
-                          onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white px-3.5 py-2.5 text-xs sm:text-sm font-mono font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] outline-none transition"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 3: NET BANKING */}
-                {method === 'netbanking' && (
-                  <div className="space-y-3 pt-2">
-                    <p className="text-xs font-bold text-slate-700">Popular Indian Commercial Banks:</p>
-                    <div className="grid grid-cols-2 gap-2.5">
-                      {['HDFC Bank', 'ICICI Bank', 'State Bank of India', 'Axis Bank', 'Kotak Mahindra'].map(
-                        (bank) => (
-                          <div
-                            key={bank}
-                            onClick={() => setSelectedBank(bank)}
-                            className={`p-3 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center justify-between ${
-                              selectedBank === bank
-                                ? 'border-[#087ed9] bg-sky-50 text-[#087ed9]'
-                                : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                            }`}
-                          >
-                            <span>{bank}</span>
-                            {selectedBank === bank && <Check size={14} />}
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )}
-
-
-
-                {/* Errors & Status Warnings */}
-                {errorMessage && (
-                  <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-xs font-semibold text-rose-800 animate-fadeIn">
-                    <AlertTriangle size={16} className="text-rose-600 shrink-0" />
-                    <span>{errorMessage}</span>
-                  </div>
-                )}
-
-                {/* Submit Action Button */}
-                <button
-                  type="button"
-                  onClick={handleProcessPayment}
-                  disabled
-                  title="Online payment is not available yet"
-                  className="w-full h-[53px] rounded-2xl bg-[#087ed9] hover:bg-sky-600 disabled:opacity-50 text-white font-extrabold text-sm transition shadow-lg hover:shadow-sky-500/25 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {paymentState === 'processing' ? (
-                    <div className="flex items-center gap-2">
-                      <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Verifying with Banking Network...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <Lock size={16} />
-                      <span>Pay ₹{bill.total.toLocaleString('en-IN')} &amp; Activate Syndicate</span>
-                    </>
-                  )}
-                </button>
-
-                <p className="text-[11px] text-center text-slate-400">
-                  Online payment is not available yet. No payment is taken on this page.
-                </p>
               </div>
 
-              {/* RIGHT 5 COLS: ORDER BREAKDOWN & LOCATIONS */}
-              <div className="lg:col-span-5 space-y-6">
-                <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-slate-200 shadow-sm space-y-5">
-                  <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
-                      Order Summary
-                    </h3>
-                    <span className="text-xs font-bold text-[#087ed9] bg-sky-50 px-2.5 py-0.5 rounded-full">
-                      {pkg.badge}
-                    </span>
-                  </div>
+              {loadError ? (
+                <div className="flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  <AlertCircle size={16} />
+                  <span>{loadError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAttempt((n) => n + 1)}
+                    className="ml-auto text-xs font-bold text-rose-800 hover:underline cursor-pointer"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : !plan ? (
+                <div className="rounded-[32px] bg-white p-8 border border-slate-200 shadow-sm text-center space-y-3">
+                  <AlertCircle size={28} className="mx-auto text-slate-300" />
+                  <h2 className="text-lg font-extrabold text-slate-900">No plan is selected yet</h2>
+                  <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto">
+                    Pick a plan and your localities first — this page takes the payment for that exact choice.
+                  </p>
+                  <Link
+                    href="/agent/packages"
+                    className="inline-flex items-center gap-2 rounded-2xl bg-[#087ed9] hover:bg-sky-600 text-white text-sm font-bold px-6 h-[48px] transition"
+                  >
+                    Choose a plan <ArrowRight size={15} />
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  {/* LEFT 7 COLS: PAYMENT */}
+                  <div className="lg:col-span-7 bg-white rounded-[32px] p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+                    <div>
+                      <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                        Pay with Razorpay
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        The amount is set by Restamp&apos;s backend for your plan. Razorpay&apos;s hosted window
+                        handles the payment; Restamp verifies it before activating anything.
+                      </p>
+                    </div>
 
-                  <div>
-                    <h4 className="text-xl font-black text-slate-900">{pkg.name}</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {pkg.validityDays} Days Validity • Up to {pkg.mandateLimit} Property Unlocks
+                    {provider === 'none' && (
+                      <div className="flex items-start gap-2.5 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 animate-fadeIn">
+                        <AlertCircle size={16} className="mt-0.5 text-amber-600 shrink-0" />
+                        <span>
+                          <strong className="font-bold">Online payments are not configured yet.</strong> Nothing can
+                          be charged from this page and no plan is activated. Please try again later.
+                        </span>
+                      </div>
+                    )}
+
+                    {choiceWarnings.length > 0 && (
+                      <div className="flex items-start gap-2.5 p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 animate-fadeIn">
+                        <AlertTriangle size={16} className="mt-0.5 text-amber-600 shrink-0" />
+                        <div className="space-y-1.5">
+                          {choiceWarnings.map((w) => (
+                            <p key={w}>{w}</p>
+                          ))}
+                          <Link href="/agent/packages" className="block font-bold underline">
+                            Edit your localities before paying
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+
+                    {payError && (
+                      <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-xs font-semibold text-rose-800 animate-fadeIn">
+                        <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+                        <span>{payError}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => void pay()}
+                      disabled={stage === 'processing' || provider !== 'razorpay'}
+                      title={
+                        provider === 'none' ? 'Online payment is not configured yet' : undefined
+                      }
+                      className="w-full h-[53px] rounded-2xl bg-[#087ed9] hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-sm transition shadow-lg hover:shadow-sky-500/25 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {stage === 'processing' ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 size={16} className="animate-spin" />
+                          <span>Opening the payment window…</span>
+                        </div>
+                      ) : (
+                        <>
+                          <Lock size={16} />
+                          <span>Pay {formatPaise(plan.price_paise)} securely</span>
+                        </>
+                      )}
+                    </button>
+
+                    <p className="text-[11px] text-center text-slate-400">
+                      Closing the payment window charges nothing. Restamp never sees or stores your card details.
                     </p>
                   </div>
 
-                  {/* Locations Covered List */}
-                  <div>
-                    <div className="flex items-center justify-between text-xs mb-2">
-                      <span className="font-bold text-slate-700">
-                        Covered Micro-Markets ({selectedLocations.length}):
-                      </span>
-                      <Link
-                        href="/agent/packages"
-                        className="text-[#087ed9] font-bold hover:underline"
-                      >
-                        Edit
-                      </Link>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
-                      {selectedLocations.map((loc) => (
-                        <span
-                          key={loc}
-                          className="inline-flex items-center gap-1 text-[11px] font-semibold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg"
-                        >
-                          <MapPin size={10} className="text-[#087ed9]" />
-                          <span>{loc}</span>
+                  {/* RIGHT 5 COLS: ORDER SUMMARY */}
+                  <div className="lg:col-span-5 space-y-6">
+                    <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-slate-200 shadow-sm space-y-5">
+                      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Order Summary</h3>
+                        <span className="text-xs font-bold text-[#087ed9] bg-sky-50 px-2.5 py-0.5 rounded-full">
+                          {plan.duration_days} days
                         </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Promo Code Box */}
-                  <div className="pt-2">
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Have a Syndicate Promo Code?
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="e.g. PARTNER500"
-                        value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                        className="flex-1 rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-mono font-bold text-slate-800 placeholder:text-slate-400 focus:border-[#087ed9] outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleApplyPromo}
-                        className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
-                      >
-                        Apply
-                      </button>
-                    </div>
-
-                    {promoMessage && (
-                      <p
-                        className={`text-[11px] font-semibold mt-1.5 ${
-                          promoMessage.ok ? 'text-emerald-600' : 'text-rose-600'
-                        }`}
-                      >
-                        {promoMessage.text}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Price Breakdown */}
-                  <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
-                    <div className="flex justify-between text-slate-600">
-                      <span>Package Base Subscription:</span>
-                      <span className="font-semibold text-slate-900">
-                        ₹{bill.basePrice.toLocaleString('en-IN')}.00
-                      </span>
-                    </div>
-
-                    {discount > 0 && (
-                      <div className="flex justify-between text-emerald-600 font-semibold">
-                        <span>Promo Discount ({promoCode.trim().toUpperCase()}):</span>
-                        <span>-₹{discount.toLocaleString('en-IN')}.00</span>
                       </div>
-                    )}
 
-                    <div className="flex justify-between text-slate-600">
-                      <span>GST (18% Input Tax Credit):</span>
-                      <span className="font-semibold text-slate-900">
-                        ₹{bill.gst.toLocaleString('en-IN')}.00
-                      </span>
+                      <div>
+                        <h4 className="text-xl font-black text-slate-900">{plan.name}</h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Up to {plan.locality_limit} localities • {plan.duration_days} days validity
+                        </p>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between text-xs mb-2">
+                          <span className="font-bold text-slate-700">Chosen Localities ({draft.localities.length}):</span>
+                          <Link href="/agent/packages" className="text-[#087ed9] font-bold hover:underline">
+                            Edit
+                          </Link>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+                          {draft.localities.map((loc) => (
+                            <span
+                              key={loc}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg"
+                            >
+                              <MapPin size={10} className="text-[#087ed9]" />
+                              <span>{loc}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
+                        <div className="flex justify-between text-slate-600">
+                          <span>Plan subscription:</span>
+                          <span className="font-semibold text-slate-900">{formatPaise(plan.price_paise)}</span>
+                        </div>
+                        <div className="pt-2 border-t border-slate-200 flex justify-between text-sm sm:text-base font-black text-slate-900">
+                          <span>Total payable:</span>
+                          <span className="text-[#087ed9]">{formatPaise(plan.price_paise)}</span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-400">
+                          The backend charges exactly the plan price — no added fees. Your localities are recorded
+                          on the order and re-verified at activation.
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-200 flex justify-between text-sm sm:text-base font-black text-slate-900">
-                      <span>Total Payable:</span>
-                      <span className="text-[#087ed9]">
-                        ₹{bill.total.toLocaleString('en-IN')}.00
-                      </span>
+                    <div className="rounded-2xl bg-sky-50 border border-sky-100 p-4 text-xs space-y-1.5 text-sky-950">
+                      <p className="font-bold flex items-center gap-1.5">
+                        <CheckCircle2 size={14} className="text-[#087ed9]" />
+                        <span>What happens after you pay</span>
+                      </p>
+                      <p className="text-[11px] text-sky-800 leading-relaxed">
+                        Restamp&apos;s backend verifies the payment signature and order amount, then activates your
+                        plan and coverage. If activation is briefly delayed, your payment stays recorded and can be
+                        completed from your dashboard.
+                      </p>
                     </div>
                   </div>
                 </div>
-
-                {/* Assurance Card */}
-                <div className="rounded-2xl bg-sky-50 border border-sky-100 p-4 text-xs space-y-1.5 text-sky-950">
-                  <p className="font-bold flex items-center gap-1.5">
-                    <CheckCircle2 size={14} className="text-[#087ed9]" />
-                    <span>Instant Syndicate Activation</span>
-                  </p>
-                  <p className="text-[11px] text-sky-800 leading-relaxed">
-                    Once payment confirmation is received, your verified RERA agent credentials and 100% commission deal rights unlock immediately.
-                  </p>
-                </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
       </main>

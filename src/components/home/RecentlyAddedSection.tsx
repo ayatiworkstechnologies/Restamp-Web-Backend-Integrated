@@ -104,11 +104,27 @@ function RecentCard({ p, liked, verified }: { p: Property; liked: boolean; verif
             type="button"
             title={contact.error || undefined}
             disabled={contact.loading}
-            onClick={() => void contact.reveal()}
-            className="inline-flex w-full h-[53px] cursor-pointer items-center justify-center gap-2 rounded-[16px] bg-slate-100 px-5 text-sm font-semibold text-slate-900 transition hover:bg-slate-200 disabled:opacity-60"
+            onClick={() => {
+              if (contact.planRequired) {
+                window.location.href = '/buy/plans';
+                return;
+              }
+              void contact.reveal();
+            }}
+            className={`inline-flex w-full h-[53px] cursor-pointer items-center justify-center gap-2 rounded-[16px] px-5 text-sm font-semibold transition ${
+              contact.planRequired
+                ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                : 'bg-slate-100 text-slate-900 hover:bg-slate-200 disabled:opacity-60'
+            }`}
           >
             <Phone size={16} />
-            {contact.loading ? 'Loading…' : contact.error ? 'Number unavailable' : 'View Number'}
+            {contact.loading
+              ? 'Loading…'
+              : contact.planRequired
+              ? 'Choose a plan'
+              : contact.error
+              ? 'Number unavailable'
+              : 'View Number'}
           </button>
         )}
       </div>

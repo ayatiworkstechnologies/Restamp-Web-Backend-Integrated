@@ -14,17 +14,19 @@ import {
   Lock,
   Plus,
   RotateCcw,
+  Mail,
 } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { AdminUsersTable } from "@/components/settings/admin-users-table";
 import { RolesPermissionsView } from "@/components/settings/roles-permissions-view";
 import { PlatformConfigView } from "@/components/settings/platform-config-view";
 import { SecurityAuditView } from "@/components/settings/security-audit-view";
+import { EmailDeliveriesView } from "@/components/settings/email-deliveries-view";
 import { AdminUserModal } from "@/components/settings/admin-user-modal";
 import { useSettingsStore } from "@/context/settings-context";
 import { useAdminAuth } from "@/context/admin-auth-context";
 
-type SettingsTab = "staff" | "roles" | "config" | "audit";
+type SettingsTab = "staff" | "roles" | "config" | "audit" | "email";
 
 function SettingsManagementContent() {
   const searchParams = useSearchParams();
@@ -241,6 +243,19 @@ function SettingsManagementContent() {
               <FileText className="h-3.5 w-3.5" />
               <span>Security Audit Trail</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("email")}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
+                activeTab === "email"
+                  ? "bg-[#162d66] text-white shadow-sm"
+                  : "text-[#64748b] hover:bg-[#f8fafc] hover:text-[#101828]"
+              }`}
+            >
+              <Mail className="h-3.5 w-3.5" />
+              <span>Email Deliveries</span>
+            </button>
           </div>
 
           {loadError && (
@@ -260,6 +275,8 @@ function SettingsManagementContent() {
           {activeTab === "config" && <PlatformConfigView />}
 
           {activeTab === "audit" && <SecurityAuditView />}
+
+          {activeTab === "email" && <EmailDeliveriesView />}
         </main>
       </div>
 

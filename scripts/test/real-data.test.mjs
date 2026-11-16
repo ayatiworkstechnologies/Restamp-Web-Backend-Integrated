@@ -90,8 +90,8 @@ const contact = read('components/dashboard-shared/ContactUs.tsx');
 check('Contact Us never shows "sent" or stores messages; send is disabled; no placeholder support number',
   !contact.includes('setSent') && !contact.includes('localStorage') && contact.includes('disabled\n') && !/98400|9840000000/.test(contact));
 const pay = read('app/agent/payment/page.tsx');
-check('agent checkout cannot record a payment or activate a plan',
-  !pay.includes('activateAgentPackage') && !pay.includes('saveAgentPayment') && /onClick=\{handleProcessPayment\}\s*disabled/.test(pay));
+check('agent checkout cannot record a payment or activate a plan locally',
+  !pay.includes('activateAgentPackage') && !pay.includes('saveAgentPayment') && !pay.includes('localStorage') && pay.includes('verifyPayment'));
 check('home sections show real listings, never a sample phone number',
   read('components/home/RecentlyAddedSection.tsx').includes('searchListings(') && !read('components/home/RecentlyAddedSection.tsx').includes('98402'));
 check("production builds default to the live API", read('lib/api/client.ts').includes("const DEFAULT_PROD_API_URL = 'https://api.restamp.in';"));

@@ -10,6 +10,7 @@ import { errorMessage, isApiError } from '@/lib/api/client';
 import { loginHref, useSession } from '@/lib/api/session';
 import { parseApiDate } from '@/lib/datetime';
 import { formatIndianPhone, useOwnerContact } from '@/lib/useOwnerContact';
+import { toast } from '@/lib/notify';
 
 interface DealerEnquirySectionProps {
   property: Property;
@@ -36,7 +37,11 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
   const { session, ready } = useSession();
   const contact = useOwnerContact(property.id);
 
-  const ownerName = property.builderName || 'Property owner';
+  // The real owner of THIS property: the contact reveal's owner_name (the
+  // freshest, backend-verified name), else the listing detail's, else the
+  // existing neutral label when the owner has no safe saved name. Never a
+  // phone number; the backend sanitizes phone-shaped names to null.
+  const ownerName = contact.ownerName || property.builderName || 'Property owner';
   const ownerAddress = property.address || [property.locality, property.city].filter(Boolean).join(', ');
 
   const [message, setMessage] = useState('I am interested in this Property.');
@@ -66,12 +71,15 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
     try {
       await sendEnquiry(property.id, message.slice(0, MAX_CHARS));
       setSubmitted(true);
+      // Only after POST /buyer/enquiries succeeded: the owner has it in their leads.
+      toast.success('Enquiry sent', { description: 'The owner can see it in their leads.' });
     } catch (err) {
-      setErrorMsg(
-        isApiError(err, 'missing')
-          ? 'This property is no longer available for enquiries.'
-          : errorMessage(err, 'Your enquiry could not be sent. Please try again.')
-      );
+      const text = isApiError(err, 'missing')
+        ? 'This property is no longer available for enquiries.'
+        : errorMessage(err, 'Your enquiry could not be sent. Please try again.');
+      setErrorMsg(text);
+      // Short title only: the detailed reason is shown inline under the form.
+      toast.error('Enquiry not sent');
     } finally {
       setIsSubmitting(false);
     }
@@ -88,9 +96,15 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
     setVisitSending(true);
     try {
       const visit = await requestVisit(property.id, when, visitNote);
-      setVisitDone(parseApiDate(visit.scheduled_at)?.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) ?? 'the requested time');
+      const at = parseApiDate(visit.scheduled_at)?.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) ?? 'the requested time';
+      setVisitDone(at);
+      // Only after POST /buyer/visits succeeded; the owner still has to confirm it.
+      toast.success('Visit requested', { description: `For ${at}. The owner will confirm or decline.` });
     } catch (err) {
-      setVisitError(visitErrorMessage(err, 'Your visit request could not be sent. Please try again.', 'request'));
+      const text = visitErrorMessage(err, 'Your visit request could not be sent. Please try again.', 'request');
+      setVisitError(text);
+      // Short title only: the detailed reason is shown inline under the form.
+      toast.error('Visit request not sent');
     } finally {
       setVisitSending(false);
     }
@@ -160,6 +174,11 @@ export default function DealerEnquirySection({ property }: DealerEnquirySectionP
                       </button>
                     )}
                     {contact.error && <p className="text-[11px] text-red-600 font-semibold mt-1" role="alert">{contact.error}</p>}
+                    {contact.planRequired && (
+                      <a href="/buy/plans" className="text-[11px] font-bold text-[#087ed9] hover:underline mt-1 inline-block">
+                        View buyer plans →
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>

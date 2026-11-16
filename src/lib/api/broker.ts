@@ -6,10 +6,12 @@
  * - GET /broker/profile    the signed-in agent
  * - GET /broker/locations  the caller's unexpired coverage (postcode grants)
  * - GET /broker/listings   buyer-visible listings inside the caller's coverage only
+ * - GET /broker/plans            public catalogue of purchasable agent plans
+ * - GET /broker/locality-catalog public list of agent-enabled localities
  *
- * Coverage is decided by the backend (never by the browser). There is no
- * agent-leads, commission or payment-history endpoint, and plan purchase on
- * the backend is a simulation, so the website does not offer it.
+ * Coverage is decided by the backend (never by the browser). Plan purchase
+ * goes through the real /payments flow (Razorpay), so plan prices and
+ * locality choices here come from the backend, never from this bundle.
  */
 import { withRole } from './auth';
 import { apiGet, type Page } from './client';
@@ -76,4 +78,37 @@ export function planActive(plan: BrokerPlan | null): boolean {
   if (!plan.valid_until) return true;
   const end = new Date(/[zZ]|[+-]\d\d:\d\d$/.test(plan.valid_until) ? plan.valid_until : `${plan.valid_until}Z`);
   return Number.isNaN(end.getTime()) || end.getTime() > Date.now();
+}
+
+// --- purchasable plans (real checkout runs through /payments/*) --------------
+
+export type AgentPlanCard = {
+  code: string;
+  app_id: string;
+  name: string;
+  price_paise: number;
+  duration_days: number;
+  locality_limit: number;
+};
+
+export type AgentLocality = {
+  locality_id: number;
+  name: string;
+  pincodes: string[];
+};
+
+/** Public catalogue of the agent plans the backend actually sells. */
+export async function listAgentPlans(): Promise<AgentPlanCard[]> {
+  const res = await apiGet<{ items: AgentPlanCard[] }>('/broker/plans', undefined, false);
+  return res.items;
+}
+
+/** Public catalogue of localities an agent may choose (admin-enabled, served). */
+export async function listAgentLocalities(q?: string): Promise<AgentLocality[]> {
+  const res = await apiGet<{ items: AgentLocality[]; total: number }>(
+    '/broker/locality-catalog',
+    q ? { q } : undefined,
+    false
+  );
+  return res.items;
 }

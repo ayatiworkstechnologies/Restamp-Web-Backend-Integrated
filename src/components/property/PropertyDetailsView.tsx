@@ -405,6 +405,14 @@ export default function PropertyDetailsView({ property, similar = [] }: Property
                   )}
                 </div>
                 {contact.error && <p className="text-xs text-red-600" role="alert">{contact.error}</p>}
+                {contact.planRequired && (
+                  <Link
+                    href="/buy/plans"
+                    className="text-xs font-semibold text-[#087ed9] hover:underline"
+                  >
+                    View buyer plans →
+                  </Link>
+                )}
               </div>
             </div>
 

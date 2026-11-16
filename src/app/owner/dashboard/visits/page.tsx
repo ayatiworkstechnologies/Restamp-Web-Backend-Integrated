@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { formatVisit, updateVisitStatus, useOwnerLeads, visitBucket, type OwnerVisit, type VisitStatus } from '@/lib/ownerLeads';
 import { errorMessage } from '@/lib/api/client';
+import { confirmDialog } from '@/components/common/confirm-dialog';
+import { toast } from '@/lib/notify';
 import { card } from '../ui';
 import { CalendarCheck, Loader2 } from 'lucide-react';
 
@@ -19,7 +21,17 @@ const tone: Record<VisitStatus, string> = {
   CANCELLED: 'bg-red-50 text-red-600',
 };
 
-function actionsFor(v: OwnerVisit): { label: string; next: NextStatus; confirm: string; primary?: boolean }[] {
+type VisitAction = { label: string; next: NextStatus; confirm: string; primary?: boolean };
+
+/** Toast text shown only after PATCH /owner/visits/{id} succeeds. */
+const DONE: Record<NextStatus, string> = {
+  CONFIRMED: 'Visit confirmed',
+  DECLINED: 'Visit declined',
+  CANCELLED: 'Visit cancelled',
+  COMPLETED: 'Visit marked as completed',
+};
+
+function actionsFor(v: OwnerVisit): VisitAction[] {
   if (v.status === 'REQUESTED')
     return [
       { label: 'Decline', next: 'DECLINED', confirm: 'Decline this buyer-requested visit? The buyer can request another time.' },
@@ -42,14 +54,27 @@ export default function OwnerVisitsPage() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<{ id: number; text: string } | null>(null);
 
-  const act = async (v: OwnerVisit, next: NextStatus, question: string) => {
-    if (!confirm(question)) return;
+  const act = async (v: OwnerVisit, a: VisitAction) => {
+    const destructive = a.next === 'CANCELLED' || a.next === 'DECLINED';
+    const ok = await confirmDialog({
+      title: a.label === 'Complete' ? 'Complete visit' : a.label.endsWith('Visit') ? a.label : `${a.label} visit`,
+      body: a.confirm,
+      confirmLabel: a.label,
+      cancelLabel: 'Back',
+      tone: destructive ? 'danger' : 'default',
+    });
+    if (!ok) return;
     setBusyId(v.id);
     setActionError(null);
     try {
-      upsertVisit(await updateVisitStatus(v.id, next));
+      upsertVisit(await updateVisitStatus(v.id, a.next));
+      // Reached only when the backend accepted the change.
+      toast.success(DONE[a.next]);
     } catch (e) {
-      setActionError({ id: v.id, text: errorMessage(e, 'Could not update this visit. Please try again.') });
+      const text = errorMessage(e, 'Could not update this visit. Please try again.');
+      setActionError({ id: v.id, text });
+      // Short title only: the detailed reason is shown inline on the visit card.
+      toast.error('Visit not updated');
     } finally {
       setBusyId(null);
     }
@@ -117,7 +142,7 @@ export default function OwnerVisitsPage() {
                     key={a.label}
                     type="button"
                     disabled={busyId === v.id}
-                    onClick={() => void act(v, a.next, a.confirm)}
+                    onClick={() => void act(v, a)}
                     className={`inline-flex h-[53px] flex-1 cursor-pointer items-center justify-center rounded-[16px] px-4 text-sm font-semibold transition disabled:opacity-60 ${
                       a.primary ? 'bg-[#087ed9] text-white hover:bg-sky-600' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
                     }`}

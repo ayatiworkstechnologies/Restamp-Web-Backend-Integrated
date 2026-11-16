@@ -190,11 +190,27 @@ export default function PropertyCard({
             disabled={contact.loading}
             onClick={(e) => {
               e.stopPropagation();
+              if (contact.planRequired) {
+                router.push('/buy/plans');
+                return;
+              }
               void contact.reveal();
             }}
-            className="flex-1 h-[53px] px-3 border border-[#087ed9] text-[#087ed9] hover:bg-sky-50 disabled:opacity-60 font-semibold text-xs rounded-md transition text-center truncate flex items-center justify-center gap-1.5 cursor-pointer bg-white"
+            className={`flex-1 h-[53px] px-3 border font-semibold text-xs rounded-md transition text-center truncate flex items-center justify-center gap-1.5 cursor-pointer bg-white ${
+              contact.planRequired
+                ? 'border-amber-500 text-amber-600 hover:bg-amber-50'
+                : 'border-[#087ed9] text-[#087ed9] hover:bg-sky-50 disabled:opacity-60'
+            }`}
           >
-            <span>{contact.loading ? 'Loading…' : contact.error ? 'Number unavailable' : 'View Number'}</span>
+            <span>
+              {contact.loading
+                ? 'Loading…'
+                : contact.planRequired
+                ? 'Choose a plan'
+                : contact.error
+                ? 'Number unavailable'
+                : 'View Number'}
+            </span>
           </button>
         )}
         <button
